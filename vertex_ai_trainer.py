@@ -221,8 +221,8 @@ setup(
             args.extend([
                 "--dataset_path", f"gs://{self.config.bucket_name}/{self.dataset_name}",
                 "--epochs", "200",  # More epochs for larger dataset
-                "--batch_size", "16",  # Larger batch size for better convergence
-                "--learning_rate", "3e-5",  # Lower learning rate for stability
+                "--batch_size", "48",  # Maximum batch size for V100 16GB memory
+                "--learning_rate", "9e-5",  # Scaled learning rate for batch size 48 (3x from original)
                 "--experiment_name", "medical_grade_dr_classification",
                 "--num_classes", "5",
                 "--class_weights",  # Enable class weighting for imbalanced data

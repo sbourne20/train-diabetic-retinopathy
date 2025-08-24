@@ -35,9 +35,14 @@ class DataConfig:
     train_split: float = 0.7
     val_split: float = 0.15
     test_split: float = 0.15
-    batch_size: int = 16
-    num_workers: int = 4
+    batch_size: int = 32  # Increased from 16 for V100 optimization
+    num_workers: int = 6   # Reduced from 10 - will auto-adjust based on system
     pin_memory: bool = True
+    
+    # DataLoader optimizations
+    prefetch_factor: int = 8  # Enhanced prefetch for better GPU utilization
+    persistent_workers: bool = True  # Keep workers alive between epochs
+    drop_last: bool = True  # Drop incomplete batches for consistent performance
     
     # Augmentation parameters
     augment_prob: float = 0.8
@@ -57,10 +62,22 @@ class DataConfig:
 @dataclass
 class TrainingConfig:
     num_epochs: int = 100
-    learning_rate: float = 1e-4
+    learning_rate: float = 2e-4  # Scaled up for larger batch size (32 vs 16)
     weight_decay: float = 1e-5
     warmup_epochs: int = 10
-    scheduler_type: str = "cosine"  # cosine, linear, polynomial
+    scheduler_type: str = "cosine_restarts"  # cosine, cosine_restarts, linear, polynomial
+    
+    # Performance optimizations
+    compile_model: bool = True  # Use torch.compile() for PyTorch 2.0+
+    enable_amp: bool = True  # Automatic Mixed Precision training
+    gradient_accumulation_steps: int = 2  # Accumulate gradients for effective batch size 80
+    gradient_checkpointing: bool = True  # Trade compute for memory efficiency
+    max_grad_norm: float = 1.0  # Gradient clipping norm
+    
+    # Training efficiency
+    validation_frequency: int = 2  # Validate every N epochs (reduced for speed)
+    log_frequency: int = 100  # Log every N batches (reduced for performance)
+    save_frequency: int = 10  # Save checkpoint every N epochs
     
     # Loss function weights
     rg_loss_weight: float = 1.0

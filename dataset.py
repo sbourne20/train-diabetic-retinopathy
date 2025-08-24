@@ -232,7 +232,7 @@ def get_transforms(img_size: int = 224, is_training: bool = True) -> A.Compose:
                 contrast_limit=0.1, 
                 p=0.7
             ),
-            A.GaussNoise(var_limit=0.01, p=0.3),
+            A.GaussNoise(var_limit=(5.0, 10.0), p=0.3),
             A.Blur(blur_limit=3, p=0.3),
             A.CLAHE(p=0.3),
             A.Normalize(
@@ -378,6 +378,11 @@ def create_dataloaders(train_data: List[Dict],
                       config) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """Create PyTorch DataLoaders for train/val/test sets."""
     
+    # Auto-adjust num_workers based on system
+    import os
+    max_workers = min(config.data.num_workers, os.cpu_count() or 4)
+    print(f"Using {max_workers} workers for DataLoader (requested: {config.data.num_workers})")
+    
     # Get transforms
     train_transform = get_transforms(config.model.img_size, is_training=True)
     val_transform = get_transforms(config.model.img_size, is_training=False)
@@ -401,29 +406,33 @@ def create_dataloaders(train_data: List[Dict],
         img_size=config.model.img_size
     )
     
-    # Create dataloaders
+    # Create dataloaders with optimized settings
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.data.batch_size,
         shuffle=True,
-        num_workers=config.data.num_workers,
+        num_workers=max_workers,
         pin_memory=config.data.pin_memory,
-        drop_last=True
+        drop_last=getattr(config.data, 'drop_last', True),
+        prefetch_factor=getattr(config.data, 'prefetch_factor', 2),
+        persistent_workers=getattr(config.data, 'persistent_workers', True)
     )
     
     val_loader = DataLoader(
         val_dataset,
         batch_size=config.data.batch_size,
         shuffle=False,
-        num_workers=config.data.num_workers,
-        pin_memory=config.data.pin_memory
+        num_workers=max_workers,
+        pin_memory=config.data.pin_memory,
+        prefetch_factor=getattr(config.data, 'prefetch_factor', 2),
+        persistent_workers=getattr(config.data, 'persistent_workers', True)
     )
     
     test_loader = DataLoader(
         test_dataset,
         batch_size=config.data.batch_size,
         shuffle=False,
-        num_workers=config.data.num_workers,
+        num_workers=max_workers,
         pin_memory=config.data.pin_memory
     )
     
