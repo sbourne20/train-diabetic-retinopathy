@@ -1,0 +1,1 @@
+python tensorflow_vertex_ai_trainer.py --action train --dataset dataset3_augmented_resized --bucket_name dr-data-2 --project_id curalis-20250522 --region us-east1

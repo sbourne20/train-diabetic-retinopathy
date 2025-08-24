@@ -3,3 +3,5 @@ dataset/*
 dataset2/*
 dataset3_augmented_resized/*
 venv/*
+.env
+__pycache__/*

@@ -1,0 +1,395 @@
+{
+  "schema_version": "dr_v2.0_enhanced",
+  "metadata": {
+    "patient_id": "string",
+    "study_id": "string", 
+    "exam_date": "YYYY-MM-DD",
+    "eye": ["OD", "OS"],
+    "modality": ["color_fundus", "OCT", "OCTA", "FAF", "mixed"],
+    "view": ["macula_centered", "disc_centered", "widefield", "unknown"],
+    "image_quality": {
+      "gradable": "boolean",
+      "issues": ["none", "blur", "media_opacity", "small_pupil", "artifact", "poor_field_definition"]
+    }
+  },
+
+  "grading": {
+    "grading_system": "ICDR_enhanced",
+    "icdr_severity": [
+      "0_no_DR",
+      "1_mild_NPDR", 
+      "2_moderate_NPDR",
+      "3_severe_NPDR",
+      "4_PDR"
+    ],
+    "pdr_activity": ["absent", "suspected", "present"],
+    "referable_DR": "boolean",
+    "sight_threatening_DR": "boolean",
+    "grading_confidence": "float_0_to_1",
+    "class_probabilities": {
+      "RG0": "float_0_to_1",
+      "RG1": "float_0_to_1", 
+      "RG2": "float_0_to_1",
+      "RG3": "float_0_to_1",
+      "PDR": "float_0_to_1"
+    },
+    "top_evidence_features": ["list_of_strings"],
+    "dme_status": [
+      "none",
+      "non_center_involving", 
+      "center_involving"
+    ],
+    "etdrs_csme": ["absent", "present", "unknown"]
+  },
+
+  "grading_rules": {
+    "hemorrhages_4_quadrants": "boolean",
+    "venous_beading_2plus_quadrants": "boolean", 
+    "irma_1plus_quadrant": "boolean",
+    "meets_4_2_1_rule": "boolean",
+    "severe_npdr_criteria_met": "boolean"
+  },
+
+  "pdr_findings": {
+    "NVD": ["absent", "present"],
+    "NVD_area": ["none", "<1/3DD", "1/3-1DD", ">1DD"],
+    "NVE": ["absent", "present"], 
+    "NVE_area": ["none", "<1/2DD", "≥1/2DD"],
+    "NVI": ["absent", "present"],
+    "NV_activity": ["active", "fibrosed/regressed", "unknown"],
+    "pre_or_vitreous_hemorrhage": ["absent", "present"],
+    "fibrovascular_proliferation": ["absent", "present"],
+    "tractional_retinal_detachment": ["absent", "present"],
+    "PRP_scars": ["absent", "present"],
+    "focal_laser_scars": ["absent", "present"],
+    "vitrectomy_changes": ["absent", "present"]
+  },
+
+  "npdr_features": {
+    "microaneurysms_count": ["0", "1_20", ">20", "unknown"],
+    "microaneurysms_quadrants": [0, 1, 2, 3, 4],
+    "intraretinal_hemorrhages_severity": ["none", "mild", "moderate", "severe"],
+    "dot_blot_hemorrhages_quadrants": [0, 1, 2, 3, 4],
+    "flame_hemorrhages_quadrants": [0, 1, 2, 3, 4],
+    "hard_exudates": ["absent", "present"],
+    "hard_exudates_quadrants": [0, 1, 2, 3, 4],
+    "cotton_wool_spots_count": ["0", "1_3", ">3"],
+    "cotton_wool_spots_quadrants": [0, 1, 2, 3, 4],
+    "venous_beading_quadrants": [0, 1, 2, 3, 4],
+    "venous_caliber_changes": ["none", "mild", "moderate", "severe"],
+    "IRMA_quadrants": [0, 1, 2, 3, 4],
+    "IRMA_severity": ["none", "mild", "moderate", "severe"],
+    "venous_looping_or_reduplication": ["absent", "present"]
+  },
+
+  "dme_fundus_surrogates": {
+    "exudate_within_1DD_fovea": ["absent", "present"],
+    "retinal_thickening_clinical": ["absent", "present"],
+    "macular_hemorrhages": ["absent", "present"],
+    "lipid_deposits_fovea": ["absent", "present"]
+  },
+
+  "dme_oct": {
+    "CST_um": "numeric_value",
+    "central_1mm_thickness": "numeric_value", 
+    "intraretinal_cysts": "boolean",
+    "subretinal_fluid": "boolean",
+    "ERM": "boolean",
+    "VMT": "boolean",
+    "disorganization_inner_layers": "boolean",
+    "hyperreflective_foci": "boolean",
+    "ellipsoid_zone_integrity": ["intact", "disrupted", "absent"],
+    "external_limiting_membrane": ["intact", "disrupted", "absent"]
+  },
+
+  "octa_metrics": {
+    "FAZ_area_mm2": "numeric_value",
+    "FAZ_circularity": "float_0_to_1",
+    "capillary_nonperfusion_area_grade": ["none", "mild", "moderate", "severe"],
+    "macular_ischemia": ["none", "mild", "moderate", "severe"],
+    "vessel_density_superficial": "float_0_to_1",
+    "vessel_density_deep": "float_0_to_1",
+    "flow_impairment_index": "float_0_to_1"
+  },
+
+  "localization": {
+    "within_1DD_of_fovea": ["none", "MA", "hemorrhage", "hard_exudate", "IRMA"],
+    "quadrants_involved": [
+      "none",
+      "superior_temporal", 
+      "inferior_temporal",
+      "superior_nasal",
+      "inferior_nasal",
+      "multiple"
+    ],
+    "zone_classification": ["zone1", "zone2", "zone3"],
+    "distance_from_fovea_DD": "numeric_value"
+  },
+
+  "evidence": {
+    "lesions": [
+      {
+        "type": "string",
+        "quadrant": "string", 
+        "bbox": [0, 0, 0, 0],
+        "confidence": "float_0_to_1",
+        "size_px": "numeric_value",
+        "coordinates": {"x": 0, "y": 0}
+      }
+    ],
+    "heatmaps": {
+      "attention_map_path": "string",
+      "gradcam_path": "string"
+    }
+  },
+
+  "image_quality": {
+    "iq_score_0_4": "numeric_0_to_4",
+    "iq_reason": ["blur", "media_opacity", "small_pupil", "artifact", "poor_field_definition", "underexposed", "overexposed"],
+    "sharpness_metric": "float",
+    "contrast_metric": "float",
+    "illumination_uniformity": "float"
+  },
+
+  "acquisition": {
+    "camera_model": "string",
+    "field_of_view_deg": "numeric_value",
+    "mydriatic_status": ["undilated", "dilated", "unknown"],
+    "image_resolution_px": [0, 0],
+    "compression_ratio": "string",
+    "color_space": "string",
+    "acquisition_datetime": "YYYY-MM-DD HH:MM:SS"
+  },
+
+  "confounders": {
+    "hypertensive_retinopathy_signs": "boolean",
+    "retinal_vein_occlusion_signs": "boolean", 
+    "AMD_drusen": "boolean",
+    "myopic_degeneration": "boolean",
+    "media_opacity_severity": ["none", "mild", "moderate", "severe"],
+    "cataract_presence": "boolean",
+    "vitreous_floaters": "boolean",
+    "optic_disc_abnormalities": "boolean",
+    "other_retinal_pathology": "boolean"
+  },
+
+  "synonyms": {
+    "severity_terms": {
+      "0": [
+        "no diabetic retinopathy detected",
+        "normal retinal findings",
+        "no pathological changes observed", 
+        "healthy retinal appearance",
+        "absence of diabetic retinopathy"
+      ],
+      "1": [
+        "mild non-proliferative diabetic retinopathy",
+        "microaneurysms only",
+        "early-stage diabetic retinopathy",
+        "minimal retinal abnormalities"
+      ],
+      "2": [
+        "moderate non-proliferative diabetic retinopathy",
+        "dot-blot hemorrhages visible", 
+        "cotton wool spots present",
+        "hard exudates observed",
+        "venous caliber abnormalities noted",
+        "intraretinal hemorrhages in multiple quadrants"
+      ],
+      "3": [
+        "severe non-proliferative diabetic retinopathy",
+        "extensive intraretinal hemorrhages",
+        "significant venous beading",
+        "multiple cotton wool spots",
+        "pre-proliferative changes",
+        "venous beading in multiple quadrants",
+        "IRMA in multiple quadrants",
+        "4-2-1 rule criteria met"
+      ],
+      "4": [
+        "proliferative diabetic retinopathy",
+        "PDR with neovascularization", 
+        "neovascularization of the disc present",
+        "neovascularization elsewhere present",
+        "vitreous or preretinal hemorrhage",
+        "fibrovascular proliferation",
+        "tractional retinal detachment"
+      ]
+    },
+
+    "macular_edema_terms": {
+      "none": [
+        "no macular edema detected",
+        "normal macular architecture",
+        "no fluid accumulation",
+        "healthy foveal contour", 
+        "intact macular integrity"
+      ],
+      "non_center_involving": [
+        "non–center-involving diabetic macular edema",
+        "extrafoveal edema",
+        "parafoveal thickening",
+        "peripheral macular thickening",
+        "macular edema sparing the foveal center"
+      ],
+      "center_involving": [
+        "center-involving diabetic macular edema", 
+        "clinically significant macular edema",
+        "central macular thickening", 
+        "foveal involvement present",
+        "vision-threatening macular edema",
+        "central retinal thickening"
+      ]
+    },
+
+    "pdr_specific_terms": [
+      "neovascularization of disc (NVD)",
+      "neovascularization elsewhere (NVE)",
+      "neovascularization of iris (NVI)",
+      "preretinal hemorrhage",
+      "vitreous hemorrhage", 
+      "fibrovascular proliferation",
+      "tractional retinal detachment",
+      "rubeosis iridis",
+      "neovascular glaucoma",
+      "active neovascularization",
+      "regressed neovascularization"
+    ],
+
+    "grading_rules_terms": [
+      "4-2-1 rule positive",
+      "hemorrhages in 4 quadrants", 
+      "venous beading in 2 or more quadrants",
+      "IRMA in 1 or more quadrants",
+      "severe NPDR criteria met",
+      "high risk characteristics present"
+    ],
+
+    "image_quality_terms": [
+      "excellent image quality",
+      "adequate for assessment", 
+      "gradable image quality",
+      "non-gradable due to blur",
+      "non-gradable due to media opacity",
+      "non-gradable due to small pupil",
+      "non-gradable due to artifact",
+      "poor field definition",
+      "out-of-focus image",
+      "underexposed image",
+      "overexposed image"
+    ],
+
+    "laterality_terms": [
+      "right eye (OD)",
+      "left eye (OS)", 
+      "bilateral involvement",
+      "unilateral findings",
+      "asymmetric severity between eyes"
+    ],
+
+    "localization_terms": [
+      "within one disc diameter of fovea",
+      "macular region",
+      "perifoveal area", 
+      "posterior pole involvement",
+      "peripapillary area",
+      "superior temporal quadrant",
+      "inferior temporal quadrant",
+      "superior nasal quadrant", 
+      "inferior nasal quadrant",
+      "peripheral retinal changes",
+      "extramacular findings"
+    ],
+
+    "quantitative_descriptors": [
+      "few scattered microaneurysms",
+      "multiple microaneurysms",
+      "greater than 20 microaneurysms",
+      "mild intraretinal hemorrhages",
+      "moderate intraretinal hemorrhages",
+      "severe intraretinal hemorrhages", 
+      "one to three cotton wool spots",
+      "more than three cotton wool spots",
+      "venous beading in one quadrant",
+      "venous beading in multiple quadrants",
+      "IRMA in one quadrant",
+      "IRMA in multiple quadrants"
+    ],
+
+    "referral_terms": [
+      "routine screening appropriate",
+      "referable diabetic retinopathy",
+      "sight-threatening diabetic retinopathy",
+      "urgent referral required",
+      "immediate ophthalmology consultation"
+    ]
+  },
+
+  "pathology_vocab": [
+    "microaneurysms",
+    "dot_blot_hemorrhages", 
+    "flame_hemorrhages",
+    "hard_exudates",
+    "cotton_wool_spots",
+    "venous_beading",
+    "IRMA",
+    "NVD",
+    "NVE", 
+    "NVI",
+    "preretinal_hemorrhage",
+    "vitreous_hemorrhage",
+    "fibrovascular_proliferation",
+    "tractional_retinal_detachment",
+    "macular_thickening",
+    "cystoid_macular_edema",
+    "lipid_deposits",
+    "laser_scars",
+    "vitrectomy_changes"
+  ],
+
+  "recommendations": [
+    "annual_screening",
+    "follow_up_6_months",
+    "follow_up_3_months", 
+    "immediate_ophthalmology_referral",
+    "urgent_vitreoretinal_consult",
+    "optimize_glycemic_control",
+    "manage_hypertension",
+    "lipid_lowering_therapy",
+    "focal_or_grid_laser",
+    "panretinal_photocoagulation",
+    "anti_VEGF_evaluation", 
+    "vitrectomy_consult",
+    "OCT_recommended",
+    "OCTA_recommended",
+    "repeat_imaging_recommended"
+  ],
+
+  "risk_factors": [
+    "duration_of_diabetes",
+    "poor_glycemic_control", 
+    "hypertension",
+    "dyslipidemia",
+    "chronic_kidney_disease",
+    "pregnancy",
+    "puberty",
+    "recent_cataract_surgery",
+    "cardiovascular_disease",
+    "tobacco_use"
+  ],
+
+  "severity_indicators": [
+    "minimal",
+    "mild",
+    "moderate", 
+    "moderately_severe",
+    "severe", 
+    "very_severe",
+    "extensive",
+    "widespread",
+    "localized",
+    "diffuse",
+    "focal",
+    "multifocal"
+  ]
+}
