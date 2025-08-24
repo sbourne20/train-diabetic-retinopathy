@@ -3,14 +3,13 @@ import json
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import timm
 import numpy as np
 from typing import Dict, Optional, Tuple, List
-from transformers import GPT2LMHeadModel, GPT2Tokenizer, GPT2Config
+from transformers import GPT2LMHeadModel, GPT2Tokenizer, GPT2Config, AutoModel
 import math
 
 class RETFoundBackbone(nn.Module):
-    """RETFound Vision Transformer backbone for retinal image analysis."""
+    """Official RETFound Vision Transformer backbone from HuggingFace."""
     
     def __init__(self, 
                  img_size: int = 224,
@@ -19,61 +18,186 @@ class RETFoundBackbone(nn.Module):
                  depth: int = 24,
                  num_heads: int = 16,
                  mlp_ratio: float = 4.0,
-                 pretrained_path: str = None):
+                 pretrained_path: str = None,
+                 hf_token: str = None):
         super().__init__()
         
-        # Use timm's Vision Transformer as base (similar to RETFound architecture)
-        self.vit = timm.create_model(
-            'vit_large_patch16_224',
-            pretrained=False,  # We'll load RETFound weights separately
-            num_classes=0,      # Remove classification head
-            img_size=img_size,
-            patch_size=patch_size,
-            embed_dim=embed_dim,
-            depth=depth,
-            num_heads=num_heads,
-            mlp_ratio=mlp_ratio
-        )
+        # Load HuggingFace token from environment if not provided
+        if hf_token is None:
+            hf_token = os.getenv("HUGGINGFACE_TOKEN")
         
-        self.embed_dim = embed_dim
-        self.num_patches = (img_size // patch_size) ** 2
+        if not hf_token:
+            raise ValueError(
+                "HUGGINGFACE_TOKEN not found in environment. "
+                "Please set HUGGINGFACE_TOKEN in your .env file to access RETFound model."
+            )
         
-        # Load pretrained RETFound weights if available
-        if pretrained_path and os.path.exists(pretrained_path):
-            self.load_retfound_weights(pretrained_path)
-        
-    def load_retfound_weights(self, weight_path: str):
-        """Load RETFound pretrained weights."""
         try:
-            checkpoint = torch.load(weight_path, map_location='cpu')
-            # Handle different checkpoint formats
-            if 'model' in checkpoint:
-                state_dict = checkpoint['model']
-            elif 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
-            else:
-                state_dict = checkpoint
+            # Validate HuggingFace token format
+            if not hf_token.startswith('hf_'):
+                raise ValueError("Invalid HuggingFace token format. Token should start with 'hf_'")
             
-            # Remove 'module.' prefix if present
+            # Load official RETFound model from HuggingFace with caching
+            print("Loading official RETFound model from HuggingFace...")
+            print("Model: YukunZhou/RETFound_mae_natureCFP (MAE-based foundation model)")
+            
+            # RETFound uses custom loading, not standard AutoModel
+            from huggingface_hub import hf_hub_download, login
+            
+            # Login to HuggingFace for gated model access
+            login(token=hf_token, write_permission=False)
+            
+            # Download model files from HuggingFace
+            model_path = hf_hub_download(
+                repo_id="YukunZhou/RETFound_mae_natureCFP",
+                filename="RETFound_mae_natureCFP.pth",
+                token=hf_token,
+                cache_dir=os.path.expanduser("~/.cache/huggingface/retfound")
+            )
+            
+            # Load RETFound model using PyTorch (Vision Transformer architecture)
+            import timm
+            self.retfound_model = timm.create_model(
+                'vit_large_patch16_224',
+                pretrained=False,
+                num_classes=0,  # Remove classification head
+                img_size=img_size,
+                patch_size=patch_size
+            )
+            
+            # Load the pre-trained RETFound weights (disable weights_only for PyTorch 2.8+)
+            checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
+            
+            # Handle RETFound checkpoint format (following official implementation)
+            if 'model' in checkpoint:
+                # RETFound MAE format
+                checkpoint_model = checkpoint['model']
+            elif 'teacher' in checkpoint:
+                # DINOv2 format  
+                checkpoint_model = checkpoint['teacher']
+            elif 'state_dict' in checkpoint:
+                checkpoint_model = checkpoint['state_dict']
+            else:
+                checkpoint_model = checkpoint
+            
+            # Clean up key names following official RETFound approach
             cleaned_state_dict = {}
-            for k, v in state_dict.items():
+            for k, v in checkpoint_model.items():
+                # Remove common prefixes
                 if k.startswith('module.'):
                     k = k[7:]
+                if k.startswith('backbone.'):
+                    k = k[9:]
+                
+                # Handle MLP layer name changes (from official code)
+                k = k.replace("mlp.w12.", "mlp.fc1.")
+                k = k.replace("mlp.w3.", "mlp.fc2.")
+                
                 cleaned_state_dict[k] = v
             
-            # Load compatible weights
-            missing_keys, unexpected_keys = self.vit.load_state_dict(cleaned_state_dict, strict=False)
-            print(f"Loaded RETFound weights. Missing keys: {len(missing_keys)}, Unexpected keys: {len(unexpected_keys)}")
+            # Interpolate position embeddings if necessary (from official implementation)
+            self._interpolate_pos_embed(cleaned_state_dict, img_size, patch_size)
+            
+            # Load weights into model
+            missing_keys, unexpected_keys = self.retfound_model.load_state_dict(cleaned_state_dict, strict=False)
+            print(f"✅ RETFound weights loaded. Missing: {len(missing_keys)}, Unexpected: {len(unexpected_keys)}")
+            
+            # Get model configuration (from timm ViT model)
+            self.embed_dim = self.retfound_model.embed_dim
+            self.num_patches = (img_size // patch_size) ** 2
+            
+            # Log model architecture details
+            print(f"✅ Successfully loaded RETFound model:")
+            print(f"   - Architecture: Vision Transformer (ViT) with RETFound pre-training")
+            print(f"   - Hidden size: {self.embed_dim}")
+            print(f"   - Image patches: {self.num_patches}")
+            print(f"   - Model type: {type(self.retfound_model).__name__}")
+            print(f"   - Weights from: {model_path}")
+            print(f"   - Cached at: ~/.cache/huggingface/retfound")
             
         except Exception as e:
-            print(f"Could not load RETFound weights from {weight_path}: {e}")
-            print("Proceeding with randomly initialized weights...")
+            error_msg = str(e).lower()
+            
+            # Provide specific error guidance
+            if "token" in error_msg or "authentication" in error_msg:
+                raise RuntimeError(
+                    f"❌ HuggingFace authentication failed: {e}\n\n"
+                    f"🔧 SOLUTION:\n"
+                    f"1. Get a valid HuggingFace token from: https://huggingface.co/settings/tokens\n"
+                    f"2. Request access to the model: https://huggingface.co/YukunZhou/RETFound_mae_natureCFP\n"
+                    f"3. Add token to .env file: HUGGINGFACE_TOKEN=hf_your_token_here\n"
+                    f"4. Wait for model access approval (may take 24-48 hours)"
+                )
+            elif "connection" in error_msg or "network" in error_msg:
+                raise RuntimeError(
+                    f"❌ Network connection failed: {e}\n\n"
+                    f"🔧 SOLUTION:\n"
+                    f"1. Check your internet connection\n"
+                    f"2. Verify firewall/proxy settings\n"
+                    f"3. Try again in a few minutes"
+                )
+            else:
+                raise RuntimeError(
+                    f"❌ Failed to load RETFound model: {e}\n\n"
+                    f"🔧 TROUBLESHOOTING:\n"
+                    f"1. Verify HUGGINGFACE_TOKEN in .env file\n"
+                    f"2. Request access: https://huggingface.co/YukunZhou/RETFound_mae_natureCFP\n"
+                    f"3. Check internet connection\n"
+                    f"4. Clear cache: rm -rf ~/.cache/huggingface\n"
+                    f"5. Contact: ykzhoua@gmail.com for model access issues"
+                )
     
+    def _interpolate_pos_embed(self, checkpoint_model: dict, img_size: int, patch_size: int):
+        """Interpolate position embeddings for different image sizes (from official RETFound)."""
+        if 'pos_embed' in checkpoint_model:
+            pos_embed_checkpoint = checkpoint_model['pos_embed']
+            embedding_size = pos_embed_checkpoint.shape[-1]
+            num_patches = (img_size // patch_size) ** 2
+            num_extra_tokens = self.retfound_model.pos_embed.shape[-2] - num_patches
+            
+            # Height and width for the checkpoint position embedding
+            orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens) ** 0.5)
+            # Height and width for the new position embedding
+            new_size = int(num_patches ** 0.5)
+            
+            if orig_size != new_size:
+                print(f"Position interpolation from {orig_size}x{orig_size} to {new_size}x{new_size}")
+                extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
+                pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
+                pos_tokens = pos_tokens.reshape(-1, orig_size, orig_size, embedding_size).permute(0, 3, 1, 2)
+                pos_tokens = torch.nn.functional.interpolate(
+                    pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False)
+                pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
+                new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
+                checkpoint_model['pos_embed'] = new_pos_embed
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass through RETFound backbone."""
-        # Get features from ViT (without classification head)
-        features = self.vit.forward_features(x)
-        return features  # Shape: [batch_size, num_patches + 1, embed_dim]
+        """Forward pass through official RETFound backbone."""
+        try:
+            # RETFound model expects standard image input
+            # Input shape: [batch_size, 3, H, W]
+            if x.dim() != 4 or x.shape[1] != 3:
+                raise ValueError(f"Expected input shape [batch_size, 3, H, W], got {x.shape}")
+            
+            # Forward through RETFound ViT model (using timm)
+            # timm ViT returns features without classification head when num_classes=0
+            features = self.retfound_model.forward_features(x)
+            
+            # timm ViT forward_features returns shape: [batch_size, num_patches + 1, embed_dim]
+            # where the first token is the CLS token
+            
+            if features.dim() != 3:
+                raise ValueError(f"Expected 3D features [batch, seq, embed], got shape {features.shape}")
+            
+            print(f"✅ RETFound forward pass successful: {features.shape}")
+            return features  # Shape: [batch_size, num_patches + 1, embed_dim]
+            
+        except Exception as e:
+            raise RuntimeError(
+                f"❌ Forward pass failed in RETFound model: {e}\n"
+                f"Input shape: {x.shape if x is not None else 'None'}\n"
+                f"Expected: [batch_size, 3, 224, 224] for RETFound ViT model"
+            )
 
 class MultiTaskHead(nn.Module):
     """Enhanced multi-task classification head with comprehensive clinical features."""
@@ -531,9 +655,8 @@ class ClinicalRuleEngine(nn.Module):
                         bucket_name = path_parts[0]
                         blob_path = '/'.join(path_parts[1:])
                     else:
-                        # Fallback to default for backward compatibility
-                        bucket_name = "dr-data-2"
-                        blob_path = "data/medical_terms.json"
+                        # This should not happen - medical_terms_path should be a valid GCS path
+                        raise ValueError(f"Invalid medical terms path: {medical_terms_path}. Expected gs:// path.")
                     
                     client = storage.Client()
                     bucket = client.bucket(bucket_name)

@@ -16,9 +16,14 @@ import logging
 # Load environment variables from .env file
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    env_loaded = load_dotenv()
+    if env_loaded:
+        print("✅ Environment variables loaded from .env file")
+    else:
+        print("⚠️  Warning: .env file not found or empty")
 except ImportError:
-    print("Warning: python-dotenv not found. Environment variables from .env file won't be loaded.")
+    print("❌ Error: python-dotenv not found. Environment variables from .env file won't be loaded.")
+    print("Install with: pip install python-dotenv")
 
 from vertex_ai_config import VertexAIConfig
 
@@ -36,7 +41,7 @@ class VertexAITrainer:
         
         # Validate dataset type
         if dataset_type not in [0, 1]:
-            raise ValueError("dataset_type must be 0 (original dataset/) or 1 (dataset3_augmented_resized/)")
+            raise ValueError("dataset_type must be 0 (original dataset/ structure) or 1 (5-class DR dataset structure)")
         
         # Initialize Vertex AI
         aiplatform.init(
@@ -268,6 +273,60 @@ setup(
         
         return args
     
+    def _get_training_env_vars(self) -> list:
+        """Get environment variables required for training."""
+        
+        env_vars = []
+        
+        # HuggingFace token - REQUIRED for RETFound model
+        hf_token = os.getenv("HUGGINGFACE_TOKEN")
+        if not hf_token:
+            # Check if .env file exists and provide helpful debugging
+            env_file_path = os.path.join(os.getcwd(), ".env")
+            env_exists = os.path.exists(env_file_path)
+            
+            error_msg = (
+                f"❌ HUGGINGFACE_TOKEN not found in environment variables.\n\n"
+                f"🔍 DEBUG INFO:\n"
+                f"- .env file exists: {env_exists}\n"
+                f"- .env file path: {env_file_path}\n"
+                f"- Current working directory: {os.getcwd()}\n"
+                f"- Available env vars starting with 'HF' or 'HUGGINGFACE': "
+                f"{[k for k in os.environ.keys() if k.startswith(('HF', 'HUGGINGFACE'))]}\n\n"
+                f"🔧 SOLUTION:\n"
+                f"1. Ensure .env file exists in project root\n"
+                f"2. Add: HUGGINGFACE_TOKEN=hf_your_token_here\n"
+                f"3. Get token from: https://huggingface.co/settings/tokens\n"
+                f"4. Request access: https://huggingface.co/YukunZhou/RETFound_mae_natureCFP"
+            )
+            raise ValueError(error_msg)
+        
+        env_vars.append({"name": "HUGGINGFACE_TOKEN", "value": hf_token})
+        
+        # Optional: Add other environment variables if present
+        optional_env_vars = [
+            "WANDB_API_KEY",
+            "OPENAI_API_KEY", 
+            "GOOGLE_APPLICATION_CREDENTIALS"
+        ]
+        
+        for env_var in optional_env_vars:
+            value = os.getenv(env_var)
+            if value:
+                env_vars.append({"name": env_var, "value": value})
+        
+        # Add project configuration 
+        env_vars.extend([
+            {"name": "GOOGLE_CLOUD_PROJECT", "value": self.config.project_id},
+            {"name": "GOOGLE_CLOUD_REGION", "value": self.config.region},
+            {"name": "GCS_BUCKET", "value": self.config.bucket_name}
+        ])
+        
+        logger.info(f"Setting {len(env_vars)} environment variables for training job")
+        logger.info(f"Environment variables: {[var['name'] for var in env_vars]}")
+        
+        return env_vars
+    
     def create_custom_training_job(self) -> str:
         """Create and submit custom training job."""
         
@@ -275,6 +334,9 @@ setup(
         
         # Prepare training package
         package_uri = self.prepare_training_package()
+        
+        # Get required environment variables for training
+        env_vars = self._get_training_env_vars()
         
         # Create job using CustomJob constructor with worker pool specs
         job = aiplatform.CustomJob(
@@ -295,7 +357,8 @@ setup(
                         "executor_image_uri": self.config.container_uri,
                         "package_uris": [package_uri],
                         "python_module": "main",
-                        "args": self._get_training_args()
+                        "args": self._get_training_args(),
+                        "env": env_vars
                     },
                 }
             ],
@@ -315,6 +378,9 @@ setup(
         
         # Prepare training package
         package_uri = self.prepare_training_package()
+        
+        # Get required environment variables for training
+        env_vars = self._get_training_env_vars()
         
         # Create hyperparameter tuning job
         job = aiplatform.HyperparameterTuningJob(
@@ -336,7 +402,8 @@ setup(
                             "executor_image_uri": self.config.container_uri,
                             "package_uris": [package_uri],
                             "python_module": "main",
-                            "args": self._get_hyperparameter_tuning_args()
+                            "args": self._get_hyperparameter_tuning_args(),
+                            "env": env_vars
                         },
                     }
                 ]
@@ -421,7 +488,7 @@ def main():
     parser.add_argument("--dataset", required=True, 
                        help="Dataset folder name within GCS bucket (MANDATORY)")
     parser.add_argument("--dataset-type", type=int, choices=[0, 1], required=True,
-                       help="Dataset type: 0=original dataset/ structure, 1=dataset3_augmented_resized/ structure (MANDATORY)")
+                       help="Dataset type: 0=original dataset/ structure (RG/ME with 0,1 classes), 1=5-class DR structure (train/val/test with 0-4 classes) (MANDATORY)")
     parser.add_argument("--dataset_path", help="Local dataset path for upload (required for upload action)")
     parser.add_argument("--job_id", help="Job ID for monitoring")
     parser.add_argument("--project_id", help="Google Cloud Project ID")

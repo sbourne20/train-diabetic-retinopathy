@@ -1,5 +1,30 @@
-data/*
-dataset/*
-dataset2/*
-dataset3_augmented_resized/*
-venv/*
+# Environment and sensitive files
+.env
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+
+# Data and datasets (large files)
+data/
+dataset/
+dataset2/  
+dataset3_augmented_resized/
+dataset*/
+
+# Backup directory
+backup/
+
+# Model checkpoints and outputs
+models/
+outputs/
+*.pth
+*.pkl
+*.joblib

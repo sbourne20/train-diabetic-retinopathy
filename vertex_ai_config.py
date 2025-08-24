@@ -20,7 +20,7 @@ class VertexAIConfig:
         
         # Machine Configuration
         self.machine_type = "n1-highmem-4"  # 4 vCPUs, 26GB RAM
-        self.accelerator_type = "NVIDIA_TESLA_P100"
+        self.accelerator_type = "NVIDIA_TESLA_V100"
         self.accelerator_count = 1
         
         # Disk Configuration
