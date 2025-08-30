@@ -19,7 +19,7 @@ class DiabeticRetinopathyDataset(Dataset):
     def __init__(self, 
                  data_info: List[Dict], 
                  transform: Optional[A.Compose] = None,
-                 img_size: int = 224):
+                 img_size: int = 448):
         """
         Args:
             data_info: List of dictionaries containing image info
@@ -217,7 +217,7 @@ class DiabeticRetinopathyDataset(Dataset):
         
         return enhanced
 
-def get_transforms(img_size: int = 224, is_training: bool = True) -> A.Compose:
+def get_transforms(img_size: int = 448, is_training: bool = True) -> A.Compose:
     """Get augmentation transforms for training/validation."""
     
     if is_training:
@@ -465,7 +465,7 @@ def compute_dr_class_weights(data_info: List[Dict], num_classes: int) -> np.ndar
     return dr_weights
 
 def create_data_splits_type1(dataset_path: str, num_classes: int = 5, 
-                            seed: int = 42) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+                            seed: int = 42, max_train_samples: int = None) -> Tuple[List[Dict], List[Dict], List[Dict]]:
     """Create data splits from type 1 dataset structure (train/val/test/class directories)."""
     
     print(f"Loading dataset type 1 from: {dataset_path}")
@@ -518,6 +518,38 @@ def create_data_splits_type1(dataset_path: str, num_classes: int = 5,
                     test_data.append(data_item)
     
     print(f"Dataset loaded: Train={len(train_data)}, Val={len(val_data)}, Test={len(test_data)}")
+    
+    # Apply smart sampling to training data if requested (for speed optimization)
+    if max_train_samples and len(train_data) > max_train_samples:
+        print(f"Applying stratified sampling: {len(train_data)} → {max_train_samples} samples")
+        
+        # Group by class for stratified sampling
+        from collections import defaultdict
+        import random
+        random.seed(seed)
+        
+        class_samples = defaultdict(list)
+        for item in train_data:
+            class_samples[item['dr_grade']].append(item)
+        
+        # Calculate samples per class (maintain distribution)
+        total_samples = len(train_data)
+        sampled_data = []
+        
+        for class_id in range(num_classes):
+            class_data = class_samples[class_id]
+            class_ratio = len(class_data) / total_samples
+            class_target = int(max_train_samples * class_ratio)
+            class_target = min(class_target, len(class_data))  # Don't oversample
+            
+            # Randomly sample from this class
+            if class_target > 0:
+                sampled_class_data = random.sample(class_data, class_target)
+                sampled_data.extend(sampled_class_data)
+                print(f"  Class {class_id}: {len(class_data)} → {len(sampled_class_data)} samples")
+        
+        train_data = sampled_data
+        print(f"Final sampled training set: {len(train_data)} samples")
     
     return train_data, val_data, test_data
 

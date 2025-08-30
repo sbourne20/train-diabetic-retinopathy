@@ -218,21 +218,82 @@ setup(
             ])
         else:
             # New dataset structure (5-class diabetic retinopathy classification)
-            args.extend([
+            base_args = [
                 "--dataset_path", f"gs://{self.config.bucket_name}/{self.dataset_name}",
-                "--epochs", "200",  # More epochs for larger dataset
-                "--batch_size", "48",  # Maximum batch size for V100 16GB memory
-                "--learning_rate", "9e-5",  # Scaled learning rate for batch size 48 (3x from original)
-                "--experiment_name", "medical_grade_dr_classification",
-                "--num_classes", "5",
-                "--class_weights",  # Enable class weighting for imbalanced data
-                "--focal_loss",  # Use focal loss for better minority class performance
-                "--medical_grade"  # Enable medical-grade validation metrics
+                "--num_classes", "5"
+            ]
+            
+            # Use command line parameters if provided, otherwise use defaults
+            epochs = str(getattr(self, 'num_epochs', 50))
+            batch_size = str(getattr(self, 'batch_size', 4))
+            learning_rate = str(getattr(self, 'learning_rate', 3e-4))
+            experiment_name = getattr(self, 'experiment_name', 'medsiglip_resume_optimized')
+            
+            base_args.extend([
+                "--epochs", epochs,
+                "--batch_size", batch_size,
+                "--learning_rate", learning_rate,
+                "--experiment_name", experiment_name
             ])
+            
+            # Add optional parameters if provided
+            if getattr(self, 'freeze_backbone_epochs', None) is not None:
+                base_args.extend(["--freeze_backbone_epochs", str(self.freeze_backbone_epochs)])
+            
+            if getattr(self, 'gradient_accumulation_steps', None) is not None:
+                base_args.extend(["--gradient_accumulation_steps", str(self.gradient_accumulation_steps)])
+                
+            if getattr(self, 'warmup_epochs', None) is not None:
+                base_args.extend(["--warmup_epochs", str(self.warmup_epochs)])
+                
+            if getattr(self, 'scheduler', None) is not None:
+                base_args.extend(["--scheduler", self.scheduler])
+                
+            if getattr(self, 'validation_frequency', None) is not None:
+                base_args.extend(["--validation_frequency", str(self.validation_frequency)])
+                
+            if getattr(self, 'patience', None) is not None:
+                base_args.extend(["--patience", str(self.patience)])
+                
+            if getattr(self, 'min_delta', None) is not None:
+                base_args.extend(["--min_delta", str(self.min_delta)])
+                
+            if getattr(self, 'weight_decay', None) is not None:
+                base_args.extend(["--weight_decay", str(self.weight_decay)])
+            
+            # Add boolean flags
+            if getattr(self, 'enable_class_weights', False):
+                base_args.append("--class_weights")
+                
+            if getattr(self, 'enable_focal_loss', False):
+                base_args.append("--focal_loss")
+                
+            if getattr(self, 'enable_medical_grade', False):
+                base_args.append("--medical_grade")
+            
+            # Add LoRA parameters if enabled
+            if getattr(self, 'use_lora', 'no') == 'yes':
+                base_args.extend(["--use_lora", "yes"])
+                if getattr(self, 'lora_r', None) is not None:
+                    base_args.extend(["--lora_r", str(self.lora_r)])
+                if getattr(self, 'lora_alpha', None) is not None:
+                    base_args.extend(["--lora_alpha", str(self.lora_alpha)])
+            
+            args.extend(base_args)
         
         # Add medical terms file path
         medical_terms_file = "medical_terms.json" if self.dataset_type == 0 else "medical_terms_type1.json"
         args.extend(["--medical_terms", f"gs://{self.config.bucket_name}/{medical_terms_file}"])
+        
+        # Add debug mode arguments if enabled
+        if getattr(self, 'debug_mode', False):
+            args.extend(["--debug_mode"])
+            if getattr(self, 'max_epochs', None):
+                args.extend(["--max_epochs", str(self.max_epochs)])
+            if getattr(self, 'eval_frequency', None):
+                args.extend(["--eval_frequency", str(self.eval_frequency)])
+            if getattr(self, 'checkpoint_frequency', None):
+                args.extend(["--checkpoint_frequency", str(self.checkpoint_frequency)])
         
         return args
     
@@ -278,7 +339,7 @@ setup(
         
         env_vars = []
         
-        # HuggingFace token - REQUIRED for RETFound model
+        # HuggingFace token - REQUIRED for MedSigLIP-448 model
         hf_token = os.getenv("HUGGINGFACE_TOKEN")
         if not hf_token:
             # Check if .env file exists and provide helpful debugging
@@ -297,7 +358,7 @@ setup(
                 f"1. Ensure .env file exists in project root\n"
                 f"2. Add: HUGGINGFACE_TOKEN=hf_your_token_here\n"
                 f"3. Get token from: https://huggingface.co/settings/tokens\n"
-                f"4. Request access: https://huggingface.co/YukunZhou/RETFound_mae_natureCFP"
+                f"4. Ensure access to: https://huggingface.co/google/medsiglip-448"
             )
             raise ValueError(error_msg)
         
@@ -495,6 +556,38 @@ def main():
     parser.add_argument("--bucket_name", help="GCS bucket name")
     parser.add_argument("--region", default="us-central1", help="Training region")
     
+    # Debug and testing options
+    parser.add_argument("--debug_mode", action="store_true", 
+                       help="Enable debug mode for early testing (2 epochs, eval every epoch)")
+    parser.add_argument("--max_epochs", type=int, help="Override maximum epochs for testing")
+    parser.add_argument("--eval_frequency", type=int, help="Override evaluation frequency")
+    parser.add_argument("--checkpoint_frequency", type=int, default=5, help="Save checkpoints every N epochs")
+    
+    # Training hyperparameters
+    parser.add_argument("--num-epochs", type=int, help="Number of training epochs")
+    parser.add_argument("--learning-rate", type=float, help="Learning rate for training")
+    parser.add_argument("--batch-size", type=int, help="Batch size for training")
+    parser.add_argument("--freeze-backbone-epochs", type=int, help="Number of epochs to freeze backbone")
+    parser.add_argument("--enable-focal-loss", action="store_true", help="Enable focal loss")
+    parser.add_argument("--enable-medical-grade", action="store_true", help="Enable medical-grade validation")
+    parser.add_argument("--enable-class-weights", action="store_true", help="Enable class weights")
+    parser.add_argument("--gradient-accumulation-steps", type=int, help="Gradient accumulation steps")
+    parser.add_argument("--warmup-epochs", type=int, help="Number of warmup epochs")
+    parser.add_argument("--scheduler", help="Learning rate scheduler")
+    parser.add_argument("--validation-frequency", type=int, help="Validation frequency")
+    parser.add_argument("--patience", type=int, help="Early stopping patience")
+    parser.add_argument("--min-delta", type=float, help="Minimum delta for early stopping")
+    parser.add_argument("--weight-decay", type=float, help="Weight decay for optimizer")
+    parser.add_argument("--experiment-name", help="Experiment name")
+    
+    # LoRA fine-tuning parameters
+    parser.add_argument("--use-lora", type=str, default="no", choices=["yes", "no"],
+                       help="Enable LoRA fine-tuning for memory efficiency")
+    parser.add_argument("--lora-r", type=int, default=64,
+                       help="LoRA rank parameter (default: 64 for maximum performance)")
+    parser.add_argument("--lora-alpha", type=int, default=128,
+                       help="LoRA alpha parameter (default: 128)")
+    
     args = parser.parse_args()
     
     # Validate required parameters for upload action
@@ -515,6 +608,34 @@ def main():
     
     # Initialize trainer with mandatory parameters
     trainer = VertexAITrainer(config, args.dataset, dataset_type)
+    
+    # Pass debug mode arguments to trainer
+    trainer.debug_mode = getattr(args, 'debug_mode', False)
+    trainer.max_epochs = getattr(args, 'max_epochs', None)
+    trainer.eval_frequency = getattr(args, 'eval_frequency', None)
+    trainer.checkpoint_frequency = getattr(args, 'checkpoint_frequency', 5)
+    
+    # Pass training hyperparameters to trainer
+    trainer.num_epochs = getattr(args, 'num_epochs', None)
+    trainer.learning_rate = getattr(args, 'learning_rate', None)
+    trainer.batch_size = getattr(args, 'batch_size', None)
+    trainer.freeze_backbone_epochs = getattr(args, 'freeze_backbone_epochs', None)
+    trainer.enable_focal_loss = getattr(args, 'enable_focal_loss', False)
+    trainer.enable_medical_grade = getattr(args, 'enable_medical_grade', False)
+    trainer.enable_class_weights = getattr(args, 'enable_class_weights', False)
+    trainer.gradient_accumulation_steps = getattr(args, 'gradient_accumulation_steps', None)
+    trainer.warmup_epochs = getattr(args, 'warmup_epochs', None)
+    trainer.scheduler = getattr(args, 'scheduler', None)
+    trainer.validation_frequency = getattr(args, 'validation_frequency', None)
+    trainer.patience = getattr(args, 'patience', None)
+    trainer.min_delta = getattr(args, 'min_delta', None)
+    trainer.weight_decay = getattr(args, 'weight_decay', None)
+    trainer.experiment_name = getattr(args, 'experiment_name', None)
+    
+    # Pass LoRA parameters to trainer
+    trainer.use_lora = getattr(args, 'use_lora', 'no')
+    trainer.lora_r = getattr(args, 'lora_r', 64)
+    trainer.lora_alpha = getattr(args, 'lora_alpha', 128)
     
     # Execute action
     if args.action == "upload":

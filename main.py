@@ -13,7 +13,7 @@ from datetime import datetime
 from config import get_config
 from dataset import create_data_splits, create_dataloaders, compute_dataset_class_weights, save_data_splits
 from models import DiabeticRetinopathyModel
-from trainer import DRTrainer
+from trainer import MedicalGradeDRTrainer
 from evaluator import ModelEvaluator
 from utils import set_seed, create_directories
 
@@ -47,15 +47,33 @@ def parse_args():
                        help='Path to medical terms JSON file')
     
     # Model configuration
-    parser.add_argument('--pretrained_path', default='models/RETFound_cfp_weights.pth',
-                       help='Path to RETFound pretrained weights')
+    parser.add_argument('--pretrained_path', default='google/medsiglip-448',
+                       help='Path to MedSigLIP-448 model (HuggingFace)')
     parser.add_argument('--checkpoint_path', help='Path to model checkpoint')
+    
+    # LoRA fine-tuning parameters
+    parser.add_argument('--use_lora', choices=['yes', 'no'], default='no',
+                       help='Enable LoRA fine-tuning for memory efficiency')
+    parser.add_argument('--lora_r', type=int, default=64,
+                       help='LoRA rank parameter (default: 64 for maximum performance)')
+    parser.add_argument('--lora_alpha', type=int, default=128,
+                       help='LoRA alpha parameter (default: 128)')
     
     # Training parameters
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
-    parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
+    parser.add_argument('--batch_size', type=int, default=8, help='Batch size for MedSigLIP-448')
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate')
-    parser.add_argument('--img_size', type=int, default=224, help='Image size')
+    parser.add_argument('--img_size', type=int, default=448, help='Image size for MedSigLIP-448')
+    
+    # Advanced training parameters
+    parser.add_argument('--freeze_backbone_epochs', type=int, default=0, help='Number of epochs to freeze backbone')
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help='Gradient accumulation steps')
+    parser.add_argument('--warmup_epochs', type=int, default=0, help='Number of warmup epochs')
+    parser.add_argument('--scheduler', default='cosine', help='Learning rate scheduler')
+    parser.add_argument('--validation_frequency', type=int, default=5, help='Validation frequency')
+    parser.add_argument('--patience', type=int, default=10, help='Early stopping patience')
+    parser.add_argument('--min_delta', type=float, default=0.001, help='Minimum delta for early stopping')
+    parser.add_argument('--weight_decay', type=float, default=1e-5, help='Weight decay for optimizer')
     
     # Experiment settings
     parser.add_argument('--experiment_name', default=None, 
@@ -75,6 +93,18 @@ def parse_args():
     parser.add_argument('--use_existing_splits', action='store_true',
                        help='Use existing data splits if available')
     
+    # Debug and testing options
+    parser.add_argument('--debug_mode', action='store_true',
+                       help='Enable debug mode for early testing (forces evaluation at epochs 1 & 2)')
+    parser.add_argument('--max_epochs', type=int, default=None,
+                       help='Override maximum epochs for testing (useful for debug mode)')
+    parser.add_argument('--eval_frequency', type=int, default=None,
+                       help='Override evaluation frequency (useful for debug mode)')
+    parser.add_argument('--checkpoint_frequency', type=int, default=5,
+                       help='Save checkpoints every N epochs')
+    parser.add_argument('--resume_from_checkpoint', default=None,
+                       help='Resume training from checkpoint (local path or gs:// path)')
+    
     return parser.parse_args()
 
 def setup_experiment(args):
@@ -88,12 +118,39 @@ def setup_experiment(args):
     config.data.batch_size = args.batch_size
     config.model.pretrained_path = args.pretrained_path
     config.model.img_size = args.img_size
+    
+    # LoRA configuration
+    config.model.use_lora = (args.use_lora == 'yes')
+    config.model.lora_r = args.lora_r
+    config.model.lora_alpha = args.lora_alpha
     config.training.num_epochs = args.epochs
     config.training.learning_rate = args.learning_rate
     config.output_dir = args.output_dir
     config.device = args.device
     config.seed = args.seed
     config.use_wandb = not args.no_wandb
+    
+    # Debug mode and testing configurations
+    if args.debug_mode:
+        print("🐛 DEBUG MODE ENABLED - Early pipeline testing")
+        config.training.num_epochs = args.max_epochs or 2  # Default to 2 epochs in debug mode
+        config.training.validation_frequency = args.eval_frequency or 1  # Evaluate every epoch
+        config.training.checkpoint_frequency = 1  # Save checkpoint every epoch in debug
+        print(f"   - Max epochs: {config.training.num_epochs}")
+        print(f"   - Eval frequency: {config.training.validation_frequency}")
+        print(f"   - Checkpoint frequency: {config.training.checkpoint_frequency}")
+    else:
+        # Override epochs and frequencies if specified
+        if args.max_epochs:
+            config.training.num_epochs = args.max_epochs
+        if args.eval_frequency:
+            config.training.validation_frequency = args.eval_frequency
+        config.training.checkpoint_frequency = args.checkpoint_frequency
+    
+    # Resume from checkpoint
+    config.training.resume_from_checkpoint = args.resume_from_checkpoint
+    if args.resume_from_checkpoint:
+        print(f"🔄 Resume from checkpoint: {args.resume_from_checkpoint}")
     
     # New dataset type 1 arguments
     if args.dataset_path:
@@ -105,6 +162,16 @@ def setup_experiment(args):
     if args.medical_terms:
         config.data.medical_terms = args.medical_terms
         config.language.medical_terms_path = args.medical_terms
+    
+    # Advanced training parameters
+    config.training.freeze_backbone_epochs = args.freeze_backbone_epochs
+    config.training.gradient_accumulation_steps = args.gradient_accumulation_steps
+    config.training.warmup_epochs = args.warmup_epochs
+    config.training.scheduler = args.scheduler
+    config.training.validation_frequency = args.validation_frequency
+    config.training.patience = args.patience
+    config.training.min_delta = args.min_delta
+    config.training.weight_decay = args.weight_decay
     
     # Set experiment name
     if args.experiment_name:
@@ -148,7 +215,8 @@ def prepare_data(config, args):
             train_data, val_data, test_data = create_data_splits_type1(
                 config.data.dataset_path,
                 num_classes=config.data.num_classes,
-                seed=config.seed
+                seed=config.seed,
+                max_train_samples=15000  # Aggressive speed optimization: reduce from ~115k to 15k samples
             )
         else:
             # Dataset type 0: RG/ME structure
@@ -201,19 +269,33 @@ def train_model(config, data_dict, args):
     """Train the model."""
     
     print("Initializing model...")
-    model = DiabeticRetinopathyModel(config)
+    model = DiabeticRetinopathyModel(
+        img_size=config.model.img_size,
+        num_classes=5,  # 5-class ICDR classification
+        dropout=config.model.dropout,
+        enable_confidence=config.model.enable_confidence_estimation,
+        use_lora=config.model.use_lora,
+        lora_r=config.model.lora_r,
+        lora_alpha=config.model.lora_alpha
+    )
     
     print(f"Model parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
     
-    # Initialize trainer
-    trainer = DRTrainer(
+    # Initialize trainer with correct parameters including new checkpoint functionality
+    trainer = MedicalGradeDRTrainer(
         model=model,
         train_loader=data_dict['train_loader'],
         val_loader=data_dict['val_loader'],
-        config=config,
-        rg_class_weights=data_dict['rg_weights'],
-        me_class_weights=data_dict['me_weights'],
-        dr_class_weights=data_dict['dr_weights']
+        device=torch.device(config.device),
+        learning_rate=config.training.learning_rate,
+        num_epochs=config.training.num_epochs,
+        patience=config.training.patience,
+        use_mixed_precision=config.mixed_precision,
+        class_weights=data_dict['dr_weights'],
+        validation_frequency=config.training.validation_frequency,
+        checkpoint_frequency=config.training.checkpoint_frequency,
+        gcs_bucket="dr-data-2",  # Use your GCS bucket
+        resume_from_checkpoint=config.training.resume_from_checkpoint
     )
     
     # Load checkpoint if provided
@@ -243,7 +325,15 @@ def evaluate_model(config, data_dict, model=None, args=None):
     
     if model is None:
         print("Loading model for evaluation...")
-        model = DiabeticRetinopathyModel(config)
+        model = DiabeticRetinopathyModel(
+            img_size=config.model.img_size,
+            num_classes=5,  # 5-class ICDR classification
+            dropout=config.model.dropout,
+            enable_confidence=config.model.enable_confidence_estimation,
+            use_lora=config.model.use_lora,
+            lora_r=config.model.lora_r,
+            lora_alpha=config.model.lora_alpha
+        )
         
         # Load best model
         best_model_path = os.path.join(config.checkpoint_dir, "best_model.pth")
@@ -328,9 +418,45 @@ def main():
         # Train model
         model, training_history = train_model(config, data_dict, args)
         
-        # Evaluate trained model
+        # IMPORTANT: Upload model artifacts BEFORE evaluation to ensure they're saved even if evaluation fails
+        print("\nUploading trained models to GCS...")
+        if args.save_to_gcs:
+            try:
+                from google.cloud import storage
+                
+                client = storage.Client()
+                bucket_name = args.save_to_gcs.replace('gs://', '').split('/')[0]
+                bucket = client.bucket(bucket_name)
+                
+                # Upload final model
+                final_model_local = os.path.join(config.checkpoint_dir, "final_model.pth")
+                if os.path.exists(final_model_local):
+                    final_model_blob = bucket.blob("models/final_model.pth")
+                    final_model_blob.upload_from_filename(final_model_local)
+                    print(f"✅ Uploaded final model to gs://{bucket_name}/models/final_model.pth")
+                
+                # Upload best model
+                best_model_local = os.path.join(config.checkpoint_dir, "best_medical_model.pth")
+                if os.path.exists(best_model_local):
+                    best_model_blob = bucket.blob("models/best_medical_model.pth")
+                    best_model_blob.upload_from_filename(best_model_local)
+                    print(f"✅ Uploaded best model to gs://{bucket_name}/models/best_medical_model.pth")
+                
+                print("✅ Model artifacts safely uploaded to GCS!")
+                
+            except Exception as e:
+                print(f"⚠️  Warning: Model upload failed: {e}")
+                print("Models are still saved locally and in checkpoints/")
+        
+        # Evaluate trained model (with error handling to prevent loss of training results)
         print("\nEvaluating trained model...")
-        evaluation_results = evaluate_model(config, data_dict, model, args)
+        try:
+            evaluation_results = evaluate_model(config, data_dict, model, args)
+            print("✅ Evaluation completed successfully!")
+        except Exception as e:
+            print(f"⚠️  Warning: Evaluation failed: {e}")
+            print("This doesn't affect the trained model - it's still saved!")
+            evaluation_results = None
         
         # Close wandb if used
         if config.use_wandb:
@@ -344,9 +470,9 @@ def main():
         print("For inference mode, use the inference.py script directly:")
         print("python inference.py --model_path path/to/model.pth --image_path path/to/image.jpg")
     
-    # Upload results to GCS if specified
-    if args.save_to_gcs:
-        print(f"\nUploading results to GCS: {args.save_to_gcs}")
+    # Upload remaining results to GCS if specified (evaluation outputs, logs, etc.)
+    if args.save_to_gcs and args.mode == 'train':
+        print(f"\nUploading evaluation results and logs to GCS: {args.save_to_gcs}")
         try:
             from google.cloud import storage
             
@@ -354,21 +480,26 @@ def main():
             bucket_name = args.save_to_gcs.replace('gs://', '').split('/')[0]
             bucket = client.bucket(bucket_name)
             
-            # Upload all files from output_dir to GCS
-            for root, dirs, files in os.walk(config.output_dir):
-                for file in files:
-                    local_path = os.path.join(root, file)
-                    relative_path = os.path.relpath(local_path, config.output_dir)
-                    gcs_path = f"outputs/{relative_path}"
-                    
-                    blob = bucket.blob(gcs_path)
-                    blob.upload_from_filename(local_path)
-                    print(f"Uploaded {relative_path} to {args.save_to_gcs}/{gcs_path}")
-            
-            print(f"All results uploaded to: {args.save_to_gcs}")
+            # Upload all files from output_dir to GCS (evaluation results, visualizations, etc.)
+            if os.path.exists(config.output_dir):
+                for root, dirs, files in os.walk(config.output_dir):
+                    for file in files:
+                        local_path = os.path.join(root, file)
+                        relative_path = os.path.relpath(local_path, config.output_dir)
+                        gcs_path = f"outputs/{relative_path}"
+                        
+                        blob = bucket.blob(gcs_path)
+                        blob.upload_from_filename(local_path)
+                        print(f"Uploaded {relative_path} to {args.save_to_gcs}/{gcs_path}")
+                
+                print(f"✅ All evaluation results uploaded to: {args.save_to_gcs}")
+            else:
+                print("No output directory found - only models were uploaded")
+                
         except Exception as e:
-            print(f"Warning: Failed to upload to GCS: {e}")
+            print(f"⚠️  Warning: Failed to upload evaluation results to GCS: {e}")
             print(f"Results are still available locally at: {config.output_dir}")
+            print("✅ Models were already uploaded successfully!")
     
     print("\nExperiment completed successfully!")
     print(f"Results saved to: {config.output_dir}")

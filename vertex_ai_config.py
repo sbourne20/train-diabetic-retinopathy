@@ -18,7 +18,7 @@ class VertexAIConfig:
         self.job_display_name = "diabetic-retinopathy-training"
         self.container_uri = "us-docker.pkg.dev/vertex-ai/training/pytorch-gpu.2-0.py310:latest"
         
-        # Machine Configuration
+        # Machine Configuration for V100 16GB (memory-efficient model)
         self.machine_type = "n1-highmem-4"  # 4 vCPUs, 26GB RAM
         self.accelerator_type = "NVIDIA_TESLA_V100"
         self.accelerator_count = 1
@@ -63,8 +63,9 @@ class VertexAIConfig:
                                 "--rg_path", f"{self.gcs_dataset_path}/RG",
                                 "--me_path", f"{self.gcs_dataset_path}/ME",
                                 "--output_dir", "/gcs/outputs",
-                                "--epochs", "100",
-                                "--batch_size", "32",  # Larger batch for cloud
+                                "--epochs", "200",
+                                "--batch_size", "8",  # Optimized batch size
+                                "--learning_rate", "3e-4",  # Increased learning rate
                                 "--device", "cuda",
                                 "--no_wandb"  # Disable wandb for cloud training
                             ]

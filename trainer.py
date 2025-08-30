@@ -8,22 +8,29 @@ from torch.utils.data import DataLoader
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 from tqdm import tqdm
-import wandb
 import json
+import logging
+import tempfile
+import shutil
 
-from models import DiabeticRetinopathyModel
-from utils import AverageMeter, EarlyStopping, calculate_metrics, save_results
-from config import Config
+# GCS imports for checkpoint saving
+try:
+    from google.cloud import storage
+    GCS_AVAILABLE = True
+except ImportError:
+    GCS_AVAILABLE = False
+    print("⚠️ Warning: google-cloud-storage not available. GCS checkpoint saving disabled.")
+
+from models import DiabeticRetinopathyModel, calculate_medical_metrics, validate_medical_grade_performance
+from utils import AverageMeter, EarlyStopping, save_results
 
 # Mixed precision training imports
 try:
-    # Try new API first (PyTorch 2.1+)
     from torch.amp import autocast, GradScaler
     AMP_AVAILABLE = True
     USE_NEW_AMP_API = True
 except ImportError:
     try:
-        # Fallback to old API
         from torch.cuda.amp import autocast, GradScaler
         AMP_AVAILABLE = True
         USE_NEW_AMP_API = False
@@ -31,822 +38,809 @@ except ImportError:
         AMP_AVAILABLE = False
         USE_NEW_AMP_API = False
 
-class DRTrainer:
-    """Trainer class for diabetic retinopathy model with medical reasoning."""
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class MedicalGradeDRTrainer:
+    """Medical-grade trainer for Phase 1 MedSigLIP-448 DR classification."""
     
     def __init__(self, 
                  model: DiabeticRetinopathyModel,
                  train_loader: DataLoader,
                  val_loader: DataLoader,
-                 config: Config,
-                 rg_class_weights: torch.Tensor = None,
-                 me_class_weights: torch.Tensor = None,
-                 dr_class_weights: torch.Tensor = None):
+                 device: torch.device,
+                 learning_rate: float = 1e-4,
+                 num_epochs: int = 50,
+                 patience: int = 10,
+                 use_mixed_precision: bool = True,
+                 class_weights: torch.Tensor = None,
+                 validation_frequency: int = 10,
+                 checkpoint_frequency: int = 5,
+                 gcs_bucket: str = "dr-data-2",
+                 resume_from_checkpoint: str = None):
         
-        self.model = model
+        self.model = model.to(device)
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.config = config
+        self.device = device
+        self.learning_rate = learning_rate
+        self.num_epochs = num_epochs
+        self.patience = patience
+        self.validation_frequency = validation_frequency
+        self.checkpoint_frequency = checkpoint_frequency
+        self.gcs_bucket = gcs_bucket
+        self.use_mixed_precision = use_mixed_precision and AMP_AVAILABLE
         
-        # Setup device and performance optimizations
-        self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
-        self.model = self.model.to(self.device)
+        # Checkpoint and resume functionality  
+        self.start_epoch = 0
+        self.best_val_accuracy = 0.0
+        self.previous_checkpoint_name = None  # Track previous checkpoint for cleanup
+        self.resume_from_checkpoint = resume_from_checkpoint  # Store for later use
         
-        # Enable performance optimizations
-        if torch.cuda.is_available():
-            torch.backends.cudnn.benchmark = True  # Optimize for consistent input sizes
-            torch.backends.cudnn.enabled = True
-            torch.backends.cudnn.deterministic = False  # Allow non-deterministic algorithms for speed
-            # Advanced memory management
-            torch.cuda.empty_cache()  # Clear cache at start
-            if hasattr(torch.backends.cuda, 'matmul'):
-                torch.backends.cuda.matmul.allow_tf32 = True  # Enable TF32 for better performance
-            if hasattr(torch.backends.cudnn, 'allow_tf32'):
-                torch.backends.cudnn.allow_tf32 = True
-            
-            # Enable memory efficient attention (PyTorch 2.0+)
-            if hasattr(torch.backends.cuda, 'enable_flash_sdp'):
-                torch.backends.cuda.enable_flash_sdp(True)
-                print("✓ Flash attention enabled")
-            if hasattr(torch.backends.cuda, 'enable_mem_efficient_sdp'):
-                torch.backends.cuda.enable_mem_efficient_sdp(True)
-                print("✓ Memory efficient attention enabled")
-            if hasattr(torch.backends.cuda, 'enable_math_sdp'):
-                torch.backends.cuda.enable_math_sdp(True)  # Fallback option
+        # Setup optimizer with medical-grade learning rates
+        self.optimizer = optim.AdamW(
+            self.model.parameters(),
+            lr=learning_rate,
+            weight_decay=0.01,
+            betas=(0.9, 0.999)
+        )
         
-        # Mixed precision training setup
-        self.use_amp = getattr(config.training, 'enable_amp', True) and AMP_AVAILABLE and torch.cuda.is_available()
-        if self.use_amp:
-            if USE_NEW_AMP_API:
-                self.scaler = GradScaler('cuda')
-            else:
-                self.scaler = GradScaler()
-            print("✓ Mixed precision training enabled")
-        else:
-            self.scaler = None
-            print("Mixed precision training disabled")
+        # Setup learning rate scheduler
+        self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            self.optimizer,
+            T_0=10,  # Restart every 10 epochs
+            T_mult=2,
+            eta_min=1e-6
+        )
         
-        # Gradient checkpointing for memory efficiency
-        if getattr(config.training, 'gradient_checkpointing', True):
-            try:
-                # Enable gradient checkpointing for backbone
-                if hasattr(self.model.backbone, 'gradient_checkpointing_enable'):
-                    self.model.backbone.gradient_checkpointing_enable()
-                    print("✓ Gradient checkpointing enabled")
-                elif hasattr(self.model.backbone, 'set_grad_checkpointing'):
-                    self.model.backbone.set_grad_checkpointing(enable=True)
-                    print("✓ Gradient checkpointing enabled")
-                else:
-                    # For custom models, try to apply to transformer blocks
-                    if hasattr(self.model.backbone, 'blocks'):
-                        for block in self.model.backbone.blocks:
-                            if hasattr(block, 'gradient_checkpointing'):
-                                block.gradient_checkpointing = True
-                        print("✓ Gradient checkpointing enabled on transformer blocks")
-            except Exception as e:
-                print(f"Gradient checkpointing setup failed: {e}")
+        # Medical-grade loss functions
+        if class_weights is not None:
+            class_weights = class_weights.to(device)
         
-        # Model compilation for PyTorch 2.0+
-        if getattr(config.training, 'compile_model', True) and hasattr(torch, 'compile'):
-            try:
-                self.model = torch.compile(self.model, mode='default')
-                print("✓ Model compiled with torch.compile()")
-            except Exception as e:
-                print(f"Model compilation failed: {e}")
-                print("Continuing without compilation...")
-        
-        # Gradient accumulation
-        self.gradient_accumulation_steps = getattr(config.training, 'gradient_accumulation_steps', 1)
-        
-        # Enhanced loss functions with class weights
-        if rg_class_weights is not None:
-            rg_class_weights = rg_class_weights.to(self.device)
-        if me_class_weights is not None:
-            me_class_weights = me_class_weights.to(self.device)
-        if dr_class_weights is not None:
-            dr_class_weights = dr_class_weights.to(self.device)
-            
-        self.rg_criterion = nn.CrossEntropyLoss(weight=rg_class_weights)
-        self.me_criterion = nn.CrossEntropyLoss(weight=me_class_weights)
-        self.dr_criterion = nn.CrossEntropyLoss(weight=dr_class_weights)
-        
-        # Enhanced classification losses (using CrossEntropyLoss for 2-class outputs)
+        self.dr_criterion = nn.CrossEntropyLoss(weight=class_weights)
         self.referable_criterion = nn.CrossEntropyLoss()
         self.sight_threatening_criterion = nn.CrossEntropyLoss()
-        self.pdr_activity_criterion = nn.CrossEntropyLoss()
-        
-        # ETDRS rule component losses (using CrossEntropyLoss for 2-class outputs)
-        self.hemorrhages_4q_criterion = nn.CrossEntropyLoss()
-        self.venous_beading_2q_criterion = nn.CrossEntropyLoss()
-        self.irma_1q_criterion = nn.CrossEntropyLoss()
-        self.meets_421_criterion = nn.CrossEntropyLoss()
-        
-        # Detailed findings losses
-        self.nvd_area_criterion = nn.CrossEntropyLoss()
-        self.nve_area_criterion = nn.CrossEntropyLoss()
-        self.nv_activity_criterion = nn.CrossEntropyLoss()
-        
-        # Quality and confidence losses
-        self.image_quality_criterion = nn.MSELoss()
         self.confidence_criterion = nn.MSELoss()
         
-        # Optimizer and scheduler
-        self.optimizer = self._setup_optimizer()
-        self.scheduler = self._setup_scheduler()
+        # Mixed precision scaler
+        if self.use_mixed_precision:
+            self.scaler = GradScaler('cuda' if USE_NEW_AMP_API else None)
+            logger.info("✅ Mixed precision training enabled")
+        else:
+            logger.info("⚠️ Mixed precision training disabled")
         
-        # Training utilities
+        # Early stopping for medical validation
         self.early_stopping = EarlyStopping(
-            patience=config.training.patience,
-            min_delta=config.training.min_delta
+            patience=patience,
+            min_delta=0.001,
+            restore_best_weights=True
         )
         
-        # Metrics tracking
+        # Training metrics
         self.train_losses = []
         self.val_losses = []
-        self.best_val_loss = float('inf')
-        self.best_metrics = {}
+        self.val_accuracies = []
+        self.medical_validations = []
         
-        # Progressive unfreezing tracking
-        self.frozen_layers = set()
-        self._freeze_backbone()
+        logger.info("✅ Medical-grade trainer initialized")
+        logger.info(f"   - Device: {device}")
+        logger.info(f"   - Learning rate: {learning_rate}")
+        logger.info(f"   - Epochs: {num_epochs}")
+        logger.info(f"   - Checkpoint frequency: {checkpoint_frequency} epochs")
+        logger.info(f"   - GCS bucket: {gcs_bucket}")
         
-        # Initialize wandb if enabled
-        if config.use_wandb:
-            wandb.init(
-                project=config.wandb_project,
-                name=config.experiment_name,
-                config=config.__dict__
-            )
-        
-    def _compute_enhanced_losses(self, batch, outputs):
-        """Compute enhanced losses for medical reasoning."""
-        enhanced_loss = 0.0
-        
-        # Add enhanced classification losses if available in batch
-        if 'referable_dr' in batch:
-            referable_labels = batch['referable_dr'].to(self.device)
-            if 'referable_dr_logits' in outputs:
-                referable_loss = self.referable_criterion(
-                    outputs['referable_dr_logits'], 
-                    referable_labels.long()
-                )
-                enhanced_loss += getattr(self.config.training, 'referable_loss_weight', 0.5) * referable_loss
-        
-        if 'hemorrhages_4q' in batch:
-            hemorrhages_labels = batch['hemorrhages_4q'].to(self.device)
-            if 'hemorrhages_4q_logits' in outputs:
-                hemorrhages_loss = self.hemorrhages_4q_criterion(
-                    outputs['hemorrhages_4q_logits'],
-                    hemorrhages_labels.long()
-                )
-                enhanced_loss += 0.3 * hemorrhages_loss
-        
-        # Add other enhanced losses if available
-        etdrs_components = ['venous_beading_2q', 'irma_1q', 'meets_421']
-        for component in etdrs_components:
-            if component in batch and f'{component}_logits' in outputs:
-                labels = batch[component].to(self.device)
-                criterion = getattr(self, f'{component}_criterion')
-                loss = criterion(outputs[f'{component}_logits'], labels.long())
-                enhanced_loss += 0.3 * loss
-        
-        # Image quality loss
-        if 'image_quality' in batch and 'image_quality_score' in outputs:
-            quality_labels = batch['image_quality'].to(self.device)
-            quality_loss = self.image_quality_criterion(
-                outputs['image_quality_score'].squeeze(),
-                quality_labels.float()
-            )
-            enhanced_loss += 0.2 * quality_loss
-        
-        # Confidence loss
-        if 'confidence_target' in batch and 'grading_confidence' in outputs:
-            confidence_labels = batch['confidence_target'].to(self.device)
-            confidence_loss = self.confidence_criterion(
-                outputs['grading_confidence'].squeeze(),
-                confidence_labels.float()
-            )
-            enhanced_loss += getattr(self.config.training, 'confidence_loss_weight', 0.3) * confidence_loss
-        
-        return enhanced_loss
-    
-    def _get_memory_stats(self):
-        """Get GPU memory usage statistics."""
-        if torch.cuda.is_available():
-            allocated = torch.cuda.memory_allocated() / 1024**3  # GB
-            reserved = torch.cuda.memory_reserved() / 1024**3   # GB
-            max_allocated = torch.cuda.max_memory_allocated() / 1024**3  # GB
-            return {
-                'allocated': allocated,
-                'reserved': reserved, 
-                'max_allocated': max_allocated
-            }
-        return {'allocated': 0, 'reserved': 0, 'max_allocated': 0}
-    
-    def _optimize_memory(self):
-        """Optimize GPU memory usage."""
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            # Force garbage collection
-            import gc
-            gc.collect()
-    
-    def _setup_optimizer(self) -> optim.Optimizer:
-        """Setup optimizer with different learning rates for different components."""
-        
-        # Different learning rates for different components
-        backbone_params = list(self.model.backbone.parameters())
-        classifier_params = list(self.model.classifier.parameters())
-        reasoning_params = list(self.model.reasoning_module.parameters())
-        
-        param_groups = [
-            {'params': backbone_params, 'lr': self.config.training.learning_rate * 0.1},  # Lower LR for pretrained
-            {'params': classifier_params, 'lr': self.config.training.learning_rate},
-            {'params': reasoning_params, 'lr': self.config.training.learning_rate * 0.5}  # Medium LR for language
-        ]
-        
-        return optim.AdamW(
-            param_groups,
-            lr=self.config.training.learning_rate,
-            weight_decay=self.config.training.weight_decay
-        )
-    
-    def _setup_scheduler(self) -> optim.lr_scheduler._LRScheduler:
-        """Setup enhanced learning rate scheduler with warmup."""
-        
-        total_steps = len(self.train_loader) * self.config.training.num_epochs
-        warmup_steps = len(self.train_loader) * self.config.training.warmup_epochs
-        
-        # Enhanced schedulers with proper warmup
-        if self.config.training.scheduler_type == 'cosine':
-            # Cosine annealing with warmup
-            scheduler = optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, 
-                T_max=total_steps - warmup_steps,
-                eta_min=self.config.training.learning_rate * 0.01  # 1% of base LR
-            )
-        elif self.config.training.scheduler_type == 'cosine_restarts':
-            # Cosine annealing with warm restarts
-            scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                self.optimizer,
-                T_0=total_steps // 4,  # First restart after 25% of training
-                T_mult=2,  # Double the cycle length after each restart
-                eta_min=self.config.training.learning_rate * 0.01
-            )
-        elif self.config.training.scheduler_type == 'linear':
-            scheduler = optim.lr_scheduler.LinearLR(
-                self.optimizer,
-                start_factor=0.1,
-                total_iters=warmup_steps
-            )
+        # Now that all components are initialized, check for resume
+        if self.resume_from_checkpoint:
+            # Explicit resume path provided
+            logger.info(f"🔄 Explicit resume requested: {self.resume_from_checkpoint}")
+            self._resume_from_checkpoint(self.resume_from_checkpoint)
         else:
-            scheduler = optim.lr_scheduler.StepLR(
-                self.optimizer,
-                step_size=30,
-                gamma=0.1
-            )
-        
-        # Add warmup if specified
-        if warmup_steps > 0 and self.config.training.scheduler_type in ['cosine', 'cosine_restarts']:
-            from torch.optim.lr_scheduler import SequentialLR, LinearLR
-            
-            warmup_scheduler = LinearLR(
-                self.optimizer,
-                start_factor=0.01,  # Start at 1% of base LR
-                end_factor=1.0,     # Reach full LR
-                total_iters=warmup_steps
-            )
-            
-            # Combine warmup + main scheduler
-            scheduler = SequentialLR(
-                self.optimizer,
-                schedulers=[warmup_scheduler, scheduler],
-                milestones=[warmup_steps]
-            )
-        
-        return scheduler
+            # Auto-detect latest checkpoint in GCS
+            logger.info("🔍 Checking for existing checkpoints to auto-resume...")
+            auto_checkpoint = self._detect_latest_checkpoint()
+            if auto_checkpoint:
+                logger.info(f"✅ Found existing checkpoint: {auto_checkpoint}")
+                self._resume_from_checkpoint(auto_checkpoint)
+            else:
+                logger.info("🆕 No existing checkpoints found - starting fresh training")
     
-    def _freeze_backbone(self):
-        """Freeze backbone parameters for progressive unfreezing."""
-        for name, param in self.model.backbone.named_parameters():
-            param.requires_grad = False
-            self.frozen_layers.add(name)
-    
-    def _progressive_unfreeze(self, epoch: int):
-        """Progressively unfreeze backbone layers."""
-        if epoch >= self.config.training.freeze_backbone_epochs:
-            unfreeze_rate = self.config.training.unfreeze_rate
-            layers_to_unfreeze = (epoch - self.config.training.freeze_backbone_epochs) // unfreeze_rate
-            
-            # Get all frozen layer names
-            frozen_layer_names = sorted(list(self.frozen_layers))
-            
-            # Unfreeze layers from the end (top layers first)
-            for i in range(min(layers_to_unfreeze, len(frozen_layer_names))):
-                layer_name = frozen_layer_names[-(i+1)]
-                for name, param in self.model.backbone.named_parameters():
-                    if name == layer_name and not param.requires_grad:
-                        param.requires_grad = True
-                        self.frozen_layers.remove(name)
-                        print(f"Unfrozen layer: {name}")
-    
-    def train_epoch(self, epoch: int) -> Dict[str, float]:
-        """Train for one epoch."""
+    def _save_checkpoint_to_gcs(self, epoch: int, val_accuracy: float, is_best: bool = False):
+        """Save model checkpoint to Google Cloud Storage with storage optimization."""
+        if not GCS_AVAILABLE:
+            logger.warning("GCS not available - checkpoint saved locally only")
+            return
         
+        try:
+            # Create checkpoint data
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': self.model.state_dict(),
+                'optimizer_state_dict': self.optimizer.state_dict(),
+                'scheduler_state_dict': self.scheduler.state_dict(),
+                'val_accuracy': val_accuracy,
+                'best_val_accuracy': self.best_val_accuracy,
+                'train_losses': self.train_losses,
+                'val_losses': self.val_losses,
+                'val_accuracies': self.val_accuracies,
+                'medical_validations': self.medical_validations
+            }
+            
+            if self.use_mixed_precision:
+                checkpoint['scaler_state_dict'] = self.scaler.state_dict()
+            
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(suffix='.pth', delete=False) as tmp_file:
+                torch.save(checkpoint, tmp_file.name)
+                tmp_file_path = tmp_file.name
+            
+            # Upload to GCS
+            client = storage.Client()
+            bucket = client.bucket(self.gcs_bucket)
+            
+            # Current checkpoint (epoch_{current-1}_checkpoint.pth for next iteration)
+            current_checkpoint_name = f"checkpoints/epoch_{epoch:03d}_checkpoint.pth"
+            current_blob = bucket.blob(current_checkpoint_name)
+            current_blob.upload_from_filename(tmp_file_path)
+            
+            # Latest checkpoint (always current epoch)
+            latest_blob = bucket.blob("checkpoints/latest_checkpoint.pth")
+            latest_blob.upload_from_filename(tmp_file_path)
+            
+            # Best model checkpoint
+            if is_best:
+                best_blob = bucket.blob("checkpoints/best_model.pth")
+                best_blob.upload_from_filename(tmp_file_path)
+                logger.info(f"💾 New best model saved to GCS (accuracy: {val_accuracy:.4f})")
+            
+            # Note: Checkpoint cleanup moved to beginning of next epoch for serial safety
+            # This ensures cleanup only happens AFTER the next epoch completes successfully
+            
+            # Update tracking for next iteration
+            self.previous_checkpoint_name = current_checkpoint_name
+            
+            # Cleanup local temp file
+            os.unlink(tmp_file_path)
+            
+            logger.info(f"💾 Checkpoint saved to gs://{self.gcs_bucket}/{current_checkpoint_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save checkpoint to GCS: {e}")
+    
+    def _cleanup_old_checkpoints(self, bucket, current_epoch: int):
+        """Clean up old checkpoints, keeping only the last 5 epochs + best model for medical-grade safety."""
+        try:
+            # List all checkpoint blobs
+            checkpoint_blobs = list(bucket.list_blobs(prefix="checkpoints/epoch_"))
+            
+            # Extract epoch numbers and sort
+            epoch_blobs = []
+            for blob in checkpoint_blobs:
+                try:
+                    # Extract epoch number from filename like "epoch_012_checkpoint.pth"
+                    epoch_part = blob.name.split('/')[-1]  # Get filename
+                    epoch_num_str = epoch_part.split('_')[1]  # Get epoch number part
+                    epoch_num = int(epoch_num_str)
+                    epoch_blobs.append((epoch_num, blob))
+                except (IndexError, ValueError):
+                    # Skip malformed filenames
+                    continue
+            
+            # Sort by epoch number
+            epoch_blobs.sort(key=lambda x: x[0])
+            
+            # Keep the last 5 epochs for medical-grade training safety
+            # This provides more recovery options and handles checkpoint saving gaps
+            keep_count = 5
+            epochs_to_keep = set()
+            for i in range(keep_count):
+                epoch_to_keep = current_epoch - i
+                if epoch_to_keep >= 0:  # Don't keep negative epochs
+                    epochs_to_keep.add(epoch_to_keep)
+            
+            # Delete old epoch checkpoints (only if more than 5 epochs exist)
+            deleted_count = 0
+            if len(epoch_blobs) > keep_count:
+                for epoch_num, blob in epoch_blobs:
+                    if epoch_num not in epochs_to_keep:
+                        try:
+                            blob.delete()
+                            deleted_count += 1
+                            logger.info(f"🗑️ Deleted old checkpoint: {blob.name}")
+                        except Exception as delete_error:
+                            logger.warning(f"⚠️ Failed to delete {blob.name}: {delete_error}")
+            
+            if deleted_count > 0:
+                logger.info(f"💾 Storage optimized: Deleted {deleted_count} old checkpoint(s)")
+            else:
+                logger.debug(f"💾 Keeping all {len(epoch_blobs)} checkpoints (within safety limit of {keep_count})")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Checkpoint cleanup failed (continuing anyway): {e}")
+    
+    def _detect_latest_checkpoint(self) -> str:
+        """Auto-detect latest checkpoint in GCS for resuming training."""
+        if not GCS_AVAILABLE:
+            logger.debug("GCS not available - cannot auto-detect checkpoints")
+            return None
+        
+        try:
+            client = storage.Client()
+            bucket = client.bucket(self.gcs_bucket)
+            
+            # Check for latest_checkpoint.pth first (most reliable)
+            latest_blob = bucket.blob("checkpoints/latest_checkpoint.pth")
+            if latest_blob.exists():
+                return f"gs://{self.gcs_bucket}/checkpoints/latest_checkpoint.pth"
+            
+            # Fallback: Find most recent epoch checkpoint
+            checkpoint_blobs = list(bucket.list_blobs(prefix="checkpoints/epoch_"))
+            if checkpoint_blobs:
+                # Parse epoch numbers and find the highest
+                latest_epoch = -1
+                latest_checkpoint = None
+                
+                for blob in checkpoint_blobs:
+                    try:
+                        # Extract epoch number from "checkpoints/epoch_059_checkpoint.pth"
+                        filename = blob.name.split('/')[-1]
+                        epoch_str = filename.split('_')[1]
+                        epoch_num = int(epoch_str)
+                        
+                        if epoch_num > latest_epoch:
+                            latest_epoch = epoch_num
+                            latest_checkpoint = f"gs://{self.gcs_bucket}/{blob.name}"
+                    except (IndexError, ValueError):
+                        continue
+                
+                if latest_checkpoint:
+                    logger.info(f"📂 Found latest epoch checkpoint: epoch {latest_epoch}")
+                    return latest_checkpoint
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to detect checkpoints (continuing with fresh start): {e}")
+            return None
+    
+    def _resume_from_checkpoint(self, checkpoint_path: str):
+        """Resume training from a checkpoint."""
+        try:
+            if checkpoint_path.startswith('gs://'):
+                # Download from GCS
+                if not GCS_AVAILABLE:
+                    raise RuntimeError("GCS not available for checkpoint download")
+                
+                # Parse GCS path
+                bucket_name = checkpoint_path.split('/')[2]
+                blob_name = '/'.join(checkpoint_path.split('/')[3:])
+                
+                client = storage.Client()
+                bucket = client.bucket(bucket_name)
+                blob = bucket.blob(blob_name)
+                
+                # Download to temporary file
+                with tempfile.NamedTemporaryFile(suffix='.pth', delete=False) as tmp_file:
+                    blob.download_to_filename(tmp_file.name)
+                    local_path = tmp_file.name
+            else:
+                local_path = checkpoint_path
+            
+            # Load checkpoint (PyTorch 2.6+ compatibility fix)
+            try:
+                checkpoint = torch.load(local_path, map_location=self.device, weights_only=False)
+            except Exception as load_error:
+                # Fallback for older PyTorch versions or other loading issues
+                logger.warning(f"Initial checkpoint load failed: {load_error}")
+                checkpoint = torch.load(local_path, map_location=self.device)
+            
+            # Restore model state
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            
+            if self.use_mixed_precision and 'scaler_state_dict' in checkpoint:
+                self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
+            
+            # Restore training state
+            self.start_epoch = checkpoint['epoch'] + 1
+            self.best_val_accuracy = checkpoint.get('best_val_accuracy', 0.0)
+            self.train_losses = checkpoint.get('train_losses', [])
+            self.val_losses = checkpoint.get('val_losses', [])
+            self.val_accuracies = checkpoint.get('val_accuracies', [])
+            self.medical_validations = checkpoint.get('medical_validations', [])
+            
+            # Cleanup if downloaded from GCS
+            if checkpoint_path.startswith('gs://'):
+                os.unlink(local_path)
+            
+            logger.info(f"✅ Resumed training from epoch {self.start_epoch}")
+            logger.info(f"   - Previous epoch completed: {checkpoint['epoch']}")
+            logger.info(f"   - Best validation accuracy: {self.best_val_accuracy:.4f}")
+            logger.info(f"   - Training history restored: {len(self.train_losses)} epochs")
+            logger.info(f"   - Will continue from epoch {self.start_epoch} to {self.num_epochs}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to resume from checkpoint: {e}")
+            logger.info("⚠️ Starting training from scratch")
+            # Reset to fresh state if resume fails
+            self.start_epoch = 0
+            self.best_val_accuracy = 0.0
+            self.train_losses = []
+            self.val_losses = []
+            self.val_accuracies = []
+            self.medical_validations = []
+    
+    def train_epoch(self) -> Dict[str, float]:
+        """Train one epoch with medical-grade monitoring."""
         self.model.train()
         
-        # Meters for tracking metrics
-        total_loss_meter = AverageMeter()
-        rg_loss_meter = AverageMeter()
-        me_loss_meter = AverageMeter()
+        # Metrics tracking
         dr_loss_meter = AverageMeter()
-        reasoning_loss_meter = AverageMeter()
+        referable_loss_meter = AverageMeter()
+        sight_threatening_loss_meter = AverageMeter()
+        confidence_loss_meter = AverageMeter()
+        total_loss_meter = AverageMeter()
+        accuracy_meter = AverageMeter()
         
-        # Progress bar
-        pbar = tqdm(self.train_loader, desc=f"Epoch {epoch}", file=sys.stdout)
+        dr_predictions = []
+        dr_targets = []
         
-        for batch_idx, batch in enumerate(pbar):
-            # Move to device
+        # Enable training batch progress bar to show real-time progress
+        progress_bar = tqdm(self.train_loader, desc="  Training Batches", leave=False, 
+                           file=sys.stdout, disable=False, position=1)
+        
+        for batch_idx, batch in enumerate(progress_bar):
             images = batch['image'].to(self.device)
+            targets = batch['dr_grade'].to(self.device)  # DR severity targets
             
-            # Handle different dataset types
-            if 'dr_grade' in batch:
-                # Dataset type 1: single DR classification
-                dr_labels = batch['dr_grade'].to(self.device)
-                rg_labels = None
-                me_labels = None
-            else:
-                # Dataset type 0: RG/ME classification
-                rg_labels = batch['rg_grade'].to(self.device)
-                me_labels = batch['me_grade'].to(self.device)
-                dr_labels = None
+            self.optimizer.zero_grad()
             
-            # Zero gradients (only every gradient_accumulation_steps)
-            if batch_idx % self.gradient_accumulation_steps == 0:
-                self.optimizer.zero_grad()
+            # Generate referable and sight-threatening targets from DR severity
+            referable_targets = (targets >= 2).long()  # Classes 2,3,4 are referable
+            sight_threatening_targets = (targets >= 3).long()  # Classes 3,4 are sight-threatening
             
-            # Mixed precision forward pass with proper loss computation
-            if self.use_amp:
-                if USE_NEW_AMP_API:
-                    autocast_context = autocast('cuda')
-                else:
-                    autocast_context = autocast()
-                    
-                with autocast_context:
+            # Forward pass with mixed precision
+            if self.use_mixed_precision:
+                with autocast('cuda' if USE_NEW_AMP_API else None):
                     outputs = self.model(images)
                     
-                    # Compute losses inside autocast context for proper precision handling
-                    if dr_labels is not None:
-                        # Dataset type 1: DR classification using RG head
-                        dr_loss = self.dr_criterion(outputs['rg_logits'], dr_labels)
-                        classification_loss = dr_loss
-                    else:
-                        # Dataset type 0: RG/ME classification
-                        rg_loss = self.rg_criterion(outputs['rg_logits'], rg_labels)
-                        me_loss = self.me_criterion(outputs['me_logits'], me_labels)
-                        classification_loss = (
-                            self.config.training.rg_loss_weight * rg_loss +
-                            self.config.training.me_loss_weight * me_loss
-                        )
+                    # Calculate losses
+                    dr_loss = self.dr_criterion(outputs['dr_logits'], targets)
+                    referable_loss = self.referable_criterion(outputs['referable_dr_logits'], referable_targets)
+                    sight_threatening_loss = self.sight_threatening_criterion(outputs['sight_threatening_logits'], sight_threatening_targets)
+                    
+                    # Confidence loss (target = max probability of DR prediction)
+                    dr_probs = torch.softmax(outputs['dr_logits'], dim=1)
+                    confidence_targets = torch.max(dr_probs, dim=1)[0]
+                    confidence_loss = self.confidence_criterion(
+                        outputs['grading_confidence'].squeeze(), confidence_targets
+                    ) if 'grading_confidence' in outputs else torch.tensor(0.0, device=self.device)
+                    
+                    # Total loss with medical-grade weighting
+                    total_loss = (
+                        2.0 * dr_loss +  # Primary task gets highest weight
+                        1.0 * referable_loss +
+                        1.0 * sight_threatening_loss +
+                        0.5 * confidence_loss
+                    )
+                
+                # Backward pass with mixed precision
+                self.scaler.scale(total_loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
             else:
                 outputs = self.model(images)
                 
-                # Standard loss computation
-                if dr_labels is not None:
-                    # Dataset type 1: DR classification using RG head
-                    dr_loss = self.dr_criterion(outputs['rg_logits'], dr_labels)
-                    classification_loss = dr_loss
-                else:
-                    # Dataset type 0: RG/ME classification
-                    rg_loss = self.rg_criterion(outputs['rg_logits'], rg_labels)
-                    me_loss = self.me_criterion(outputs['me_logits'], me_labels)
-                    classification_loss = (
-                        self.config.training.rg_loss_weight * rg_loss +
-                        self.config.training.me_loss_weight * me_loss
-                    )
-            
-            # Enhanced losses (computed with proper precision handling)
-            if self.use_amp:
-                if USE_NEW_AMP_API:
-                    autocast_context = autocast('cuda')
-                else:
-                    autocast_context = autocast()
-                    
-                with autocast_context:
-                    enhanced_loss = self._compute_enhanced_losses(batch, outputs)
-            else:
-                enhanced_loss = self._compute_enhanced_losses(batch, outputs)
-            
-            # Reasoning loss (if available)
-            reasoning_loss = outputs.get('reasoning_loss')
-            if reasoning_loss is not None:
-                total_loss = classification_loss + enhanced_loss + 0.1 * reasoning_loss
-                reasoning_loss_meter.update(reasoning_loss.item())
-            else:
-                total_loss = classification_loss + enhanced_loss
-                reasoning_loss_meter.update(0.0)
-            
-            # Scale loss for gradient accumulation
-            total_loss = total_loss / self.gradient_accumulation_steps
-            
-            # Mixed precision backward pass
-            if self.use_amp:
-                self.scaler.scale(total_loss).backward()
+                # Calculate losses
+                dr_loss = self.dr_criterion(outputs['dr_logits'], targets)
+                referable_loss = self.referable_criterion(outputs['referable_dr_logits'], referable_targets)
+                sight_threatening_loss = self.sight_threatening_criterion(outputs['sight_threatening_logits'], sight_threatening_targets)
                 
-                # Gradient clipping and optimizer step every gradient_accumulation_steps
-                if (batch_idx + 1) % self.gradient_accumulation_steps == 0 or batch_idx == len(self.train_loader) - 1:
-                    # Gradient clipping with scaler
-                    self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 
-                                                   max_norm=getattr(self.config.training, 'max_grad_norm', 1.0))
-                    
-                    # Optimizer step and scaler update
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-            else:
+                # Confidence loss
+                dr_probs = torch.softmax(outputs['dr_logits'], dim=1)
+                confidence_targets = torch.max(dr_probs, dim=1)[0]
+                confidence_loss = self.confidence_criterion(
+                    outputs['grading_confidence'].squeeze(), confidence_targets
+                ) if 'grading_confidence' in outputs else torch.tensor(0.0, device=self.device)
+                
+                # Total loss
+                total_loss = (
+                    2.0 * dr_loss +
+                    1.0 * referable_loss +
+                    1.0 * sight_threatening_loss +
+                    0.5 * confidence_loss
+                )
+                
+                # Backward pass
                 total_loss.backward()
-                
-                # Standard gradient clipping and optimizer step
-                if (batch_idx + 1) % self.gradient_accumulation_steps == 0 or batch_idx == len(self.train_loader) - 1:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 
-                                                   max_norm=getattr(self.config.training, 'max_grad_norm', 1.0))
-                    self.optimizer.step()
+                self.optimizer.step()
             
-            # Update meters based on dataset type (scale back for display)
-            actual_loss = total_loss.item() * self.gradient_accumulation_steps
-            total_loss_meter.update(actual_loss)
+            # Calculate accuracy
+            _, predicted = torch.max(outputs['dr_logits'], 1)
+            accuracy = (predicted == targets).float().mean()
             
-            if dr_labels is not None:
-                # Dataset type 1: DR classification
-                dr_loss_meter.update(dr_loss.item())
+            # Update meters
+            batch_size = images.size(0)
+            dr_loss_meter.update(dr_loss.item(), batch_size)
+            referable_loss_meter.update(referable_loss.item(), batch_size)
+            sight_threatening_loss_meter.update(sight_threatening_loss.item(), batch_size)
+            confidence_loss_meter.update(confidence_loss.item(), batch_size)
+            total_loss_meter.update(total_loss.item(), batch_size)
+            accuracy_meter.update(accuracy.item(), batch_size)
+            
+            # Log progress every 50 batches to show training progress
+            if (batch_idx + 1) % 50 == 0:
+                print(f"    Batch {batch_idx + 1}/{len(self.train_loader)} - "
+                      f"Loss: {total_loss.item():.3f}, Acc: {accuracy.item():.3f}")
                 
-                # Update progress bar less frequently for performance
-                log_freq = getattr(self.config.training, 'log_frequency', 50)
-                if batch_idx % log_freq == 0:
-                    pbar.set_postfix({
-                        'Total Loss': f'{total_loss_meter.avg:.4f}',
-                        'DR Loss': f'{dr_loss_meter.avg:.4f}',
-                        'LR': f'{self.optimizer.param_groups[0]["lr"]:.6f}'
-                    })
-            else:
-                # Dataset type 0: RG/ME classification
-                rg_loss_meter.update(rg_loss.item())
-                me_loss_meter.update(me_loss.item())
-                
-                # Update progress bar less frequently for performance
-                log_freq = getattr(self.config.training, 'log_frequency', 50)
-                if batch_idx % log_freq == 0:
-                    pbar.set_postfix({
-                        'Total Loss': f'{total_loss_meter.avg:.4f}',
-                        'RG Loss': f'{rg_loss_meter.avg:.4f}',
-                        'ME Loss': f'{me_loss_meter.avg:.4f}',
-                        'LR': f'{self.optimizer.param_groups[0]["lr"]:.6f}'
-                    })
+            # Update progress bar description with current metrics
+            progress_bar.set_postfix({
+                'Loss': f'{total_loss.item():.3f}',
+                'Acc': f'{accuracy.item():.3f}',
+                'Batch': f'{batch_idx + 1}/{len(self.train_loader)}'
+            })
+            
+            # Store predictions for medical metrics
+            dr_predictions.extend(predicted.cpu().numpy())
+            dr_targets.extend(targets.cpu().numpy())
+            
+            # Update progress bar
+            progress_bar.set_postfix({
+                'Loss': f'{total_loss_meter.avg:.4f}',
+                'DR_Loss': f'{dr_loss_meter.avg:.4f}',
+                'Acc': f'{accuracy_meter.avg:.3f}',
+                'LR': f'{self.optimizer.param_groups[0]["lr"]:.2e}'
+            })
         
-        # Update scheduler
-        if hasattr(self.scheduler, 'step'):
-            self.scheduler.step()
+        # Calculate medical-grade metrics for training
+        medical_metrics = calculate_medical_metrics(
+            np.array(dr_predictions), 
+            np.array(dr_targets)
+        )
         
-        # Return metrics based on what was actually computed
-        metrics = {
+        return {
             'total_loss': total_loss_meter.avg,
-            'reasoning_loss': reasoning_loss_meter.avg
+            'dr_loss': dr_loss_meter.avg,
+            'referable_loss': referable_loss_meter.avg,
+            'sight_threatening_loss': sight_threatening_loss_meter.avg,
+            'confidence_loss': confidence_loss_meter.avg,
+            'accuracy': accuracy_meter.avg,
+            'medical_metrics': medical_metrics
         }
-        
-        # Add dataset-specific metrics
-        if dr_loss_meter.count > 0:
-            metrics['dr_loss'] = dr_loss_meter.avg
-        if rg_loss_meter.count > 0:
-            metrics['rg_loss'] = rg_loss_meter.avg
-        if me_loss_meter.count > 0:
-            metrics['me_loss'] = me_loss_meter.avg
-            
-        return metrics
     
-    def validate_epoch(self, epoch: int) -> Dict[str, float]:
-        """Validate for one epoch."""
-        
+    def validate_epoch(self) -> Dict[str, float]:
+        """Validate one epoch with medical-grade evaluation."""
         self.model.eval()
         
-        # Meters and prediction storage
-        total_loss_meter = AverageMeter()
-        rg_loss_meter = AverageMeter()
-        me_loss_meter = AverageMeter()
+        # Metrics tracking
         dr_loss_meter = AverageMeter()
+        referable_loss_meter = AverageMeter()
+        sight_threatening_loss_meter = AverageMeter()
+        confidence_loss_meter = AverageMeter()
+        total_loss_meter = AverageMeter()
+        accuracy_meter = AverageMeter()
         
-        rg_predictions, rg_targets = [], []
-        me_predictions, me_targets = [], []
-        dr_predictions, dr_targets = [], []
-        rg_probabilities, me_probabilities, dr_probabilities = [], [], []
+        dr_predictions = []
+        dr_targets = []
+        confidence_scores = []
+        
+        # Disable validation batch progress bar for cleaner epoch-level logging  
+        progress_bar = tqdm(self.val_loader, desc="  Validation Batches", leave=False,
+                           file=sys.stdout, disable=True, position=1)
         
         with torch.no_grad():
-            pbar = tqdm(self.val_loader, desc=f"Validation {epoch}", file=sys.stdout)
-            
-            for batch in pbar:
-                # Move to device
+            for batch in progress_bar:
                 images = batch['image'].to(self.device)
+                targets = batch['dr_grade'].to(self.device)
                 
-                # Handle different dataset types
-                if 'dr_grade' in batch:
-                    # Dataset type 1: single DR classification
-                    dr_labels = batch['dr_grade'].to(self.device)
-                    rg_labels = None
-                    me_labels = None
-                else:
-                    # Dataset type 0: RG/ME classification
-                    rg_labels = batch['rg_grade'].to(self.device)
-                    me_labels = batch['me_grade'].to(self.device)
-                    dr_labels = None
+                # Generate targets
+                referable_targets = (targets >= 2).long()
+                sight_threatening_targets = (targets >= 3).long()
                 
-                # Mixed precision forward pass for validation
-                if self.use_amp:
-                    if USE_NEW_AMP_API:
-                        autocast_context = autocast('cuda')
-                    else:
-                        autocast_context = autocast()
-                        
-                    with autocast_context:
+                # Forward pass with mixed precision
+                if self.use_mixed_precision:
+                    with autocast('cuda' if USE_NEW_AMP_API else None):
                         outputs = self.model(images)
+                        
+                        # Calculate losses inside autocast context
+                        dr_loss = self.dr_criterion(outputs['dr_logits'], targets)
+                        referable_loss = self.referable_criterion(outputs['referable_dr_logits'], referable_targets)
+                        sight_threatening_loss = self.sight_threatening_criterion(outputs['sight_threatening_logits'], sight_threatening_targets)
                 else:
                     outputs = self.model(images)
+                    
+                    # Calculate losses
+                    dr_loss = self.dr_criterion(outputs['dr_logits'], targets)
+                    referable_loss = self.referable_criterion(outputs['referable_dr_logits'], referable_targets)
+                    sight_threatening_loss = self.sight_threatening_criterion(outputs['sight_threatening_logits'], sight_threatening_targets)
                 
-                # Compute losses based on dataset type
-                if dr_labels is not None:
-                    # Dataset type 1: DR classification using RG head
-                    dr_loss = self.dr_criterion(outputs['rg_logits'], dr_labels)
-                    total_loss = dr_loss
-                    
-                    # Update meters
-                    total_loss_meter.update(total_loss.item())
-                    dr_loss_meter.update(dr_loss.item())
-                    
-                    # Store predictions and targets
-                    dr_prob = torch.softmax(outputs['rg_logits'], dim=1)
-                    dr_predictions.extend(dr_prob.argmax(dim=1).cpu().numpy())
-                    dr_targets.extend(dr_labels.cpu().numpy())
-                    dr_probabilities.extend(dr_prob.cpu().numpy())
-                    
+                # Confidence loss (handle mixed precision)
+                if self.use_mixed_precision:
+                    with autocast('cuda' if USE_NEW_AMP_API else None):
+                        dr_probs = torch.softmax(outputs['dr_logits'], dim=1)
+                        confidence_targets = torch.max(dr_probs, dim=1)[0]
+                        confidence_loss = self.confidence_criterion(
+                            outputs['grading_confidence'].squeeze(), confidence_targets
+                        ) if 'grading_confidence' in outputs else torch.tensor(0.0, device=self.device)
+                        
+                        total_loss = (
+                            2.0 * dr_loss +
+                            1.0 * referable_loss +
+                            1.0 * sight_threatening_loss +
+                            0.5 * confidence_loss
+                        )
                 else:
-                    # Dataset type 0: RG/ME classification
-                    rg_loss = self.rg_criterion(outputs['rg_logits'], rg_labels)
-                    me_loss = self.me_criterion(outputs['me_logits'], me_labels)
+                    dr_probs = torch.softmax(outputs['dr_logits'], dim=1)
+                    confidence_targets = torch.max(dr_probs, dim=1)[0]
+                    confidence_loss = self.confidence_criterion(
+                        outputs['grading_confidence'].squeeze(), confidence_targets
+                    ) if 'grading_confidence' in outputs else torch.tensor(0.0, device=self.device)
                     
                     total_loss = (
-                        self.config.training.rg_loss_weight * rg_loss +
-                        self.config.training.me_loss_weight * me_loss
+                        2.0 * dr_loss +
+                        1.0 * referable_loss +
+                        1.0 * sight_threatening_loss +
+                        0.5 * confidence_loss
                     )
-                    
-                    # Update meters
-                    total_loss_meter.update(total_loss.item())
-                    rg_loss_meter.update(rg_loss.item())
-                    me_loss_meter.update(me_loss.item())
-                    
-                    # Store predictions and targets
-                    rg_prob = torch.softmax(outputs['rg_logits'], dim=1)
-                    me_prob = torch.softmax(outputs['me_logits'], dim=1)
-                    
-                    rg_pred = torch.argmax(rg_prob, dim=1)
-                    me_pred = torch.argmax(me_prob, dim=1)
-                    
-                    rg_predictions.extend(rg_pred.cpu().numpy())
-                    me_predictions.extend(me_pred.cpu().numpy())
-                    rg_targets.extend(rg_labels.cpu().numpy())
-                    me_targets.extend(me_labels.cpu().numpy())
-                    rg_probabilities.extend(rg_prob.cpu().numpy())
-                    me_probabilities.extend(me_prob.cpu().numpy())
+                
+                # Calculate accuracy
+                _, predicted = torch.max(outputs['dr_logits'], 1)
+                accuracy = (predicted == targets).float().mean()
+                
+                # Update meters
+                batch_size = images.size(0)
+                dr_loss_meter.update(dr_loss.item(), batch_size)
+                referable_loss_meter.update(referable_loss.item(), batch_size)
+                sight_threatening_loss_meter.update(sight_threatening_loss.item(), batch_size)
+                confidence_loss_meter.update(confidence_loss.item(), batch_size)
+                total_loss_meter.update(total_loss.item(), batch_size)
+                accuracy_meter.update(accuracy.item(), batch_size)
+                
+                # Store predictions for medical metrics
+                dr_predictions.extend(predicted.cpu().numpy())
+                dr_targets.extend(targets.cpu().numpy())
+                
+                if 'grading_confidence' in outputs:
+                    confidence_scores.extend(outputs['grading_confidence'].cpu().numpy())
                 
                 # Update progress bar
-                if dr_labels is not None:
-                    pbar.set_postfix({
-                        'Val Loss': f'{total_loss_meter.avg:.4f}',
-                        'DR Loss': f'{dr_loss_meter.avg:.4f}'
-                    })
-                else:
-                    pbar.set_postfix({
-                        'Val Loss': f'{total_loss_meter.avg:.4f}',
-                        'RG Loss': f'{rg_loss_meter.avg:.4f}',
-                        'ME Loss': f'{me_loss_meter.avg:.4f}'
-                    })
-        
-        # Calculate metrics based on dataset type
-        if dr_predictions:
-            # Dataset type 1: DR metrics
-            dr_metrics = calculate_metrics(
-                np.array(dr_targets), 
-                np.array(dr_predictions),
-                np.array(dr_probabilities)
-            )
-            
-            return {
-                'total_loss': total_loss_meter.avg,
-                'dr_loss': dr_loss_meter.avg,
-                'dr_accuracy': dr_metrics['accuracy'],
-                'dr_auc': dr_metrics.get('auc', 0.0),
-                'dr_f1': dr_metrics.get('f1', 0.0),
-                'dr_precision': dr_metrics.get('precision', 0.0),
-                'dr_recall': dr_metrics.get('recall', 0.0),
-                'val_accuracy': dr_metrics['accuracy']  # Primary metric for monitoring
-            }
-        else:
-            # Dataset type 0: RG/ME metrics
-            rg_metrics = calculate_metrics(
-                np.array(rg_targets), 
-                np.array(rg_predictions),
-                np.array(rg_probabilities)
-            )
-            
-            me_metrics = calculate_metrics(
-                np.array(me_targets), 
-                np.array(me_predictions),
-                np.array(me_probabilities)
-            )
-            
-            return {
-                'total_loss': total_loss_meter.avg,
-                'rg_loss': rg_loss_meter.avg,
-                'me_loss': me_loss_meter.avg,
-                'rg_accuracy': rg_metrics['accuracy'],
-                'me_accuracy': me_metrics['accuracy'],
-                'rg_auc': rg_metrics.get('auc_macro', 0.0),
-                'me_auc': me_metrics.get('auc_macro', 0.0),
-                'rg_predictions': rg_predictions,
-                'me_predictions': me_predictions,
-                'rg_targets': rg_targets,
-                'me_targets': me_targets,
-                'val_accuracy': (rg_metrics['accuracy'] + me_metrics['accuracy']) / 2
-            }
-    
-    def train(self) -> Dict[str, List[float]]:
-        """Main training loop."""
-        
-        print(f"Starting training for {self.config.training.num_epochs} epochs")
-        print(f"Device: {self.device}")
-        print(f"Model parameters: {sum(p.numel() for p in self.model.parameters() if p.requires_grad):,}")
-        print(f"Batch size: {self.config.data.batch_size}")
-        print(f"Mixed precision: {self.use_amp}")
-        print(f"Gradient accumulation steps: {self.gradient_accumulation_steps}")
-        
-        # Performance monitoring
-        if torch.cuda.is_available():
-            print(f"GPU: {torch.cuda.get_device_name()}")
-            print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
-        
-        training_history = {
-            'train_losses': [],
-            'val_losses': [],
-            'val_rg_accuracies': [],
-            'val_me_accuracies': [],
-            'val_rg_aucs': [],
-            'val_me_aucs': [],
-            'epoch_times': [],
-            'gpu_memory_used': []
-        }
-        
-        for epoch in range(1, self.config.training.num_epochs + 1):
-            start_time = time.time()
-            
-            # Progressive unfreezing
-            self._progressive_unfreeze(epoch)
-            
-            # Training
-            train_start = time.time()
-            train_metrics = self.train_epoch(epoch)
-            train_time = time.time() - train_start
-            
-            # Validation (check validation frequency)
-            val_freq = getattr(self.config.training, 'validation_frequency', 1)
-            if epoch % val_freq == 0:
-                val_start = time.time()
-                val_metrics = self.validate_epoch(epoch)
-                val_time = time.time() - val_start
-            else:
-                # Skip validation, use previous metrics or defaults
-                val_metrics = getattr(self, '_last_val_metrics', {
-                    'total_loss': float('inf'),
-                    'val_accuracy': 0.0,
-                    'rg_accuracy': 0.0, 'me_accuracy': 0.0,
-                    'rg_auc': 0.0, 'me_auc': 0.0,
-                    'rg_loss': 0.0, 'me_loss': 0.0
+                progress_bar.set_postfix({
+                    'Val_Loss': f'{total_loss_meter.avg:.4f}',
+                    'Val_Acc': f'{accuracy_meter.avg:.3f}'
                 })
-                val_time = 0.0
-            
-            # Store last validation metrics for skipped validations
-            if epoch % val_freq == 0:
-                self._last_val_metrics = val_metrics
-            
-            # Store metrics
-            training_history['train_losses'].append(train_metrics['total_loss'])
-            training_history['val_losses'].append(val_metrics['total_loss'])
-            training_history['val_rg_accuracies'].append(val_metrics['rg_accuracy'])
-            training_history['val_me_accuracies'].append(val_metrics['me_accuracy'])
-            training_history['val_rg_aucs'].append(val_metrics['rg_auc'])
-            training_history['val_me_aucs'].append(val_metrics['me_auc'])
-            
-            # Log to wandb
-            if self.config.use_wandb:
-                wandb.log({
-                    'epoch': epoch,
-                    'train_loss': train_metrics['total_loss'],
-                    'val_loss': val_metrics['total_loss'],
-                    'val_rg_accuracy': val_metrics['rg_accuracy'],
-                    'val_me_accuracy': val_metrics['me_accuracy'],
-                    'val_rg_auc': val_metrics['rg_auc'],
-                    'val_me_auc': val_metrics['me_auc'],
-                    'learning_rate': self.optimizer.param_groups[0]['lr']
-                })
-            
-            # Performance monitoring
-            epoch_time = time.time() - start_time
-            training_history['epoch_times'].append(epoch_time)
-            
-            # Enhanced GPU memory monitoring
-            memory_stats = self._get_memory_stats()
-            if torch.cuda.is_available():
-                gpu_memory = memory_stats['max_allocated']
-                training_history['gpu_memory_used'].append(gpu_memory)
-                torch.cuda.reset_peak_memory_stats()
-                
-                # Periodic memory optimization
-                if epoch % 5 == 0:
-                    self._optimize_memory()
-            
-            # Print epoch summary with enhanced performance metrics
-            print(f"\nEpoch {epoch}/{self.config.training.num_epochs}")
-            print(f"Time: {epoch_time:.1f}s (Train: {train_time:.1f}s, Val: {val_time:.1f}s)")
-            print(f"Train Loss: {train_metrics['total_loss']:.4f}")
-            print(f"Val Loss: {val_metrics['total_loss']:.4f}")
-            
-            # Only print detailed metrics for epochs that had validation
-            if epoch % val_freq == 0:
-                print(f"RG Accuracy: {val_metrics['rg_accuracy']:.4f}")
-                print(f"ME Accuracy: {val_metrics['me_accuracy']:.4f}")
-                print(f"RG AUC: {val_metrics['rg_auc']:.4f}")
-                print(f"ME AUC: {val_metrics['me_auc']:.4f}")
-            
-            # Enhanced memory reporting
-            if torch.cuda.is_available():
-                print(f"GPU Memory: {memory_stats['allocated']:.1f}GB allocated, {memory_stats['max_allocated']:.1f}GB peak")
-            
-            # Save best model
-            if val_metrics['total_loss'] < self.best_val_loss:
-                self.best_val_loss = val_metrics['total_loss']
-                self.best_metrics = val_metrics.copy()
-                self.save_checkpoint(epoch, is_best=True)
-                print("✓ Best model saved!")
-            
-            # Early stopping
-            if self.early_stopping(val_metrics['total_loss'], self.model):
-                print(f"Early stopping at epoch {epoch}")
-                break
-            
-            # Regular checkpoint
-            if epoch % 10 == 0:
-                self.save_checkpoint(epoch, is_best=False)
         
-        # Restore best weights
-        self.early_stopping.restore_weights(self.model)
-        
-        return training_history
-    
-    def save_checkpoint(self, epoch: int, is_best: bool = False):
-        """Save model checkpoint."""
-        
-        checkpoint = {
-            'epoch': epoch,
-            'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler else None,
-            'best_val_loss': self.best_val_loss,
-            'config': self.config
-        }
-        
-        # Save regular checkpoint
-        checkpoint_path = os.path.join(
-            self.config.checkpoint_dir, 
-            f"checkpoint_epoch_{epoch}.pth"
+        # Calculate comprehensive medical metrics
+        medical_metrics = calculate_medical_metrics(
+            np.array(dr_predictions), 
+            np.array(dr_targets)
         )
-        torch.save(checkpoint, checkpoint_path)
         
-        # Save best checkpoint
-        if is_best:
-            best_path = os.path.join(
-                self.config.checkpoint_dir,
-                "best_model.pth"
-            )
-            torch.save(checkpoint, best_path)
+        # Validate medical-grade performance
+        medical_validation = validate_medical_grade_performance(medical_metrics)
+        
+        return {
+            'total_loss': total_loss_meter.avg,
+            'dr_loss': dr_loss_meter.avg,
+            'referable_loss': referable_loss_meter.avg,
+            'sight_threatening_loss': sight_threatening_loss_meter.avg,
+            'confidence_loss': confidence_loss_meter.avg,
+            'accuracy': accuracy_meter.avg,
+            'medical_metrics': medical_metrics,
+            'medical_validation': medical_validation,
+            'mean_confidence': np.mean(confidence_scores) if confidence_scores else 0.0
+        }
     
-    def load_checkpoint(self, checkpoint_path: str):
-        """Load model checkpoint."""
+    def train(self, save_dir: str = "checkpoints") -> Dict[str, any]:
+        """
+        Execute complete medical-grade training with validation.
         
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        Returns:
+            Training results and medical validation status
+        """
+        logger.info("🏥 Starting medical-grade Phase 1 training...")
+        logger.info(f"   - Model: MedSigLIP-448")
+        logger.info(f"   - Dataset: 5-class DR classification")
+        logger.info(f"   - Medical standards: >90% accuracy, >85% sensitivity, >90% specificity")
+        if self.start_epoch > 0:
+            logger.info(f"   - RESUMING from epoch {self.start_epoch} (previous training completed up to epoch {self.start_epoch - 1})")
+        else:
+            logger.info(f"   - STARTING FRESH from epoch 1")
         
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        os.makedirs(save_dir, exist_ok=True)
+        best_val_accuracy = self.best_val_accuracy
+        best_medical_validation = False
+        training_history = []
         
-        if checkpoint.get('scheduler_state_dict') and self.scheduler:
-            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        # Create simple epoch progress bar - resume from start_epoch
+        total_epochs = self.num_epochs
+        epoch_range = range(self.start_epoch, total_epochs)
+        epoch_pbar = tqdm(epoch_range, desc="Epochs", 
+                         file=sys.stdout, position=0, leave=True, 
+                         bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}')
         
-        self.best_val_loss = checkpoint['best_val_loss']
+        for epoch in epoch_pbar:
+            epoch_start_time = time.time()
+            
+            # Log epoch start for progress visibility
+            print(f"\n🏥 Starting Epoch {epoch + 1}/{self.num_epochs}")
+            
+            # Serial checkpoint cleanup: Only cleanup old checkpoints AFTER previous epoch completed successfully
+            # This ensures we never delete checkpoints while training is in progress
+            if epoch > 0 and GCS_AVAILABLE:  # Skip cleanup for first epoch
+                try:
+                    client = storage.Client()
+                    bucket = client.bucket(self.gcs_bucket)
+                    self._cleanup_old_checkpoints(bucket, epoch - 1)  # Cleanup based on previous epoch
+                except Exception as cleanup_error:
+                    logger.warning(f"⚠️ Checkpoint cleanup failed (continuing safely): {cleanup_error}")
+            
+            # Training step
+            train_results = self.train_epoch()
+            
+            # Validation step (only every N epochs to save time)
+            if (epoch + 1) % self.validation_frequency == 0 or epoch == 0:
+                print(f"  🔍 Running validation...")
+                val_results = self.validate_epoch()
+                
+                # Update learning rate
+                self.scheduler.step()
+                
+                # Record metrics
+                self.train_losses.append(train_results['total_loss'])
+                self.val_losses.append(val_results['total_loss'])
+                self.val_accuracies.append(val_results['accuracy'])
+                self.medical_validations.append(val_results['medical_validation'])
+                
+                epoch_time = time.time() - epoch_start_time
+                
+                # Medical-grade validation status
+                medical_pass = val_results['medical_validation']['medical_grade_pass']
+                
+                # Simple, clean logging as requested
+                print(f"Training   - Loss: {train_results['total_loss']:.3f}, Accuracy: {train_results['accuracy']:.3f}")
+                print(f"Validation - Loss: {val_results['total_loss']:.3f}, Accuracy: {val_results['accuracy']:.3f}")
+                
+                if val_results['accuracy'] >= 0.93 and medical_pass:
+                    print(f"🎯 Medical-grade accuracy target achieved: {val_results['accuracy']:.3f} (≥93%)")
+                    print(f"🏆 Training completed successfully at epoch {epoch+1}")
+                    print(f"Time={epoch_time:.1f}s")
+                    break
+                elif medical_pass:
+                    print(f"🏥 Medical Grade: ✅ PASS")
+                else:
+                    print(f"🏥 Medical Grade: ❌ FAIL")
+                
+                print(f"Time={epoch_time:.1f}s")
+                print()  # Empty line for spacing
+                
+            else:
+                # Training-only epoch (faster)
+                epoch_time = time.time() - epoch_start_time
+            
+            # Save checkpoints (when validation runs)
+            if 'val_results' in locals() and 'medical_pass' in locals():
+                is_best = False
+                if medical_pass and val_results['accuracy'] > best_val_accuracy:
+                    best_val_accuracy = val_results['accuracy']
+                    self.best_val_accuracy = best_val_accuracy  # Update instance variable
+                    best_medical_validation = True
+                    is_best = True
+                
+                # Save regular checkpoints to GCS every checkpoint_frequency epochs
+                if (epoch + 1) % self.checkpoint_frequency == 0 or is_best:
+                    self._save_checkpoint_to_gcs(epoch, val_results['accuracy'], is_best)
+                    
+                # Also save locally for backup
+                if is_best:
+                    checkpoint = {
+                        'epoch': epoch,
+                        'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(),
+                        'scheduler_state_dict': self.scheduler.state_dict(),
+                        'val_accuracy': val_results['accuracy'],
+                        'best_val_accuracy': best_val_accuracy,
+                        'medical_validation': val_results['medical_validation'],
+                        'medical_metrics': val_results['medical_metrics'],
+                        'training_config': {
+                            'learning_rate': self.learning_rate,
+                            'num_epochs': self.num_epochs,
+                            'mixed_precision': self.use_mixed_precision
+                        }
+                    }
+                    
+                    if self.use_mixed_precision:
+                        checkpoint['scaler_state_dict'] = self.scaler.state_dict()
+                    
+                    torch.save(checkpoint, os.path.join(save_dir, 'best_medical_model.pth'))
+                
+                # Store training history
+                training_history.append({
+                    'epoch': epoch + 1,
+                    'train_loss': train_results['total_loss'],
+                    'val_loss': val_results['total_loss'],
+                    'val_accuracy': val_results['accuracy'],
+                    'medical_metrics': val_results['medical_metrics'],
+                    'medical_validation': val_results['medical_validation'],
+                    'is_best': is_best
+                })
+                # Remove incorrect break statement - training should continue
+            
+            # Standard early stopping check (only when validation was run)
+            if 'val_results' in locals() and self.early_stopping(val_results['total_loss'], self.model):
+                logger.info(f"   ⏹️  Early stopping at epoch {epoch+1}")
+                logger.info(f"   📊 Final accuracy: {val_results['accuracy']:.3f}")
+                break
         
-        print(f"Checkpoint loaded from {checkpoint_path}")
-        return checkpoint['epoch']
+        # Save final model and training history
+        final_checkpoint = {
+            'final_epoch': epoch + 1,
+            'model_state_dict': self.model.state_dict(),
+            'training_history': training_history,
+            'best_medical_validation': best_medical_validation,
+            'best_val_accuracy': best_val_accuracy
+        }
+        
+        torch.save(final_checkpoint, os.path.join(save_dir, 'final_model.pth'))
+        
+        # Save training history as JSON (convert numpy types to native Python types)
+        def convert_numpy_types(obj):
+            """Convert numpy types to JSON-serializable Python types."""
+            if isinstance(obj, np.bool_):
+                return bool(obj)
+            elif isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)):
+                return int(obj)
+            elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {key: convert_numpy_types(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy_types(item) for item in obj]
+            else:
+                return obj
+        
+        serializable_history = convert_numpy_types(training_history)
+        with open(os.path.join(save_dir, 'training_history.json'), 'w') as f:
+            json.dump(serializable_history, f, indent=2)
+        
+        logger.info("\n🎯 Training completed!")
+        logger.info(f"   - Best validation accuracy: {best_val_accuracy:.3f}")
+        logger.info(f"   - Medical-grade validation: {'✅ PASS' if best_medical_validation else '❌ FAIL'}")
+        
+        return {
+            'best_val_accuracy': best_val_accuracy,
+            'medical_grade_pass': best_medical_validation,
+            'training_history': training_history,
+            'final_medical_metrics': val_results['medical_metrics'],
+            'final_medical_validation': val_results['medical_validation']
+        }
+
+def create_medical_grade_trainer(model, train_loader, val_loader, device, config=None):
+    """Factory function to create medical-grade trainer with proper configuration."""
+    
+    # Default medical-grade training configuration
+    training_config = {
+        'learning_rate': 1e-4,
+        'num_epochs': 50,
+        'patience': 10,
+        'use_mixed_precision': True,
+        'class_weights': None
+    }
+    
+    if config:
+        training_config.update(config)
+    
+    trainer = MedicalGradeDRTrainer(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        device=device,
+        **training_config
+    )
+    
+    return trainer
+
+logger.info("✅ Medical-grade trainer loaded successfully")
+logger.info("🏥 Ready for Phase 1 MedSigLIP-448 training")

@@ -4,11 +4,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 import json
+import warnings
 from typing import Dict, List, Tuple, Optional
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+# Suppress sklearn warnings to avoid STDERR confusion
+warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 
 def set_seed(seed: int = 42):
     """Set seed for reproducibility."""
@@ -55,7 +59,7 @@ def calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray
     metrics = {}
     
     # Basic metrics
-    report = classification_report(y_true, y_pred, output_dict=True)
+    report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
     metrics['accuracy'] = report['accuracy']
     metrics['macro_avg'] = report['macro avg']
     metrics['weighted_avg'] = report['weighted avg']
