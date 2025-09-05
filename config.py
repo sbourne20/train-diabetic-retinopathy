@@ -100,6 +100,10 @@ class TrainingConfig:
     
     # New dataset type 1 fields - KEY FIXES
     focal_loss: bool = True  # Enable focal loss for class imbalance
+    focal_loss_alpha: float = 1.0  # Focal loss alpha parameter for class balancing
+    focal_loss_gamma: float = 2.0  # Focal loss gamma parameter for hard example focus
+    class_weight_severe: float = 3.0  # Class weight multiplier for Severe NPDR (Class 3)
+    class_weight_pdr: float = 2.5  # Class weight multiplier for PDR (Class 4)
     medical_grade: bool = True  # Enable medical-grade validation
 
 @dataclass

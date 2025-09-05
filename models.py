@@ -574,6 +574,55 @@ def validate_medical_grade_performance(metrics, medical_thresholds=None):
     
     return validation_results
 
+class MedicalGradeFocalLoss(nn.Module):
+    """Medical-grade focal loss with configurable parameters for class imbalance."""
+    
+    def __init__(self, alpha: float = 1.0, gamma: float = 2.0, num_classes: int = 5):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.num_classes = num_classes
+    
+    def forward(self, inputs, targets):
+        """
+        Compute focal loss for medical-grade training.
+        
+        Args:
+            inputs: Model predictions (logits) [batch_size, num_classes]
+            targets: Ground truth labels [batch_size]
+        
+        Returns:
+            focal_loss: Computed focal loss value
+        """
+        ce_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-ce_loss)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+        return focal_loss.mean()
+
+def create_medical_loss_function(focal_loss: bool = True, 
+                               focal_alpha: float = 2.0, 
+                               focal_gamma: float = 3.0,
+                               class_weights: torch.Tensor = None) -> nn.Module:
+    """
+    Create medical-grade loss function with configurable parameters.
+    
+    Args:
+        focal_loss: Whether to use focal loss
+        focal_alpha: Focal loss alpha parameter
+        focal_gamma: Focal loss gamma parameter  
+        class_weights: Class weights tensor for imbalanced classes
+    
+    Returns:
+        Loss function module
+    """
+    if focal_loss:
+        print(f"✅ Creating Medical-Grade Focal Loss (α={focal_alpha}, γ={focal_gamma})")
+        return MedicalGradeFocalLoss(alpha=focal_alpha, gamma=focal_gamma)
+    else:
+        print(f"✅ Creating Weighted Cross-Entropy Loss")
+        return nn.CrossEntropyLoss(weight=class_weights)
+
 print("✅ Phase 1 MedSigLIP-448 models loaded successfully")
 print("📊 Medical-grade validation functions available")
+print("🏥 Medical-grade loss functions available")  
 print("🏥 Ready for medical production training")

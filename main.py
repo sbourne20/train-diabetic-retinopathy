@@ -41,6 +41,14 @@ def parse_args():
                        help='Enable class weighting for imbalanced data')
     parser.add_argument('--focal_loss', action='store_true',
                        help='Use focal loss for better minority class performance')
+    parser.add_argument('--focal_loss_alpha', type=float, default=1.0,
+                       help='Focal loss alpha parameter for class balancing')
+    parser.add_argument('--focal_loss_gamma', type=float, default=2.0,
+                       help='Focal loss gamma parameter for hard example focus')
+    parser.add_argument('--class_weight_severe', type=float, default=3.0,
+                       help='Class weight multiplier for Severe NPDR (Class 3)')
+    parser.add_argument('--class_weight_pdr', type=float, default=2.5,
+                       help='Class weight multiplier for PDR (Class 4)')
     parser.add_argument('--medical_grade', action='store_true',
                        help='Enable medical-grade validation metrics')
     parser.add_argument('--medical_terms', default=None,
@@ -74,6 +82,7 @@ def parse_args():
     parser.add_argument('--patience', type=int, default=10, help='Early stopping patience')
     parser.add_argument('--min_delta', type=float, default=0.001, help='Minimum delta for early stopping')
     parser.add_argument('--weight_decay', type=float, default=1e-5, help='Weight decay for optimizer')
+    parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate for medical-grade regularization')
     
     # Experiment settings
     parser.add_argument('--experiment_name', default=None, 
@@ -123,6 +132,7 @@ def setup_experiment(args):
     config.model.use_lora = (args.use_lora == 'yes')
     config.model.lora_r = args.lora_r
     config.model.lora_alpha = args.lora_alpha
+    config.model.dropout = args.dropout  # Medical-grade regularization
     config.training.num_epochs = args.epochs
     config.training.learning_rate = args.learning_rate
     config.output_dir = args.output_dir
@@ -158,6 +168,10 @@ def setup_experiment(args):
     config.data.num_classes = args.num_classes
     config.data.class_weights = args.class_weights
     config.training.focal_loss = args.focal_loss
+    config.training.focal_loss_alpha = args.focal_loss_alpha
+    config.training.focal_loss_gamma = args.focal_loss_gamma
+    config.training.class_weight_severe = args.class_weight_severe
+    config.training.class_weight_pdr = args.class_weight_pdr
     config.training.medical_grade = args.medical_grade
     if args.medical_terms:
         config.data.medical_terms = args.medical_terms
@@ -240,9 +254,14 @@ def prepare_data(config, args):
     
     # Compute class weights based on dataset type
     if hasattr(config.data, 'dataset_path') and config.data.dataset_path:
-        # Dataset type 1: single DR classification
+        # Dataset type 1: single DR classification with medical-grade weighting
         from dataset import compute_dr_class_weights
-        dr_weights = compute_dr_class_weights(train_data, config.data.num_classes)
+        dr_weights = compute_dr_class_weights(
+            train_data, 
+            config.data.num_classes,
+            severe_multiplier=config.training.class_weight_severe,
+            pdr_multiplier=config.training.class_weight_pdr
+        )
         rg_weights, me_weights = None, None  # Not used for type 1
     else:
         # Dataset type 0: RG/ME classification
@@ -295,7 +314,14 @@ def train_model(config, data_dict, args):
         validation_frequency=config.training.validation_frequency,
         checkpoint_frequency=config.training.checkpoint_frequency,
         gcs_bucket="dr-data-2",  # Use your GCS bucket
-        resume_from_checkpoint=config.training.resume_from_checkpoint
+        resume_from_checkpoint=config.training.resume_from_checkpoint,
+        gradient_accumulation_steps=config.training.gradient_accumulation_steps,
+        # Medical-grade parameters from config
+        enable_focal_loss=config.training.focal_loss,
+        focal_loss_alpha=config.training.focal_loss_alpha,
+        focal_loss_gamma=config.training.focal_loss_gamma,
+        weight_decay=config.training.weight_decay,
+        scheduler=config.training.scheduler
     )
     
     # Load checkpoint if provided

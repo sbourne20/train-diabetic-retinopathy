@@ -226,7 +226,8 @@ setup(
             # Use command line parameters if provided, otherwise use defaults
             epochs = str(getattr(self, 'num_epochs', 50))
             batch_size = str(getattr(self, 'batch_size', 4))
-            learning_rate = str(getattr(self, 'learning_rate', 3e-4))
+            # CRITICAL FIX: Don't override None with default - preserve user's explicit setting
+            learning_rate = str(self.learning_rate if hasattr(self, 'learning_rate') and self.learning_rate is not None else 3e-4)
             experiment_name = getattr(self, 'experiment_name', 'medsiglip_resume_optimized')
             
             base_args.extend([
@@ -278,6 +279,26 @@ setup(
                     base_args.extend(["--lora_r", str(self.lora_r)])
                 if getattr(self, 'lora_alpha', None) is not None:
                     base_args.extend(["--lora_alpha", str(self.lora_alpha)])
+            
+            # Add dropout parameter for medical-grade regularization
+            if getattr(self, 'dropout', None) is not None:
+                base_args.extend(["--dropout", str(self.dropout)])
+            
+            # Add advanced focal loss parameters
+            if getattr(self, 'focal_loss_alpha', None) is not None:
+                base_args.extend(["--focal_loss_alpha", str(self.focal_loss_alpha)])
+            if getattr(self, 'focal_loss_gamma', None) is not None:
+                base_args.extend(["--focal_loss_gamma", str(self.focal_loss_gamma)])
+            
+            # Add medical-grade class weighting parameters
+            if getattr(self, 'class_weight_severe', None) is not None:
+                base_args.extend(["--class_weight_severe", str(self.class_weight_severe)])
+            if getattr(self, 'class_weight_pdr', None) is not None:
+                base_args.extend(["--class_weight_pdr", str(self.class_weight_pdr)])
+            
+            # Add resume from checkpoint parameter
+            if getattr(self, 'resume_from_checkpoint', None) is not None:
+                base_args.extend(["--resume_from_checkpoint", str(self.resume_from_checkpoint)])
             
             args.extend(base_args)
         
@@ -588,6 +609,26 @@ def main():
     parser.add_argument("--lora-alpha", type=int, default=128,
                        help="LoRA alpha parameter (default: 128)")
     
+    # Medical-grade regularization parameters
+    parser.add_argument("--dropout", type=float, default=0.1,
+                       help="Dropout rate for medical-grade regularization")
+    
+    # Advanced focal loss parameters for medical-grade training
+    parser.add_argument("--focal-loss-alpha", type=float, default=1.0,
+                       help="Focal loss alpha parameter for class balancing")
+    parser.add_argument("--focal-loss-gamma", type=float, default=2.0,
+                       help="Focal loss gamma parameter for hard example focus")
+    
+    # Medical-grade class weighting parameters
+    parser.add_argument("--class-weight-severe", type=float, default=3.0,
+                       help="Class weight multiplier for Severe NPDR (Class 3)")
+    parser.add_argument("--class-weight-pdr", type=float, default=2.5,
+                       help="Class weight multiplier for PDR (Class 4)")
+    
+    # Resume from checkpoint parameter
+    parser.add_argument("--resume-from-checkpoint", type=str, default=None,
+                       help="Resume training from specific checkpoint path")
+    
     args = parser.parse_args()
     
     # Validate required parameters for upload action
@@ -631,17 +672,27 @@ def main():
     trainer.min_delta = getattr(args, 'min_delta', None)
     trainer.weight_decay = getattr(args, 'weight_decay', None)
     trainer.experiment_name = getattr(args, 'experiment_name', None)
+    trainer.resume_from_checkpoint = getattr(args, 'resume_from_checkpoint', None)
     
     # Pass LoRA parameters to trainer
     trainer.use_lora = getattr(args, 'use_lora', 'no')
     trainer.lora_r = getattr(args, 'lora_r', 64)
     trainer.lora_alpha = getattr(args, 'lora_alpha', 128)
+    trainer.dropout = getattr(args, 'dropout', 0.1)
+    
+    # Pass advanced medical-grade parameters to trainer
+    trainer.focal_loss_alpha = getattr(args, 'focal_loss_alpha', 1.0)
+    trainer.focal_loss_gamma = getattr(args, 'focal_loss_gamma', 2.0)
+    trainer.class_weight_severe = getattr(args, 'class_weight_severe', 3.0)
+    trainer.class_weight_pdr = getattr(args, 'class_weight_pdr', 2.5)
     
     # Execute action
     if args.action == "upload":
         trainer.upload_dataset(args.dataset_path)
     
     elif args.action == "train":
+        # CRITICAL FIX: Parameters are now set BEFORE job creation
+        print(f"🔧 DEBUG: Parameters set - LR: {trainer.learning_rate}, WD: {trainer.weight_decay}, GA: {trainer.gradient_accumulation_steps}")
         job_id = trainer.create_custom_training_job()
         print(f"Training job created: {job_id}")
         trainer.monitor_job(job_id)

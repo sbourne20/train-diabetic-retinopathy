@@ -1,0 +1,143 @@
+2025-09-05 04:42:06,770 - INFO - Using device: mps
+2025-09-05 04:42:06,771 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 04:43:15,869 - INFO - Using device: mps
+2025-09-05 04:43:15,869 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 04:44:52,485 - INFO - Using device: mps
+2025-09-05 04:44:52,485 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 04:46:19,947 - INFO - ✅ Model loaded: 880133756 parameters
+2025-09-05 04:46:19,951 - INFO - 📊 Setting up data loaders...
+2025-09-05 04:50:07,419 - INFO - Using device: mps
+2025-09-05 04:50:07,419 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 04:50:07,419 - INFO - 📥 Downloading MedSigLIP-448 model (first time only)...
+2025-09-05 04:50:07,419 - INFO - 💾 Will cache to: results/models/medsiglip-448
+2025-09-05 04:50:11,174 - INFO - ✅ Model downloaded and cached to: results/models/medsiglip-448
+2025-09-05 04:50:11,174 - INFO - 🚀 Next time training will start instantly!
+2025-09-05 04:50:11,175 - INFO - ✅ Model loaded: 880133756 parameters
+2025-09-05 04:50:11,175 - INFO - 📊 Setting up data loaders...
+2025-09-05 04:50:11,176 - INFO - 📊 Loading data splits for 5-class DR dataset...
+2025-09-05 04:52:57,096 - INFO - Using device: mps
+2025-09-05 04:52:57,096 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 04:52:57,096 - INFO - 📥 Downloading MedSigLIP-448 model (first time only)...
+2025-09-05 04:52:57,096 - INFO - 💾 Will cache to: results/models/medsiglip-448
+2025-09-05 04:53:00,841 - INFO - ✅ Model downloaded and cached to: results/models/medsiglip-448
+2025-09-05 04:53:00,843 - INFO - 🚀 Next time training will start instantly!
+2025-09-05 04:53:00,844 - INFO - ✅ Model loaded: 880133756 parameters
+2025-09-05 04:53:00,844 - INFO - 📊 Setting up data loaders...
+2025-09-05 04:53:00,844 - INFO - 📊 Loading data splits for 5-class DR dataset...
+2025-09-05 04:53:01,056 - INFO - ✅ Data loaded: 115241 train, 14227 val samples
+2025-09-05 04:53:33,970 - INFO - Using device: mps
+2025-09-05 04:53:33,971 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 04:53:33,971 - INFO - 📥 Downloading MedSigLIP-448 model (first time only)...
+2025-09-05 04:53:33,971 - INFO - 💾 Will cache to: results/models/medsiglip-448
+2025-09-05 04:53:37,112 - INFO - ✅ Model downloaded and cached to: results/models/medsiglip-448
+2025-09-05 04:53:37,114 - INFO - 🚀 Next time training will start instantly!
+2025-09-05 04:53:37,115 - INFO - ✅ Model loaded: 880133756 parameters
+2025-09-05 04:53:37,115 - INFO - 📊 Setting up data loaders...
+2025-09-05 04:53:37,116 - INFO - 📊 Loading data splits for 5-class DR dataset...
+2025-09-05 04:53:37,337 - INFO - ✅ Data loaded: 115241 train, 14227 val samples
+2025-09-05 04:54:33,851 - INFO - Using device: mps
+2025-09-05 04:54:33,851 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 04:54:33,851 - INFO - 📥 Downloading MedSigLIP-448 model (first time only)...
+2025-09-05 04:54:33,851 - INFO - 💾 Will cache to: results/models/medsiglip-448
+2025-09-05 04:54:36,814 - INFO - ✅ Model downloaded and cached to: results/models/medsiglip-448
+2025-09-05 04:54:36,815 - INFO - 🚀 Next time training will start instantly!
+2025-09-05 04:54:36,816 - INFO - ✅ Model loaded: 880133756 parameters
+2025-09-05 04:54:36,816 - INFO - 📊 Setting up data loaders...
+2025-09-05 04:54:36,816 - INFO - 📊 Loading data splits for 5-class DR dataset...
+2025-09-05 04:54:37,026 - INFO - ✅ Data loaded: 115241 train, 14227 val samples
+2025-09-05 04:59:42,056 - INFO - Using device: mps
+2025-09-05 04:59:42,056 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 04:59:42,057 - INFO - 📥 Downloading MedSigLIP-448 model (first time only)...
+2025-09-05 04:59:42,057 - INFO - 💾 Will cache to: results/models/medsiglip-448
+2025-09-05 04:59:45,664 - INFO - ✅ Model downloaded and cached to: results/models/medsiglip-448
+2025-09-05 04:59:45,664 - INFO - 🚀 Next time training will start instantly!
+2025-09-05 04:59:45,665 - INFO - ✅ Model loaded: 880133756 parameters
+2025-09-05 04:59:45,665 - INFO - 📊 Setting up data loaders...
+2025-09-05 04:59:45,665 - INFO - 📊 Loading data splits for 5-class DR dataset...
+2025-09-05 04:59:46,041 - INFO - ✅ Data loaded: 115241 train, 14227 val samples
+2025-09-05 05:05:58,826 - INFO - 📊 Training class distribution:
+2025-09-05 05:05:58,826 - INFO -    Class 0: 55162 samples
+2025-09-05 05:05:58,826 - INFO -    Class 1: 18470 samples
+2025-09-05 05:05:58,826 - INFO -    Class 2: 24198 samples
+2025-09-05 05:05:58,826 - INFO -    Class 3: 7936 samples
+2025-09-05 05:05:58,826 - INFO -    Class 4: 9475 samples
+2025-09-05 05:05:58,827 - INFO - ⚙️ Setting up optimizer...
+2025-09-05 05:05:58,828 - INFO - ✅ Using Focal Loss for imbalanced classes
+2025-09-05 05:05:58,828 - INFO - ✅ Optimizer configured: LR=0.0001, WD=0.005
+2025-09-05 05:05:58,828 - INFO - ✅ Scheduler: polynomial
+2025-09-05 05:05:58,828 - INFO - ✅ MLX Trainer initialized successfully
+2025-09-05 05:05:58,828 - INFO - 🚀 Starting MLX training on Mac M4...
+2025-09-05 05:05:58,828 - INFO - 📊 Training configuration:
+2025-09-05 05:05:58,828 - INFO -    - Model: MedSigLIP-448
+2025-09-05 05:05:58,828 - INFO -    - Device: mps
+2025-09-05 05:05:58,828 - INFO -    - Learning Rate: 0.0001
+2025-09-05 05:05:58,828 - INFO -    - Weight Decay: 0.005
+2025-09-05 05:05:58,828 - INFO -    - Dropout: 0.3
+2025-09-05 05:05:58,828 - INFO -    - Batch Size: 2
+2025-09-05 05:05:58,828 - INFO -    - Epochs: 150
+2025-09-05 05:05:58,828 - INFO -    - Scheduler: polynomial
+2025-09-05 05:06:28,086 - ERROR - ❌ Training failed: cross_entropy_loss(): argument 'input' (position 1) must be Tensor, not dict
+2025-09-05 05:08:13,500 - INFO - Using device: mps
+2025-09-05 05:08:13,500 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 05:08:13,500 - INFO - 📥 Downloading MedSigLIP-448 model (first time only)...
+2025-09-05 05:08:13,500 - INFO - 💾 Will cache to: results/models/medsiglip-448
+2025-09-05 05:08:16,277 - INFO - ✅ Model downloaded and cached to: results/models/medsiglip-448
+2025-09-05 05:08:16,277 - INFO - 🚀 Next time training will start instantly!
+2025-09-05 05:08:16,278 - INFO - ✅ Model loaded: 880133756 parameters
+2025-09-05 05:08:16,278 - INFO - 📊 Setting up data loaders...
+2025-09-05 05:08:16,278 - INFO - 📊 Loading data splits for 5-class DR dataset...
+2025-09-05 05:08:16,452 - INFO - ✅ Data loaded: 115241 train, 14227 val samples
+2025-09-05 05:09:09,443 - INFO - Using device: mps
+2025-09-05 05:09:09,443 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-05 05:09:09,443 - INFO - 📥 Downloading MedSigLIP-448 model (first time only)...
+2025-09-05 05:09:09,443 - INFO - 💾 Will cache to: results/models/medsiglip-448
+2025-09-05 05:09:11,382 - INFO - ✅ Model downloaded and cached to: results/models/medsiglip-448
+2025-09-05 05:09:11,383 - INFO - 🚀 Next time training will start instantly!
+2025-09-05 05:09:11,385 - INFO - ✅ Model loaded: 880133756 parameters
+2025-09-05 05:09:11,385 - INFO - 📊 Setting up data loaders...
+2025-09-05 05:09:11,385 - INFO - 📊 Loading data splits for 5-class DR dataset...
+2025-09-05 05:09:11,607 - INFO - ✅ Data loaded: 115241 train, 14227 val samples
+2025-09-05 05:15:07,653 - INFO - 📊 Training class distribution:
+2025-09-05 05:15:07,654 - INFO -    Class 0: 55162 samples
+2025-09-05 05:15:07,654 - INFO -    Class 1: 18470 samples
+2025-09-05 05:15:07,654 - INFO -    Class 2: 24198 samples
+2025-09-05 05:15:07,654 - INFO -    Class 3: 7936 samples
+2025-09-05 05:15:07,654 - INFO -    Class 4: 9475 samples
+2025-09-05 05:15:07,655 - INFO - ⚙️ Setting up optimizer...
+2025-09-05 05:15:07,657 - INFO - ✅ Using Focal Loss for imbalanced classes
+2025-09-05 05:15:07,657 - INFO - ✅ Optimizer configured: LR=0.0001, WD=0.005
+2025-09-05 05:15:07,657 - INFO - ✅ Scheduler: polynomial
+2025-09-05 05:15:07,657 - INFO - ✅ MLX Trainer initialized successfully
+2025-09-05 05:15:07,657 - INFO - 🚀 Starting MLX training on Mac M4...
+2025-09-05 05:15:07,657 - INFO - 📊 Training configuration:
+2025-09-05 05:15:07,657 - INFO -    - Model: MedSigLIP-448
+2025-09-05 05:15:07,657 - INFO -    - Device: mps
+2025-09-05 05:15:07,657 - INFO -    - Learning Rate: 0.0001
+2025-09-05 05:15:07,657 - INFO -    - Weight Decay: 0.005
+2025-09-05 05:15:07,657 - INFO -    - Dropout: 0.3
+2025-09-05 05:15:07,657 - INFO -    - Batch Size: 2
+2025-09-05 05:15:07,657 - INFO -    - Epochs: 150
+2025-09-05 05:15:07,657 - INFO -    - Scheduler: polynomial
+2025-09-05 05:16:10,271 - INFO - 📊 Training class distribution:
+2025-09-05 05:16:10,278 - INFO -    Class 0: 55162 samples
+2025-09-05 05:16:10,278 - INFO -    Class 1: 18470 samples
+2025-09-05 05:16:10,278 - INFO -    Class 2: 24198 samples
+2025-09-05 05:16:10,278 - INFO -    Class 3: 7936 samples
+2025-09-05 05:16:10,278 - INFO -    Class 4: 9475 samples
+2025-09-05 05:16:10,294 - INFO - ⚙️ Setting up optimizer...
+2025-09-05 05:16:10,324 - INFO - ✅ Using Focal Loss for imbalanced classes
+2025-09-05 05:16:10,324 - INFO - ✅ Optimizer configured: LR=0.0001, WD=0.005
+2025-09-05 05:16:10,325 - INFO - ✅ Scheduler: polynomial
+2025-09-05 05:16:10,326 - INFO - ✅ MLX Trainer initialized successfully
+2025-09-05 05:16:10,326 - INFO - 🚀 Starting MLX training on Mac M4...
+2025-09-05 05:16:10,327 - INFO - 📊 Training configuration:
+2025-09-05 05:16:10,327 - INFO -    - Model: MedSigLIP-448
+2025-09-05 05:16:10,327 - INFO -    - Device: mps
+2025-09-05 05:16:10,327 - INFO -    - Learning Rate: 0.0001
+2025-09-05 05:16:10,327 - INFO -    - Weight Decay: 0.005
+2025-09-05 05:16:10,327 - INFO -    - Dropout: 0.3
+2025-09-05 05:16:10,327 - INFO -    - Batch Size: 2
+2025-09-05 05:16:10,327 - INFO -    - Epochs: 150
+2025-09-05 05:16:10,327 - INFO -    - Scheduler: polynomial
+2025-09-05 05:33:27,795 - INFO - ⚠️ Training interrupted by user
+2025-09-05 05:34:44,880 - ERROR - ❌ Training failed: [Errno 32] Broken pipe

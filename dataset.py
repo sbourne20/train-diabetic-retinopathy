@@ -43,7 +43,6 @@ class DiabeticRetinopathyDataset(Dataset):
             # Download from GCS and read into memory
             from google.cloud import storage
             import tempfile
-            import os
             
             # Parse GCS path
             path_parts = image_path.replace('gs://', '').split('/')
@@ -454,13 +453,23 @@ def compute_dataset_class_weights(data_info: List[Dict], num_classes_rg: int = 5
     
     return rg_weights, me_weights
 
-def compute_dr_class_weights(data_info: List[Dict], num_classes: int) -> np.ndarray:
-    """Compute class weights for DR classification (dataset type 1)."""
+def compute_dr_class_weights(data_info: List[Dict], num_classes: int, 
+                           severe_multiplier: float = 3.0, pdr_multiplier: float = 2.5) -> np.ndarray:
+    """Compute medical-grade class weights for DR classification (dataset type 1)."""
     
     dr_labels = np.array([item['dr_grade'] for item in data_info])
     dr_weights = compute_class_weights(dr_labels, num_classes)
     
-    print("DR Class weights:", dr_weights)
+    # Apply medical-grade weighting for critical classes
+    if num_classes == 5:  # 5-class DR classification
+        dr_weights[3] *= severe_multiplier  # Severe NPDR (Class 3)
+        dr_weights[4] *= pdr_multiplier     # PDR (Class 4)
+        
+        print(f"Medical-grade DR Class weights applied:")
+        print(f"  - Severe NPDR (Class 3): {severe_multiplier}x multiplier")
+        print(f"  - PDR (Class 4): {pdr_multiplier}x multiplier")
+    
+    print("Final DR Class weights:", dr_weights)
     
     return dr_weights
 
