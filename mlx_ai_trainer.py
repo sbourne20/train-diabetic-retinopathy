@@ -19,6 +19,25 @@ try:
     import mlx.nn as nn
     import mlx.optimizers as optim
     MLX_AVAILABLE = True
+    
+    # Configure MLX memory management for system stability
+    import psutil
+    total_memory_gb = psutil.virtual_memory().total / (1024**3)
+    
+    # Reserve 30% of system memory for OS and other processes
+    mlx_memory_limit = int(total_memory_gb * 0.7 * 1024)  # MB
+    
+    print(f"🍎 System Memory: {total_memory_gb:.1f}GB total")
+    print(f"🛡️  MLX Memory Limit: {mlx_memory_limit/1024:.1f}GB (70% of system)")
+    print("🔒 Memory management enabled for system stability")
+    
+    # Set MLX memory pool limit (prevents memory exhaustion)
+    try:
+        mx.metal.set_memory_limit(mlx_memory_limit * 1024 * 1024)  # Convert to bytes
+        print("✅ MLX memory limit configured successfully")
+    except Exception as e:
+        print(f"⚠️ MLX memory limit configuration failed: {e}")
+        
 except ImportError:
     print("❌ MLX not available. Install with: pip install mlx")
     MLX_AVAILABLE = False
@@ -60,6 +79,45 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def monitor_memory_usage():
+    """Monitor system memory usage and MLX memory state."""
+    memory = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    
+    memory_info = {
+        'total_gb': memory.total / (1024**3),
+        'available_gb': memory.available / (1024**3),
+        'used_gb': memory.used / (1024**3),
+        'percent_used': memory.percent,
+        'swap_used_gb': swap.used / (1024**3),
+        'swap_percent': swap.percent
+    }
+    
+    # Get MLX memory info if available
+    try:
+        if MLX_AVAILABLE:
+            mlx_memory = mx.metal.get_active_memory() / (1024**3)  # Convert to GB
+            memory_info['mlx_active_gb'] = mlx_memory
+    except:
+        memory_info['mlx_active_gb'] = 0.0
+    
+    return memory_info
+
+def check_memory_safety(threshold_percent=85):
+    """Check if memory usage is safe to continue training."""
+    memory_info = monitor_memory_usage()
+    
+    if memory_info['percent_used'] > threshold_percent:
+        logger.warning(f"⚠️ High memory usage: {memory_info['percent_used']:.1f}%")
+        logger.warning(f"💾 Available memory: {memory_info['available_gb']:.1f}GB")
+        return False
+    
+    if memory_info['swap_percent'] > 50:
+        logger.warning(f"⚠️ High swap usage: {memory_info['swap_percent']:.1f}%")
+        return False
+    
+    return True
+
 class MLXDRTrainer:
     """MLX-optimized trainer for diabetic retinopathy classification on Mac M4."""
     
@@ -67,6 +125,22 @@ class MLXDRTrainer:
         self.args = args
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"
         logger.info(f"Using device: {self.device}")
+        
+        # Monitor initial memory state
+        memory_info = monitor_memory_usage()
+        logger.info(f"🍎 Initial Memory State:")
+        logger.info(f"   💾 System: {memory_info['used_gb']:.1f}GB/{memory_info['total_gb']:.1f}GB ({memory_info['percent_used']:.1f}%)")
+        logger.info(f"   🔓 Available: {memory_info['available_gb']:.1f}GB")
+        if memory_info.get('mlx_active_gb', 0) > 0:
+            logger.info(f"   🍎 MLX Active: {memory_info['mlx_active_gb']:.2f}GB")
+        
+        # Adjust batch size based on available memory if needed
+        available_memory_gb = memory_info['available_gb']
+        if available_memory_gb < 8.0:
+            logger.warning(f"⚠️ Low available memory ({available_memory_gb:.1f}GB). Consider reducing batch size.")
+            if args.batch_size > 1:
+                logger.info("🔧 Auto-reducing batch size for memory safety")
+                args.batch_size = 1
         
         # Setup paths
         self.dataset_path = Path(args.dataset_path)
@@ -131,9 +205,9 @@ class MLXDRTrainer:
                 num_classes=5,
                 dropout=self.args.dropout,
                 enable_confidence=True,
-                use_lora=True,  # LoRA enabled to match checkpoint
-                lora_r=16,      # Same as Vertex AI checkpoint
-                lora_alpha=32   # Same as Vertex AI checkpoint
+                use_lora=getattr(self.args, 'use_lora', False),
+                lora_r=getattr(self.args, 'lora_r', 16),
+                lora_alpha=getattr(self.args, 'lora_alpha', 32)
             ).to(self.device)
         else:
             logger.info("📥 Downloading MedSigLIP-448 model (first time only)...")
@@ -147,9 +221,9 @@ class MLXDRTrainer:
                 num_classes=5,
                 dropout=self.args.dropout,
                 enable_confidence=True,
-                use_lora=True,  # LoRA enabled to match checkpoint
-                lora_r=16,      # Same as Vertex AI checkpoint
-                lora_alpha=32   # Same as Vertex AI checkpoint
+                use_lora=getattr(self.args, 'use_lora', False),
+                lora_r=getattr(self.args, 'lora_r', 16),
+                lora_alpha=getattr(self.args, 'lora_alpha', 32)
             ).to(self.device)
             
             logger.info(f"✅ Model downloaded and cached to: {local_model_path}")
@@ -159,7 +233,14 @@ class MLXDRTrainer:
         if self.args.resume_from_checkpoint and self.args.resume_from_checkpoint != "none":
             self._load_checkpoint()
         
-        logger.info(f"✅ Model loaded: {sum(p.numel() for p in self.model.parameters())} parameters")
+        total_params = sum(p.numel() for p in self.model.parameters())
+        if getattr(self.args, 'use_lora', False):
+            trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+            logger.info(f"✅ Model loaded with LoRA: {total_params} total parameters")
+            logger.info(f"🎯 LoRA Configuration: r={getattr(self.args, 'lora_r', 16)}, alpha={getattr(self.args, 'lora_alpha', 32)}")
+            logger.info(f"🚀 Trainable parameters: {trainable_params} ({trainable_params/total_params*100:.1f}% of total)")
+        else:
+            logger.info(f"✅ Model loaded: {total_params} parameters (full fine-tuning)")
     
     def _setup_data(self):
         """Setup data loaders for training and validation."""
@@ -428,11 +509,20 @@ class MLXDRTrainer:
         torch.save(checkpoint, latest_path)
     
     def train_epoch(self, epoch: int) -> Dict[str, float]:
-        """Train one epoch with detailed batch progress bars."""
+        """Train one epoch with detailed batch progress bars and memory monitoring."""
         self.model.train()
         losses = AverageMeter()
         dr_losses = AverageMeter()
         accuracies = AverageMeter()
+        
+        # Monitor memory at start of epoch
+        memory_info = monitor_memory_usage()
+        logger.info(f"📊 Epoch {epoch} Memory: {memory_info['percent_used']:.1f}% used, {memory_info['available_gb']:.1f}GB available")
+        
+        # Check if memory usage is safe to continue
+        if not check_memory_safety(threshold_percent=85):
+            logger.error("❌ Memory usage too high. Consider reducing batch size or restarting training.")
+            raise RuntimeError("Memory usage exceeded safe threshold")
         
         # Calculate total batches for the progress bar
         total_batches = len(self.train_loader)
@@ -488,15 +578,41 @@ class MLXDRTrainer:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
                 accumulated_loss = 0.0
+                
+                # Periodic memory cleanup and monitoring (every 50 batches)
+                if (batch_idx + 1) % 50 == 0:
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                        torch.mps.empty_cache()
+                    
+                    # Try MLX memory cleanup if available
+                    try:
+                        if MLX_AVAILABLE:
+                            mx.metal.clear_cache()
+                    except:
+                        pass
+                    
+                    # Check memory usage periodically
+                    memory_info = monitor_memory_usage()
+                    if memory_info['percent_used'] > 90:
+                        logger.warning(f"⚠️ High memory usage at batch {batch_idx+1}: {memory_info['percent_used']:.1f}%")
             
-            # Update progress bar with detailed metrics (like Vertex AI)
+            # Update progress bar with detailed metrics including memory info
             current_lr = self.optimizer.param_groups[0]["lr"]
-            pbar.set_postfix({
+            memory_info = monitor_memory_usage() if (batch_idx + 1) % 20 == 0 else {'percent_used': 0}
+            
+            postfix_dict = {
                 'Loss': f'{losses.avg:.4f}',
                 'DR_Loss': f'{dr_losses.avg:.4f}', 
                 'Acc': f'{accuracies.avg:.3f}',
                 'LR': f'{current_lr:.2e}'
-            })
+            }
+            
+            if memory_info['percent_used'] > 0:
+                postfix_dict['Mem'] = f"{memory_info['percent_used']:.0f}%"
+            
+            pbar.set_postfix(postfix_dict)
         
         pbar.close()
         
@@ -774,6 +890,11 @@ def main():
     parser.add_argument("--learning-rate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--weight-decay", type=float, default=5e-3, help="Weight decay")
     parser.add_argument("--dropout", type=float, default=0.3, help="Dropout rate")
+    
+    # LoRA parameters
+    parser.add_argument("--use-lora", action="store_true", help="Enable LoRA fine-tuning")
+    parser.add_argument("--lora-r", type=int, default=16, help="LoRA rank parameter")
+    parser.add_argument("--lora-alpha", type=int, default=32, help="LoRA alpha parameter")
     
     # Training configuration
     parser.add_argument("--scheduler", type=str, default="polynomial", 

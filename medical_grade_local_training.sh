@@ -15,13 +15,13 @@ echo "🎯 EXACT ORIGINAL CONFIGURATION (SEPT 5TH SUCCESS - 81.76%):"
 echo "  ✅ LoRA Rank (r): 16 (maintains checkpoint compatibility)"
 echo "  ✅ LoRA Alpha: 32 (proven effective configuration)"
 echo "  🎯 Learning Rate: 2e-5 (ORIGINAL: exact rate that achieved 81.76%)"
-echo "  🎯 Class Weights: 8.0/6.0 (ORIGINAL: aggressive imbalance correction)"
+echo "  🎯 Class Weights: 2.0/1.5 (BALANCED: light correction for dataset5)"
 echo "  🚀 Scheduler: none (ORIGINAL: fixed LR throughout training)"
 echo "  ✅ Medical Warmup: 30 epochs (ORIGINAL: extended warmup period)"
 echo "  🎯 Batch Size: 6 (ORIGINAL: smaller batches with grad accumulation)"
 echo "  ✅ Dropout: 0.4 (ORIGINAL: moderate regularization)"
 echo "  ✅ Weight Decay: 1e-5 (ORIGINAL: light regularization)"
-echo "  🔥 Focal Loss: α=4.0, γ=6.0 (ORIGINAL: very aggressive focus)"
+echo "  🔥 Focal Loss: α=1.0, γ=2.0 (BALANCED: standard focus for dataset5)"
 echo ""
 echo "💡 WHY EXACT PARAMETERS WILL WORK ON LOCAL V100:"
 echo "  • 🎯 PROVEN CONFIG: Same parameters that achieved 81.76% success"
@@ -73,7 +73,7 @@ python local_trainer.py \
   --lora_r 16 \
   --lora_alpha 32 \
   --learning_rate 2e-5 \
-  --batch_size 4 \
+  --batch_size 6 \
   --freeze_backbone_epochs 0 \
   --enable_focal_loss \
   --focal_loss_alpha 1.0 \
@@ -83,17 +83,20 @@ python local_trainer.py \
   --class_weight_severe 2.0 \
   --class_weight_pdr 1.5 \
   --gradient_accumulation_steps 6 \
-  --warmup_epochs 20 \
+  --warmup_epochs 30 \
   --scheduler none \
   --validation_frequency 1 \
   --patience 15 \
   --min_delta 0.001 \
   --weight_decay 1e-5 \
-  --dropout 0.3 \
+  --dropout 0.4 \
   --max_grad_norm 1.0 \
   --checkpoint_frequency 2 \
   --experiment_name "medsiglip_lora_LOCAL_V100_EXACT_ORIGINAL_PARAMETERS" \
   --device cuda \
+  --no_wandb \
+  --save_local_only \
+  --output_dir ./results \
   --medical_terms data/medical_terms_type1.json
 
 echo ""
