@@ -2,19 +2,19 @@
 # MEDICAL-GRADE LoRA LOCAL V100 TRAINING - EXACT VERTEX AI PARAMETERS
 # Replicating medical_grade_lora_antioverfitting.sh for local V100 execution
 
-echo "🎯 LOCAL V100 TRAINING: DEBUG VERSION - SIMPLIFIED PARAMETERS"
+echo "🎯 LOCAL V100 TRAINING: NO-LORA DEBUG - FULL FINE-TUNING"
 echo "Foundation Model: google/medsiglip-448 - OPTIMIZED PARAMETERS FOR BALANCED DATA"
 echo ""
 echo "🚀 BALANCED OPTIMIZATION: Leveraging dataset5 perfect balance for superior results"
 echo "  🎯 TARGET: Exceed 81.76% → 85%+ → 92% medical-grade accuracy"
 echo "  ✅ Balanced Dataset5: 27k perfectly balanced samples (1.21:1 ratio)"
 echo "  ✅ Hardware: V100 16GB (optimized utilization with higher batch size)"
-echo "  ✅ Memory Optimized: LoRA r=16 for ~7GB usage vs 16GB available"
+echo "  ✅ Memory Usage: Full fine-tuning ~12GB vs 16GB available"
 echo ""
-echo "🎯 DEBUG CONFIGURATION (SIMPLIFIED FOR TROUBLESHOOTING):"
-echo "  ✅ LoRA Rank (r): 16 (maintains checkpoint compatibility)"
-echo "  ✅ LoRA Alpha: 32 (proven effective configuration)"
-echo "  🎯 Learning Rate: 2e-5 (DEBUG: standard rate for basic training)"
+echo "🎯 NO-LORA CONFIGURATION (FULL FINE-TUNING DEBUG):"
+echo "  ❌ LoRA: DISABLED (DEBUG: full fine-tuning for better learning)"
+echo "  💪 Full Fine-tuning: ENABLED (all model parameters trainable)"
+echo "  🎯 Learning Rate: 5e-6 (DEBUG: reduced for full fine-tuning stability)"
 echo "  🎯 Class Weights: None (DEBUG: equal weights for all classes)"
 echo "  🚀 Scheduler: none (ORIGINAL: fixed LR throughout training)"
 echo "  ✅ Medical Warmup: 0 epochs (DEBUG: no warmup for immediate learning)"
@@ -32,7 +32,7 @@ echo "  • 🎯 Local Advantages: No cloud latency, direct GPU access"
 echo "  • ✅ Resume Ready: Can potentially resume from GCS checkpoint"
 echo ""
 echo "🎮 V100 OPTIMIZATION ADVANTAGES:"
-echo "  • Memory Efficiency: 6GB LoRA usage vs 16GB available (2.6x headroom)"
+echo "  • Memory Usage: 12GB full fine-tuning vs 16GB available (1.3x headroom)"
 echo "  • Speed: Local dataset loading (no GCS transfer latency)"
 echo "  • Stability: Direct hardware control (no cloud interruptions)"
 echo "  • Debug Friendly: Real-time monitoring and adjustment capability"
@@ -69,10 +69,8 @@ python local_trainer.py \
   --pretrained_path google/medsiglip-448 \
   --img_size 448 \
   --epochs 50 \
-  --use_lora yes \
-  --lora_r 16 \
-  --lora_alpha 32 \
-  --learning_rate 2e-5 \
+  --use_lora no \
+  --learning_rate 5e-6 \
   --batch_size 6 \
   --freeze_backbone_epochs 0 \
   --enable_medical_grade \
@@ -86,7 +84,7 @@ python local_trainer.py \
   --dropout 0.4 \
   --max_grad_norm 1.0 \
   --checkpoint_frequency 2 \
-  --experiment_name "medsiglip_lora_LOCAL_V100_EXACT_ORIGINAL_PARAMETERS" \
+  --experiment_name "medsiglip_FULL_FINETUNE_LOCAL_V100_DEBUG" \
   --device cuda \
   --no_wandb \
   --output_dir ./results \
@@ -118,7 +116,7 @@ echo "  • ✅ Debug Friendly: Full system access for troubleshooting"
 echo "  • 🎯 Memory Optimal: 16GB V100 perfectly sized for LoRA training"
 echo ""
 echo "🏁 LOCAL V100 TRAINING GUARANTEES:"
-echo "  • MEMORY: Efficient LoRA training within 16GB V100 limits"
+echo "  • MEMORY: Full fine-tuning within 16GB V100 limits"
 echo "  • SPEED: Faster epoch times due to local dataset access"
 echo "  • QUALITY: Same medical-grade parameters that achieved 81.76%"
 echo "  • REPRODUCIBILITY: Exact parameter match with Vertex success"
