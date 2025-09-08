@@ -2,14 +2,14 @@
 # MEDICAL-GRADE LoRA LOCAL V100 TRAINING - EXACT VERTEX AI PARAMETERS
 # Replicating medical_grade_lora_antioverfitting.sh for local V100 execution
 
-echo "🎯 LOCAL V100 TRAINING: EXACT ORIGINAL PARAMETERS FROM SEPT 5TH SUCCESS"
-echo "Foundation Model: google/medsiglip-448 - EXACT PARAMETERS FROM 81.76% CHECKPOINT"
+echo "🎯 LOCAL V100 TRAINING: OPTIMIZED FOR BALANCED DATASET5"
+echo "Foundation Model: google/medsiglip-448 - OPTIMIZED PARAMETERS FOR BALANCED DATA"
 echo ""
-echo "🚀 PARAMETER REPLICATION: Using identical config that achieved 81.76% validation"
-echo "  🎯 TARGET: Reproduce 81.76% → 85%+ → 90% medical-grade accuracy trajectory"
-echo "  ✅ Local Dataset: dataset5 (29k balanced samples vs Vertex 115k)"
-echo "  ✅ Hardware: V100 16GB (equivalent performance to Vertex V100)"
-echo "  ✅ Memory Optimized: LoRA r=16 for 4-6GB usage vs 16GB available"
+echo "🚀 BALANCED OPTIMIZATION: Leveraging dataset5 perfect balance for superior results"
+echo "  🎯 TARGET: Exceed 81.76% → 85%+ → 92% medical-grade accuracy"
+echo "  ✅ Balanced Dataset5: 27k perfectly balanced samples (1.21:1 ratio)"
+echo "  ✅ Hardware: V100 16GB (optimized utilization with higher batch size)"
+echo "  ✅ Memory Optimized: LoRA r=16 for ~7GB usage vs 16GB available"
 echo ""
 echo "🎯 EXACT ORIGINAL CONFIGURATION (SEPT 5TH SUCCESS - 81.76%):"
 echo "  ✅ LoRA Rank (r): 16 (maintains checkpoint compatibility)"
@@ -68,28 +68,28 @@ python local_trainer.py \
   --num_classes 5 \
   --pretrained_path google/medsiglip-448 \
   --img_size 448 \
-  --epochs 60 \
+  --epochs 50 \
   --use_lora yes \
   --lora_r 16 \
   --lora_alpha 32 \
   --learning_rate 2e-5 \
-  --batch_size 6 \
+  --batch_size 8 \
   --freeze_backbone_epochs 0 \
   --enable_focal_loss \
-  --focal_loss_alpha 4.0 \
-  --focal_loss_gamma 6.0 \
+  --focal_loss_alpha 1.0 \
+  --focal_loss_gamma 2.0 \
   --enable_medical_grade \
   --enable_class_weights \
-  --class_weight_severe 8.0 \
-  --class_weight_pdr 6.0 \
-  --gradient_accumulation_steps 4 \
-  --warmup_epochs 30 \
+  --class_weight_severe 2.0 \
+  --class_weight_pdr 1.5 \
+  --gradient_accumulation_steps 3 \
+  --warmup_epochs 20 \
   --scheduler none \
   --validation_frequency 1 \
   --patience 15 \
   --min_delta 0.001 \
   --weight_decay 1e-5 \
-  --dropout 0.4 \
+  --dropout 0.3 \
   --max_grad_norm 1.0 \
   --checkpoint_frequency 2 \
   --experiment_name "medsiglip_lora_LOCAL_V100_EXACT_ORIGINAL_PARAMETERS" \
