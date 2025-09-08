@@ -10,6 +10,18 @@ import json
 import torch
 from datetime import datetime
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    env_loaded = load_dotenv()
+    if env_loaded:
+        print("✅ Environment variables loaded from .env file")
+    else:
+        print("⚠️ Warning: .env file not found or empty")
+except ImportError:
+    print("❌ Error: python-dotenv not found. Installing...")
+    print("Run: pip install python-dotenv")
+
 # Optional wandb import
 try:
     import wandb
@@ -420,11 +432,57 @@ def evaluate_local_model(config, data_dict, model=None, args=None):
     
     return evaluation_results
 
+def verify_huggingface_token():
+    """Verify HuggingFace token is properly loaded."""
+    
+    hf_token = os.getenv("HUGGINGFACE_TOKEN")
+    if not hf_token:
+        print("❌ HUGGINGFACE_TOKEN not found in environment variables!")
+        print("\n🔧 TROUBLESHOOTING STEPS:")
+        print("1. Verify .env file exists in current directory:")
+        print(f"   Current directory: {os.getcwd()}")
+        print(f"   .env file exists: {os.path.exists('.env')}")
+        
+        if os.path.exists('.env'):
+            print("\n2. .env file contents:")
+            try:
+                with open('.env', 'r') as f:
+                    lines = f.readlines()
+                    for i, line in enumerate(lines, 1):
+                        if 'HUGGINGFACE_TOKEN' in line:
+                            # Mask the token for security
+                            masked_line = line.split('=')[0] + '=hf_***' + line.split('=')[1][-10:]
+                            print(f"   Line {i}: {masked_line.strip()}")
+            except Exception as e:
+                print(f"   Error reading .env: {e}")
+        
+        print("\n3. Install python-dotenv if not available:")
+        print("   pip install python-dotenv")
+        
+        print("\n4. Verify .env format (no spaces around =):")
+        print("   HUGGINGFACE_TOKEN=hf_your_token_here")
+        
+        print("\n5. Alternative: Set environment variable directly:")
+        print("   export HUGGINGFACE_TOKEN=hf_your_token_here")
+        
+        raise ValueError("HUGGINGFACE_TOKEN not found in environment. Please fix .env loading.")
+    
+    else:
+        print(f"✅ HUGGINGFACE_TOKEN loaded successfully: hf_***{hf_token[-10:]}")
+        return hf_token
+
 def main():
     """Main function for local V100 training."""
     
     print("🎯 LOCAL V100 DIABETIC RETINOPATHY TRAINING")
     print("=" * 50)
+    
+    # Verify HuggingFace token before proceeding
+    try:
+        verify_huggingface_token()
+    except ValueError as e:
+        print(f"❌ Token verification failed: {e}")
+        return
     
     args = parse_args()
     

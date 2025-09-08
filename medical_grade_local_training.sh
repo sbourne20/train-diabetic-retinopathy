@@ -45,7 +45,20 @@ if [ ! -d "./dataset5" ]; then
     exit 1
 fi
 
+# Check if .env file exists
+if [ ! -f ".env" ]; then
+    echo "❌ ERROR: .env file not found in current directory"
+    echo "Please create .env file with your HuggingFace token:"
+    echo "HUGGINGFACE_TOKEN=hf_your_token_here"
+    exit 1
+fi
+
+# Install python-dotenv if not available
+echo "📦 Ensuring python-dotenv is available..."
+pip install python-dotenv || echo "⚠️ python-dotenv installation failed"
+
 echo "✅ dataset5 found - proceeding with local training"
+echo "✅ .env file found - HuggingFace token should be loaded"
 echo ""
 
 # Run local training with EXACT parameters from medical_grade_lora_antioverfitting.sh
