@@ -2,18 +2,18 @@
 # MEDICAL-GRADE LoRA LOCAL V100 TRAINING - EXACT VERTEX AI PARAMETERS
 # Replicating medical_grade_lora_antioverfitting.sh for local V100 execution
 
-echo "🎯 LOCAL V100 TRAINING: LORA + SMALL BATCH DEBUG"
+echo "🎯 LOCAL V100 TRAINING: FULL FINE-TUNING V100-OPTIMIZED"
 echo "Foundation Model: google/medsiglip-448 - OPTIMIZED PARAMETERS FOR BALANCED DATA"
 echo ""
 echo "🚀 BALANCED OPTIMIZATION: Leveraging dataset5 perfect balance for superior results"
 echo "  🎯 TARGET: Exceed 81.76% → 85%+ → 92% medical-grade accuracy"
 echo "  ✅ Balanced Dataset5: 27k perfectly balanced samples (1.21:1 ratio)"
 echo "  ✅ Hardware: V100 16GB (optimized utilization with higher batch size)"
-echo "  ✅ Memory Usage: LoRA + small batch ~8GB vs 16GB available"
+echo "  ✅ Memory Usage: Micro-batch full training ~14GB vs 16GB available"
 echo ""
-echo "🎯 NO-LORA CONFIGURATION (FULL FINE-TUNING DEBUG):"
-echo "  ✅ LoRA: ENABLED (r=8, memory efficient for V100)"
-echo "  💪 LoRA Alpha: 16 (balanced configuration)"
+echo "🎯 FULL FINE-TUNING CONFIGURATION (V100 16GB OPTIMIZED):"
+echo "  ❌ LoRA: DISABLED (full fine-tuning with micro-batches)"
+echo "  💪 All Parameters: TRAINABLE (maximum learning capability)"
 echo "  🎯 Learning Rate: 5e-6 (DEBUG: reduced for full fine-tuning stability)"
 echo "  🎯 Class Weights: None (DEBUG: equal weights for all classes)"
 echo "  🚀 Scheduler: none (ORIGINAL: fixed LR throughout training)"
@@ -69,14 +69,12 @@ python local_trainer.py \
   --pretrained_path google/medsiglip-448 \
   --img_size 448 \
   --epochs 50 \
-  --use_lora yes \
-  --lora_r 8 \
-  --lora_alpha 16 \
-  --learning_rate 1e-5 \
-  --batch_size 3 \
+  --use_lora no \
+  --learning_rate 1e-6 \
+  --batch_size 1 \
   --freeze_backbone_epochs 0 \
   --enable_medical_grade \
-  --gradient_accumulation_steps 12 \
+  --gradient_accumulation_steps 32 \
   --warmup_epochs 0 \
   --scheduler none \
   --validation_frequency 1 \
@@ -86,7 +84,7 @@ python local_trainer.py \
   --dropout 0.4 \
   --max_grad_norm 1.0 \
   --checkpoint_frequency 2 \
-  --experiment_name "medsiglip_lora_r8_batch3_LOCAL_V100_DEBUG" \
+  --experiment_name "medsiglip_FULL_FINETUNE_microbatch_V100" \
   --device cuda \
   --no_wandb \
   --output_dir ./results \
