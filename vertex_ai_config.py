@@ -18,9 +18,9 @@ class VertexAIConfig:
         self.job_display_name = "diabetic-retinopathy-training"
         self.container_uri = "us-docker.pkg.dev/vertex-ai/training/pytorch-gpu.2-0.py310:latest"
         
-        # Machine Configuration for V100 16GB (memory-efficient model)
-        self.machine_type = "n1-highmem-4"  # 4 vCPUs, 26GB RAM
-        self.accelerator_type = "NVIDIA_TESLA_V100"
+        # Machine Configuration for L4 24GB (high-performance model)
+        self.machine_type = "g2-standard-4"  # 4 vCPUs, 16GB RAM, optimized for L4
+        self.accelerator_type = "NVIDIA_L4"
         self.accelerator_count = 1
         
         # Disk Configuration

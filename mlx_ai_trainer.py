@@ -131,9 +131,9 @@ class MLXDRTrainer:
                 num_classes=5,
                 dropout=self.args.dropout,
                 enable_confidence=True,
-                use_lora=False,  # Full fine-tuning for medical grade
-                lora_r=64,
-                lora_alpha=128
+                use_lora=True,  # LoRA enabled to match checkpoint
+                lora_r=16,      # Same as Vertex AI checkpoint
+                lora_alpha=32   # Same as Vertex AI checkpoint
             ).to(self.device)
         else:
             logger.info("📥 Downloading MedSigLIP-448 model (first time only)...")
@@ -147,9 +147,9 @@ class MLXDRTrainer:
                 num_classes=5,
                 dropout=self.args.dropout,
                 enable_confidence=True,
-                use_lora=False,  # Full fine-tuning for medical grade
-                lora_r=64,
-                lora_alpha=128
+                use_lora=True,  # LoRA enabled to match checkpoint
+                lora_r=16,      # Same as Vertex AI checkpoint
+                lora_alpha=32   # Same as Vertex AI checkpoint
             ).to(self.device)
             
             logger.info(f"✅ Model downloaded and cached to: {local_model_path}")
@@ -248,39 +248,79 @@ class MLXDRTrainer:
             eps=1e-8
         )
         
-        # Setup loss functions
+        # Setup Medical-Grade Focal Loss with Nuclear Parameters
         if self.args.enable_focal_loss:
-            # Focal Loss implementation for imbalanced classes
-            class FocalLoss(torch.nn.Module):
-                def __init__(self, alpha=1, gamma=2, num_classes=5):
+            # Medical-Grade Focal Loss implementation for severe class imbalance
+            class MedicalGradeFocalLoss(torch.nn.Module):
+                def __init__(self, alpha=4.0, gamma=6.0, num_classes=5, 
+                           class_weight_severe=8.0, class_weight_pdr=6.0):
                     super().__init__()
-                    self.alpha = alpha
-                    self.gamma = gamma
+                    self.alpha = alpha  # Nuclear alpha parameter
+                    self.gamma = gamma  # Nuclear gamma parameter
                     self.num_classes = num_classes
+                    
+                    # Setup EXTREME medical-grade class weights
+                    class_weights = torch.ones(num_classes)
+                    if class_weight_severe > 0:
+                        class_weights[3] = class_weight_severe  # Severe NPDR (Class 3)
+                    if class_weight_pdr > 0:
+                        class_weights[4] = class_weight_pdr    # PDR (Class 4)
+                    
+                    # Register class weights buffer and ensure proper device allocation
+                    self.register_buffer('class_weights', class_weights)
+                    logger.info(f"✅ NUCLEAR Focal Loss: α={alpha}, γ={gamma}")
+                    logger.info(f"✅ EXTREME Class Weights: {class_weights.cpu().numpy()}")
+                    logger.info(f"   - Severe NPDR (Class 3): {class_weight_severe}x priority")
+                    logger.info(f"   - PDR (Class 4): {class_weight_pdr}x priority")
                 
                 def forward(self, inputs, targets):
-                    ce_loss = F.cross_entropy(inputs, targets, reduction='none')
+                    # Base cross-entropy loss with class weights
+                    ce_loss = F.cross_entropy(inputs, targets, weight=self.class_weights, reduction='none')
+                    
+                    # Focal loss modulation with NUCLEAR parameters
                     pt = torch.exp(-ce_loss)
                     focal_loss = self.alpha * (1-pt)**self.gamma * ce_loss
+                    
                     return focal_loss.mean()
             
-            self.criterion = FocalLoss(alpha=1, gamma=2, num_classes=5)
-            logger.info("✅ Using Focal Loss for imbalanced classes")
+            # Use medical-grade parameters from command line
+            focal_alpha = getattr(self.args, 'focal_loss_alpha', 4.0)
+            focal_gamma = getattr(self.args, 'focal_loss_gamma', 6.0)
+            class_weight_severe = getattr(self.args, 'class_weight_severe', 8.0)
+            class_weight_pdr = getattr(self.args, 'class_weight_pdr', 6.0)
+            
+            self.criterion = MedicalGradeFocalLoss(
+                alpha=focal_alpha,
+                gamma=focal_gamma,
+                num_classes=5,
+                class_weight_severe=class_weight_severe,
+                class_weight_pdr=class_weight_pdr
+            ).to(self.device)
+            logger.info("✅ Using Medical-Grade NUCLEAR Focal Loss")
         else:
             # Use class weights for imbalanced dataset
             if self.args.enable_class_weights:
                 # Calculate class weights from training data
                 class_counts = torch.zeros(5)
-                for _, label in self.train_dataset:
-                    class_counts[int(label)] += 1
+                for i in range(len(self.train_dataset)):
+                    sample = self.train_dataset[i]
+                    label = int(sample['dr_grade'])
+                    class_counts[label] += 1
                 
-                # Inverse frequency weighting
-                total_samples = class_counts.sum()
-                class_weights = total_samples / (5 * class_counts + 1e-6)
+                # Apply medical-grade class weights
+                class_weights = torch.ones(5)
+                class_weight_severe = getattr(self.args, 'class_weight_severe', 8.0)
+                class_weight_pdr = getattr(self.args, 'class_weight_pdr', 6.0)
+                
+                if class_weight_severe > 0:
+                    class_weights[3] = class_weight_severe
+                if class_weight_pdr > 0:
+                    class_weights[4] = class_weight_pdr
+                
                 class_weights = class_weights.to(self.device)
                 
-                self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
-                logger.info(f"✅ Using weighted CrossEntropyLoss: {class_weights.cpu().numpy()}")
+                self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights).to(self.device)
+                logger.info(f"✅ Using Medical-Grade Class Weights: {class_weights.cpu().numpy()}")
             else:
                 self.criterion = torch.nn.CrossEntropyLoss()
         
@@ -311,7 +351,11 @@ class MLXDRTrainer:
         
         # Handle local vs absolute paths
         if not checkpoint_path.is_absolute():
-            checkpoint_path = self.checkpoints_dir / checkpoint_path
+            # Fix doubled path issue - use direct path if it contains 'results'
+            if 'results' in str(checkpoint_path):
+                checkpoint_path = Path(checkpoint_path)
+            else:
+                checkpoint_path = self.checkpoints_dir / checkpoint_path
         
         if not checkpoint_path.exists():
             logger.warning(f"Checkpoint not found: {checkpoint_path}")
@@ -319,7 +363,8 @@ class MLXDRTrainer:
         
         try:
             logger.info(f"Loading checkpoint: {checkpoint_path}")
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            # Load with weights_only=False for compatibility with older PyTorch checkpoints
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
             
             # Load model weights
             self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -383,49 +428,81 @@ class MLXDRTrainer:
         torch.save(checkpoint, latest_path)
     
     def train_epoch(self, epoch: int) -> Dict[str, float]:
-        """Train one epoch."""
+        """Train one epoch with detailed batch progress bars."""
         self.model.train()
         losses = AverageMeter()
+        dr_losses = AverageMeter()
         accuracies = AverageMeter()
         
-        pbar = tqdm(self.train_loader, desc=f"🏥 Training Epoch {epoch}/{self.args.num_epochs}")
+        # Calculate total batches for the progress bar
+        total_batches = len(self.train_loader)
         
-        for batch_idx, batch in enumerate(pbar):
+        # Accumulate gradients if specified
+        accumulation_steps = getattr(self.args, 'gradient_accumulation_steps', 1)
+        accumulated_loss = 0.0
+        
+        # Create detailed progress bar like Vertex AI training
+        pbar = tqdm(
+            enumerate(self.train_loader), 
+            total=total_batches,
+            desc="Training Batches",
+            ncols=120,
+            postfix={'Loss': '0.0000', 'DR_Loss': '0.0000', 'Acc': '0.000', 'LR': '0.00e+00'}
+        )
+        
+        for batch_idx, batch in pbar:
             images = batch['image'].to(self.device)
             labels = batch['dr_grade'].to(self.device)
             
             # Forward pass
-            self.optimizer.zero_grad()
             outputs = self.model(images)
             dr_logits = outputs['dr_logits']  # Extract main classification logits
-            loss = self.criterion(dr_logits, labels)
             
-            # Backward pass
-            loss.backward()
+            # Calculate DR loss (main classification loss)
+            dr_loss = self.criterion(dr_logits, labels)
             
-            # Gradient clipping for stability
-            if hasattr(self.args, 'gradient_clip_norm') and self.args.gradient_clip_norm > 0:
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.gradient_clip_norm)
+            # Total loss (same as dr_loss for now, but can include other losses)
+            total_loss = dr_loss
             
-            self.optimizer.step()
+            # Scale loss for gradient accumulation
+            scaled_loss = total_loss / accumulation_steps
+            scaled_loss.backward()
+            
+            accumulated_loss += scaled_loss.item()
             
             # Calculate accuracy
             _, predicted = torch.max(dr_logits.data, 1)
             accuracy = (predicted == labels).float().mean()
             
             # Update meters
-            losses.update(loss.item(), images.size(0))
+            losses.update(total_loss.item(), images.size(0))
+            dr_losses.update(dr_loss.item(), images.size(0))
             accuracies.update(accuracy.item(), images.size(0))
             
-            # Update progress bar
+            # Perform optimizer step every accumulation_steps
+            if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1) == total_batches:
+                # Gradient clipping for stability
+                if hasattr(self.args, 'gradient_clip_norm') and self.args.gradient_clip_norm > 0:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.gradient_clip_norm)
+                
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+                accumulated_loss = 0.0
+            
+            # Update progress bar with detailed metrics (like Vertex AI)
+            current_lr = self.optimizer.param_groups[0]["lr"]
             pbar.set_postfix({
                 'Loss': f'{losses.avg:.4f}',
+                'DR_Loss': f'{dr_losses.avg:.4f}', 
                 'Acc': f'{accuracies.avg:.3f}',
-                'LR': f'{self.optimizer.param_groups[0]["lr"]:.2e}'
+                'LR': f'{current_lr:.2e}'
             })
+        
+        pbar.close()
         
         return {
             'train_loss': losses.avg,
+            'train_dr_loss': dr_losses.avg,
             'train_accuracy': accuracies.avg,
             'learning_rate': self.optimizer.param_groups[0]['lr']
         }
@@ -494,16 +571,33 @@ class MLXDRTrainer:
     
     def train(self):
         """Main training loop."""
-        logger.info("🚀 Starting MLX training on Mac M4...")
-        logger.info(f"📊 Training configuration:")
-        logger.info(f"   - Model: MedSigLIP-448")
+        logger.info("🚀 Starting NUCLEAR FOCAL LOSS MLX training on Mac M4...")
+        logger.info(f"📊 MEDICAL-GRADE Training Configuration:")
+        logger.info(f"   - Model: MedSigLIP-448 (880M parameters)")
         logger.info(f"   - Device: {self.device}")
         logger.info(f"   - Learning Rate: {self.args.learning_rate}")
         logger.info(f"   - Weight Decay: {self.args.weight_decay}")
         logger.info(f"   - Dropout: {self.args.dropout}")
         logger.info(f"   - Batch Size: {self.args.batch_size}")
+        logger.info(f"   - Gradient Accumulation: {getattr(self.args, 'gradient_accumulation_steps', 1)}")
         logger.info(f"   - Epochs: {self.args.num_epochs}")
         logger.info(f"   - Scheduler: {self.args.scheduler}")
+        
+        # Nuclear focal loss configuration
+        if self.args.enable_focal_loss:
+            focal_alpha = getattr(self.args, 'focal_loss_alpha', 4.0)
+            focal_gamma = getattr(self.args, 'focal_loss_gamma', 6.0)
+            class_weight_severe = getattr(self.args, 'class_weight_severe', 8.0)
+            class_weight_pdr = getattr(self.args, 'class_weight_pdr', 6.0)
+            
+            logger.info(f"💡 NUCLEAR FOCAL LOSS PARAMETERS:")
+            logger.info(f"   - Alpha (α): {focal_alpha} (MAXIMUM penalty)")
+            logger.info(f"   - Gamma (γ): {focal_gamma} (EXTREME focusing)")
+            logger.info(f"   - Severe NPDR weight: {class_weight_severe}x")
+            logger.info(f"   - PDR weight: {class_weight_pdr}x")
+            logger.info(f"   - Target: 90%+ validation accuracy breakthrough")
+        
+        logger.info("")
         
         start_time = time.time()
         
@@ -532,15 +626,21 @@ class MLXDRTrainer:
                     if val_metrics['val_accuracy'] >= 0.90:  # 90% threshold
                         medical_grade_pass = "✅"
                 
-                # Log epoch results
+                # Log epoch results in medical-grade format
                 epoch_time = time.time() - epoch_start_time
-                logger.info(f"Epoch {epoch + 1}/{self.args.num_epochs} - "
-                          f"Train Loss: {train_metrics['train_loss']:.4f}, "
-                          f"Train Acc: {train_metrics['train_accuracy']:.3f}, "
-                          f"Val Loss: {val_metrics['val_loss']:.4f}, "
-                          f"Val Acc: {val_metrics['val_accuracy']:.3f}, "
-                          f"Medical Grade: {medical_grade_pass}, "
-                          f"Time: {epoch_time:.1f}s")
+                logger.info(f"🏥 Epoch {epoch + 1}/{self.args.num_epochs} COMPLETED:")
+                logger.info(f"   ✅ Train Loss: {train_metrics['train_loss']:.4f} | DR_Loss: {train_metrics.get('train_dr_loss', train_metrics['train_loss']):.4f}")
+                logger.info(f"   ✅ Train Acc: {train_metrics['train_accuracy']:.3f} | Val Acc: {val_metrics['val_accuracy']:.3f}")
+                logger.info(f"   ✅ Learning Rate: {train_metrics['learning_rate']:.2e}")
+                logger.info(f"   ✅ Medical Grade (≥90%): {medical_grade_pass}")
+                logger.info(f"   ⏱️  Epoch Time: {epoch_time:.1f}s")
+                
+                # Log breakthrough progress if approaching 90%
+                if val_metrics['val_accuracy'] > 0.85:
+                    progress_to_90 = (val_metrics['val_accuracy'] - 0.8137) / (0.90 - 0.8137) * 100
+                    logger.info(f"   🎯 BREAKTHROUGH PROGRESS: {progress_to_90:.1f}% to 90% medical-grade target")
+                
+                logger.info("")
                 
                 # Save checkpoint
                 self._save_checkpoint(epoch + 1, val_metrics['val_accuracy'], is_best)
@@ -692,7 +792,15 @@ def main():
     
     # Loss and optimization
     parser.add_argument("--enable-focal-loss", action="store_true", help="Use focal loss")
+    parser.add_argument("--focal-loss-alpha", type=float, default=4.0,
+                       help="Focal loss alpha parameter (nuclear: 4.0)")
+    parser.add_argument("--focal-loss-gamma", type=float, default=6.0,
+                       help="Focal loss gamma parameter (nuclear: 6.0)")
     parser.add_argument("--enable-class-weights", action="store_true", help="Use class weights")
+    parser.add_argument("--class-weight-severe", type=float, default=8.0,
+                       help="Class weight multiplier for Severe NPDR (Class 3)")
+    parser.add_argument("--class-weight-pdr", type=float, default=6.0,
+                       help="Class weight multiplier for PDR (Class 4)")
     parser.add_argument("--enable-medical-grade", action="store_true", 
                        help="Enable medical-grade validation")
     parser.add_argument("--gradient-clip-norm", type=float, default=1.0, 

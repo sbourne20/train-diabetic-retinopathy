@@ -296,6 +296,10 @@ setup(
             if getattr(self, 'class_weight_pdr', None) is not None:
                 base_args.extend(["--class_weight_pdr", str(self.class_weight_pdr)])
             
+            # Add gradient clipping parameter for training stability
+            if getattr(self, 'max_grad_norm', None) is not None:
+                base_args.extend(["--max_grad_norm", str(self.max_grad_norm)])
+            
             # Add resume from checkpoint parameter
             if getattr(self, 'resume_from_checkpoint', None) is not None:
                 base_args.extend(["--resume_from_checkpoint", str(self.resume_from_checkpoint)])
@@ -594,7 +598,10 @@ def main():
     parser.add_argument("--enable-class-weights", action="store_true", help="Enable class weights")
     parser.add_argument("--gradient-accumulation-steps", type=int, help="Gradient accumulation steps")
     parser.add_argument("--warmup-epochs", type=int, help="Number of warmup epochs")
-    parser.add_argument("--scheduler", help="Learning rate scheduler")
+    parser.add_argument("--scheduler", 
+                       choices=["none", "polynomial", "linear", "validation_plateau", "cosine_with_restarts"], 
+                       default="polynomial",
+                       help="Learning rate scheduler: polynomial (gentle decay), linear (linear decay), validation_plateau (adaptive), cosine_with_restarts (aggressive), none (fixed LR)")
     parser.add_argument("--validation-frequency", type=int, help="Validation frequency")
     parser.add_argument("--patience", type=int, help="Early stopping patience")
     parser.add_argument("--min-delta", type=float, help="Minimum delta for early stopping")
@@ -624,6 +631,10 @@ def main():
                        help="Class weight multiplier for Severe NPDR (Class 3)")
     parser.add_argument("--class-weight-pdr", type=float, default=2.5,
                        help="Class weight multiplier for PDR (Class 4)")
+    
+    # Gradient clipping parameter for training stability
+    parser.add_argument("--max-grad-norm", type=float, default=1.0,
+                       help="Maximum gradient norm for clipping (prevents exploding gradients)")
     
     # Resume from checkpoint parameter
     parser.add_argument("--resume-from-checkpoint", type=str, default=None,
@@ -685,6 +696,7 @@ def main():
     trainer.focal_loss_gamma = getattr(args, 'focal_loss_gamma', 2.0)
     trainer.class_weight_severe = getattr(args, 'class_weight_severe', 3.0)
     trainer.class_weight_pdr = getattr(args, 'class_weight_pdr', 2.5)
+    trainer.max_grad_norm = getattr(args, 'max_grad_norm', 1.0)
     
     # Execute action
     if args.action == "upload":

@@ -77,12 +77,16 @@ def parse_args():
     parser.add_argument('--freeze_backbone_epochs', type=int, default=0, help='Number of epochs to freeze backbone')
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help='Gradient accumulation steps')
     parser.add_argument('--warmup_epochs', type=int, default=0, help='Number of warmup epochs')
-    parser.add_argument('--scheduler', default='cosine', help='Learning rate scheduler')
+    parser.add_argument('--scheduler', 
+                        choices=["none", "polynomial", "linear", "validation_plateau", "cosine_with_restarts"],
+                        default='polynomial', 
+                        help='Learning rate scheduler: polynomial (gentle), linear (linear), validation_plateau (adaptive), cosine_with_restarts (aggressive), none (fixed)')
     parser.add_argument('--validation_frequency', type=int, default=5, help='Validation frequency')
     parser.add_argument('--patience', type=int, default=10, help='Early stopping patience')
     parser.add_argument('--min_delta', type=float, default=0.001, help='Minimum delta for early stopping')
     parser.add_argument('--weight_decay', type=float, default=1e-5, help='Weight decay for optimizer')
     parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate for medical-grade regularization')
+    parser.add_argument('--max_grad_norm', type=float, default=1.0, help='Maximum gradient norm for clipping (prevents exploding gradients)')
     
     # Experiment settings
     parser.add_argument('--experiment_name', default=None, 
@@ -186,6 +190,7 @@ def setup_experiment(args):
     config.training.patience = args.patience
     config.training.min_delta = args.min_delta
     config.training.weight_decay = args.weight_decay
+    config.training.max_grad_norm = args.max_grad_norm
     
     # Set experiment name
     if args.experiment_name:
@@ -321,7 +326,8 @@ def train_model(config, data_dict, args):
         focal_loss_alpha=config.training.focal_loss_alpha,
         focal_loss_gamma=config.training.focal_loss_gamma,
         weight_decay=config.training.weight_decay,
-        scheduler=config.training.scheduler
+        scheduler=config.training.scheduler,
+        max_grad_norm=config.training.max_grad_norm
     )
     
     # Load checkpoint if provided

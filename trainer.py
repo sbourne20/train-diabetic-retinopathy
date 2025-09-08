@@ -4,6 +4,7 @@ import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import PolynomialLR, LambdaLR, ReduceLROnPlateau
 from torch.utils.data import DataLoader
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -65,7 +66,8 @@ class MedicalGradeDRTrainer:
                  focal_loss_alpha: float = 2.0,
                  focal_loss_gamma: float = 4.0,
                  weight_decay: float = 1e-5,
-                 scheduler: str = None):
+                 scheduler: str = None,
+                 max_grad_norm: float = 1.0):
         
         self.model = model.to(device)
         self.train_loader = train_loader
@@ -86,6 +88,7 @@ class MedicalGradeDRTrainer:
         self.focal_loss_gamma = focal_loss_gamma
         self.weight_decay = weight_decay
         self.scheduler_type = scheduler
+        self.max_grad_norm = max_grad_norm
         
         # Checkpoint and resume functionality  
         self.start_epoch = 0
@@ -101,16 +104,53 @@ class MedicalGradeDRTrainer:
             betas=(0.9, 0.999)
         )
         
-        # Setup learning rate scheduler
-        # CRITICAL FIX: Allow disabling scheduler for Option C fixed learning rate
+        # Setup learning rate scheduler - BREAKTHROUGH CONFIGURATION
         if self.scheduler_type == 'none' or self.scheduler_type is None:
             print("🔧 SCHEDULER DISABLED - Using fixed learning rate for medical-grade training")
             self.scheduler = None
+        elif self.scheduler_type == 'polynomial':
+            print("🚀 BREAKTHROUGH SCHEDULER: Polynomial decay for 90%+ accuracy")
+            # Polynomial decay: maintains higher LR longer, gentle decline
+            self.scheduler = optim.lr_scheduler.PolynomialLR(
+                self.optimizer,
+                total_iters=120,  # Total epochs for gentle decay
+                power=0.5  # Square root decay (gentle)
+            )
+        elif self.scheduler_type == 'linear':
+            print("🚀 BREAKTHROUGH SCHEDULER: Linear decay for sustained learning")
+            # Linear warmup then linear decay
+            def linear_schedule(epoch):
+                warmup_epochs = 10
+                total_epochs = 120
+                if epoch < warmup_epochs:
+                    return epoch / warmup_epochs
+                else:
+                    return 1.0 - (epoch - warmup_epochs) / (total_epochs - warmup_epochs)
+            self.scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, linear_schedule)
+        elif self.scheduler_type == 'validation_plateau':
+            print("🎯 VALIDATION-BASED SCHEDULER: Adaptive reduction on plateau")
+            # Reduce LR when validation accuracy plateaus
+            self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                self.optimizer,
+                mode='max',  # Maximize validation accuracy
+                factor=0.7,  # Reduce by 30% on plateau
+                patience=8,  # Wait 8 epochs before reducing
+                threshold=0.005,  # Minimum improvement threshold
+                min_lr=1e-6
+            )
+        elif self.scheduler_type == 'cosine_with_restarts':
+            print("⚠️ COSINE RESTARTS: Using original aggressive scheduler")
+            self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                self.optimizer,
+                T_0=10,  # Restart every 10 epochs
+                T_mult=2,
+                eta_min=1e-6
+            )
         else:
             print(f"🔧 SCHEDULER ENABLED: {self.scheduler_type}")
             self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 self.optimizer,
-                T_0=10,  # Restart every 10 epochs
+                T_0=10,
                 T_mult=2,
                 eta_min=1e-6
             )
@@ -498,7 +538,7 @@ class MedicalGradeDRTrainer:
                 if (batch_idx + 1) % self.gradient_accumulation_steps == 0:
                     # Add gradient clipping for stability
                     self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.max_grad_norm)
                     
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
@@ -544,7 +584,7 @@ class MedicalGradeDRTrainer:
                 # Update only every gradient_accumulation_steps
                 if (batch_idx + 1) % self.gradient_accumulation_steps == 0:
                     # Add gradient clipping for stability
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.max_grad_norm)
                     self.optimizer.step()
             
             # Calculate accuracy
@@ -787,9 +827,18 @@ class MedicalGradeDRTrainer:
                 print(f"  🔍 Running validation...")
                 val_results = self.validate_epoch()
                 
-                # Update learning rate
+                # Update learning rate - BREAKTHROUGH CONFIGURATION
                 if self.scheduler is not None:
-                    self.scheduler.step()
+                    if self.scheduler_type == 'validation_plateau':
+                        # For validation-based scheduler, pass validation accuracy
+                        self.scheduler.step(val_results['accuracy'])
+                        current_lr = self.optimizer.param_groups[0]['lr']
+                        print(f"  🎯 LR Adaptation: {current_lr:.2e} (based on val_acc: {val_results['accuracy']:.4f})")
+                    else:
+                        # For epoch-based schedulers (polynomial, linear, cosine)
+                        self.scheduler.step()
+                        current_lr = self.optimizer.param_groups[0]['lr']
+                        print(f"  🚀 LR Schedule: {current_lr:.2e} (epoch-based)")
                 
                 # Record metrics
                 self.train_losses.append(train_results['total_loss'])

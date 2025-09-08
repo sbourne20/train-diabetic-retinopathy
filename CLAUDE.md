@@ -89,6 +89,17 @@ python vertex_ai_trainer.py --action train --dataset dataset3_augmented_resized 
 - Inference pipeline produces consistent probability distributions
 - Attention maps generated for explainability
 
+
+Best result so far :
+
+* Training - Loss: 0.312, Accuracy: 0.777
+* Validation - Loss: 1.336, Accuracy: 0.818
+* 💾 New best model saved to GCS (accuracy: 0.8176)
+
+with this parameter :
+--mode; train; --output_dir; /tmp/outputs; --device; cuda; --no_wandb; --save_to_gcs; gs://dr-data-2/outputs; --dataset_path; gs://dr-data-2/dataset3_augmented_resized; --num_classes; 5; --epochs; 100; --batch_size; 6; --learning_rate; 2e-05; --experiment_name; medsiglip_lora_r16_balanced_medical_90percent; --freeze_backbone_epochs; 0; --gradient_accumulation_steps; 4; --warmup_epochs; 30; --scheduler; none; --validation_frequency; 1; --patience; 40; --min_delta; 0.001; --weight_decay; 1e-05; --class_weights; --focal_loss; --medical_grade; --use_lora; yes; --lora_r; 16; --lora_alpha; 32; --dropout; 0.4; --focal_loss_alpha; 4.0; --focal_loss_gamma; 6.0; --class_weight_severe; 8.0; --class_weight_pdr; 6.0; --resume_from_checkpoint; gs://dr-data-2/checkpoints/best_model.pth; --medical_terms; gs://dr-data-2/medical_terms_type1.json
+
+
 ---
 
 ## PHASE 1.5: Medical-Grade Image Analysis Enhancement
