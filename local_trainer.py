@@ -193,8 +193,10 @@ def setup_local_experiment(args):
     config.training.min_delta = args.min_delta
     config.training.checkpoint_frequency = args.checkpoint_frequency
     
-    # Local settings
+    # Local settings with result folder organization
     config.output_dir = args.output_dir
+    config.checkpoint_dir = os.path.join(args.output_dir, "result")  # Save all models to result folder
+    config.logs_dir = os.path.join(args.output_dir, "logs")
     config.device = args.device
     config.seed = args.seed
     config.use_wandb = not args.no_wandb and WANDB_AVAILABLE
@@ -366,17 +368,51 @@ def train_local_model(config, data_dict, args):
     # Train model
     print("\n🎯 Starting local V100 training...")
     print("=" * 60)
-    training_history = trainer.train()
     
-    # Save final model locally
+    # Ensure result directory exists
+    os.makedirs(config.checkpoint_dir, exist_ok=True)
+    print(f"📁 Models will be saved to: {config.checkpoint_dir}")
+    
+    # Train with custom save directory
+    training_history = trainer.train(save_dir=config.checkpoint_dir)
+    
+    # Save final model to result folder
     final_model_path = os.path.join(config.checkpoint_dir, "final_model.pth")
     torch.save({
         'model_state_dict': model.state_dict(),
         'config': config,
-        'training_history': training_history
+        'training_history': training_history,
+        'experiment_name': config.experiment_name,
+        'timestamp': datetime.now().isoformat()
     }, final_model_path)
     
-    print(f"\n💾 Final model saved: {final_model_path}")
+    # Also save a copy as latest checkpoint
+    latest_checkpoint_path = os.path.join(config.checkpoint_dir, "latest_checkpoint.pth")
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'config': config,
+        'training_history': training_history,
+        'experiment_name': config.experiment_name,
+        'timestamp': datetime.now().isoformat()
+    }, latest_checkpoint_path)
+    
+    print(f"\n💾 MODELS SAVED TO RESULT FOLDER:")
+    print(f"   📁 Result folder: {config.checkpoint_dir}")
+    print(f"   🏆 Best model: {os.path.join(config.checkpoint_dir, 'best_model.pth')}")
+    print(f"   ✅ Final model: {final_model_path}")
+    print(f"   🔄 Latest checkpoint: {latest_checkpoint_path}")
+    
+    # List all saved models
+    if os.path.exists(config.checkpoint_dir):
+        model_files = [f for f in os.listdir(config.checkpoint_dir) if f.endswith('.pth')]
+        if model_files:
+            print(f"   📊 Total models saved: {len(model_files)}")
+            for model_file in sorted(model_files):
+                file_path = os.path.join(config.checkpoint_dir, model_file)
+                file_size = os.path.getsize(file_path) / (1024*1024)  # MB
+                print(f"      - {model_file} ({file_size:.1f}MB)")
+        else:
+            print("   ⚠️ Warning: No model files found in result folder!")
     
     return model, training_history
 

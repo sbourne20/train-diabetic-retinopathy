@@ -478,8 +478,8 @@ class MedicalGradeDRTrainer:
         dr_targets = []
         
         # Enable training batch progress bar to show real-time progress
-        progress_bar = tqdm(self.train_loader, desc="  Training Batches", leave=False, 
-                           file=sys.stdout, disable=False, position=1)
+        progress_bar = tqdm(self.train_loader, desc="Training Batches", leave=False, 
+                           file=sys.stdout, disable=False, position=1, ncols=120)
         
         for batch_idx, batch in enumerate(progress_bar):
             images = batch['image'].to(self.device)
@@ -600,28 +600,23 @@ class MedicalGradeDRTrainer:
             total_loss_meter.update(total_loss.item(), batch_size)
             accuracy_meter.update(accuracy.item(), batch_size)
             
-            # Log progress every 50 batches to show training progress
-            if (batch_idx + 1) % 50 == 0:
-                print(f"    Batch {batch_idx + 1}/{len(self.train_loader)} - "
-                      f"Loss: {total_loss.item():.3f}, Acc: {accuracy.item():.3f}")
-                
-            # Update progress bar description with current metrics
-            progress_bar.set_postfix({
-                'Loss': f'{total_loss.item():.3f}',
-                'Acc': f'{accuracy.item():.3f}',
-                'Batch': f'{batch_idx + 1}/{len(self.train_loader)}'
-            })
+            # Log progress every 100 batches with clean formatting
+            if (batch_idx + 1) % 100 == 0:
+                print(f"\n📊 Batch {batch_idx + 1:4d}/{len(self.train_loader)} | "
+                      f"Loss: {total_loss_meter.avg:.4f} | "
+                      f"DR_Loss: {dr_loss_meter.avg:.4f} | "
+                      f"Acc: {accuracy_meter.avg:.3f} | "
+                      f"LR: {self.optimizer.param_groups[0]['lr']:.2e}")
             
             # Store predictions for medical metrics
             dr_predictions.extend(predicted.cpu().numpy())
             dr_targets.extend(targets.cpu().numpy())
             
-            # Update progress bar
+            # Update progress bar with key metrics (avoid truncation)
             progress_bar.set_postfix({
-                'Loss': f'{total_loss_meter.avg:.4f}',
-                'DR_Loss': f'{dr_loss_meter.avg:.4f}',
+                'Loss': f'{total_loss_meter.avg:.3f}',
                 'Acc': f'{accuracy_meter.avg:.3f}',
-                'LR': f'{self.optimizer.param_groups[0]["lr"]:.2e}'
+                'LR': f'{self.optimizer.param_groups[0]["lr"]:.1e}'
             })
         
         # Calculate medical-grade metrics for training
@@ -657,8 +652,8 @@ class MedicalGradeDRTrainer:
         confidence_scores = []
         
         # Disable validation batch progress bar for cleaner epoch-level logging  
-        progress_bar = tqdm(self.val_loader, desc="  Validation Batches", leave=False,
-                           file=sys.stdout, disable=True, position=1)
+        progress_bar = tqdm(self.val_loader, desc="🔍 Validation", leave=False,
+                           file=sys.stdout, disable=False, position=1, ncols=80)
         
         with torch.no_grad():
             for batch in progress_bar:
@@ -851,14 +846,18 @@ class MedicalGradeDRTrainer:
                 # Medical-grade validation status
                 medical_pass = val_results['medical_validation']['medical_grade_pass']
                 
-                # Simple, clean logging as requested
-                print(f"Training   - Loss: {train_results['total_loss']:.3f}, Accuracy: {train_results['accuracy']:.3f}")
+                # Clear, prominent results logging
+                print("\n" + "="*60)
+                print(f"📊 EPOCH {epoch+1}/{self.num_epochs} RESULTS:")
+                print("="*60)
+                print(f"🚀 Training   - Loss: {train_results['total_loss']:.4f}, Accuracy: {train_results['accuracy']:.4f}")
+                
                 # CRITICAL FIX: Protect against corrupted validation metrics in logging
                 if (val_results['total_loss'] > 0 and not np.isnan(val_results['total_loss']) and 
                     val_results['accuracy'] > 0 and not np.isnan(val_results['accuracy'])):
-                    print(f"Validation - Loss: {val_results['total_loss']:.3f}, Accuracy: {val_results['accuracy']:.3f}")
+                    print(f"🎯 Validation - Loss: {val_results['total_loss']:.4f}, Accuracy: {val_results['accuracy']:.4f}")
                 else:
-                    print(f"Validation - Loss: CORRUPTED ({val_results['total_loss']}), Accuracy: CORRUPTED ({val_results['accuracy']})")
+                    print(f"❌ Validation - Loss: CORRUPTED ({val_results['total_loss']}), Accuracy: CORRUPTED ({val_results['accuracy']})")
                     print(f"⚠️ Warning: Validation metrics corrupted by tensor shape error - using fallback values")
                     # Set fallback values to continue training without validation-dependent stopping
                     medical_pass = False
@@ -874,8 +873,8 @@ class MedicalGradeDRTrainer:
                 else:
                     print(f"🏥 Medical Grade: ❌ FAIL")
                 
-                print(f"Time={epoch_time:.1f}s")
-                print()  # Empty line for spacing
+                print(f"⏱️  Time: {epoch_time:.1f}s")
+                print("="*60 + "\n")  # Clear separator
                 
             else:
                 # Training-only epoch (faster)
@@ -920,7 +919,29 @@ class MedicalGradeDRTrainer:
                     if self.use_mixed_precision:
                         checkpoint['scaler_state_dict'] = self.scaler.state_dict()
                     
-                    torch.save(checkpoint, os.path.join(save_dir, 'best_medical_model.pth'))
+                    # Save best model with consistent naming
+                    best_model_path = os.path.join(save_dir, 'best_model.pth')
+                    torch.save(checkpoint, best_model_path)
+                    print(f"💾 New best model saved to: {best_model_path} (accuracy: {val_results['accuracy']:.4f})")
+                
+                # Save epoch checkpoint every checkpoint_frequency epochs
+                if (epoch + 1) % self.checkpoint_frequency == 0:
+                    epoch_checkpoint_path = os.path.join(save_dir, f'epoch_{epoch+1:03d}.pth')
+                    epoch_checkpoint = {
+                        'epoch': epoch + 1,
+                        'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(),
+                        'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler else None,
+                        'val_accuracy': val_results['accuracy'],
+                        'train_loss': train_results['total_loss'],
+                        'val_loss': val_results['total_loss'],
+                        'best_val_accuracy': self.best_val_accuracy
+                    }
+                    if self.use_mixed_precision:
+                        epoch_checkpoint['scaler_state_dict'] = self.scaler.state_dict()
+                    
+                    torch.save(epoch_checkpoint, epoch_checkpoint_path)
+                    print(f"📁 Checkpoint saved: epoch_{epoch+1:03d}.pth")
                 
                 # Store training history
                 training_history.append({
