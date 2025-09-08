@@ -2,18 +2,18 @@
 # MEDICAL-GRADE LoRA LOCAL V100 TRAINING - EXACT VERTEX AI PARAMETERS
 # Replicating medical_grade_lora_antioverfitting.sh for local V100 execution
 
-echo "🎯 LOCAL V100 TRAINING: NO-LORA DEBUG - FULL FINE-TUNING"
+echo "🎯 LOCAL V100 TRAINING: LORA + SMALL BATCH DEBUG"
 echo "Foundation Model: google/medsiglip-448 - OPTIMIZED PARAMETERS FOR BALANCED DATA"
 echo ""
 echo "🚀 BALANCED OPTIMIZATION: Leveraging dataset5 perfect balance for superior results"
 echo "  🎯 TARGET: Exceed 81.76% → 85%+ → 92% medical-grade accuracy"
 echo "  ✅ Balanced Dataset5: 27k perfectly balanced samples (1.21:1 ratio)"
 echo "  ✅ Hardware: V100 16GB (optimized utilization with higher batch size)"
-echo "  ✅ Memory Usage: Full fine-tuning ~12GB vs 16GB available"
+echo "  ✅ Memory Usage: LoRA + small batch ~8GB vs 16GB available"
 echo ""
 echo "🎯 NO-LORA CONFIGURATION (FULL FINE-TUNING DEBUG):"
-echo "  ❌ LoRA: DISABLED (DEBUG: full fine-tuning for better learning)"
-echo "  💪 Full Fine-tuning: ENABLED (all model parameters trainable)"
+echo "  ✅ LoRA: ENABLED (r=8, memory efficient for V100)"
+echo "  💪 LoRA Alpha: 16 (balanced configuration)"
 echo "  🎯 Learning Rate: 5e-6 (DEBUG: reduced for full fine-tuning stability)"
 echo "  🎯 Class Weights: None (DEBUG: equal weights for all classes)"
 echo "  🚀 Scheduler: none (ORIGINAL: fixed LR throughout training)"
@@ -69,12 +69,14 @@ python local_trainer.py \
   --pretrained_path google/medsiglip-448 \
   --img_size 448 \
   --epochs 50 \
-  --use_lora no \
-  --learning_rate 5e-6 \
-  --batch_size 6 \
+  --use_lora yes \
+  --lora_r 8 \
+  --lora_alpha 16 \
+  --learning_rate 1e-5 \
+  --batch_size 3 \
   --freeze_backbone_epochs 0 \
   --enable_medical_grade \
-  --gradient_accumulation_steps 6 \
+  --gradient_accumulation_steps 12 \
   --warmup_epochs 0 \
   --scheduler none \
   --validation_frequency 1 \
@@ -84,7 +86,7 @@ python local_trainer.py \
   --dropout 0.4 \
   --max_grad_norm 1.0 \
   --checkpoint_frequency 2 \
-  --experiment_name "medsiglip_FULL_FINETUNE_LOCAL_V100_DEBUG" \
+  --experiment_name "medsiglip_lora_r8_batch3_LOCAL_V100_DEBUG" \
   --device cuda \
   --no_wandb \
   --output_dir ./results \
