@@ -498,3 +498,40 @@ Check the documentation of torch.load to learn more about types accepted by defa
 2025-09-08 20:43:00,703 - INFO - 📊 Setting up data loaders...
 2025-09-08 20:43:00,703 - INFO - 📊 Loading data splits for 5-class DR dataset...
 2025-09-08 20:43:01,122 - INFO - ✅ Data loaded: 118303 train, 17373 val samples
+2025-09-08 20:49:40,585 - INFO - 📊 Training class distribution:
+2025-09-08 20:49:40,585 - INFO -    Class 0: 55162 samples
+2025-09-08 20:49:40,586 - INFO -    Class 1: 18470 samples
+2025-09-08 20:49:40,586 - INFO -    Class 2: 24198 samples
+2025-09-08 20:49:40,586 - INFO -    Class 3: 10246 samples
+2025-09-08 20:49:40,586 - INFO -    Class 4: 10227 samples
+2025-09-08 20:49:40,586 - INFO - ⚙️ Setting up optimizer...
+2025-09-08 20:49:40,589 - INFO - ✅ NUCLEAR Focal Loss: α=3.0, γ=4.0
+2025-09-08 20:49:40,589 - INFO - ✅ EXTREME Class Weights: [1. 1. 1. 6. 5.]
+2025-09-08 20:49:40,589 - INFO -    - Severe NPDR (Class 3): 6.0x priority
+2025-09-08 20:49:40,589 - INFO -    - PDR (Class 4): 5.0x priority
+2025-09-08 20:49:40,591 - INFO - ✅ Using Medical-Grade NUCLEAR Focal Loss
+2025-09-08 20:49:40,591 - INFO - ✅ Optimizer configured: LR=2e-05, WD=1e-05
+2025-09-08 20:49:40,591 - INFO - ✅ Scheduler: none
+2025-09-08 20:49:40,591 - INFO - ✅ MLX Trainer initialized successfully
+2025-09-08 20:49:40,591 - INFO - 🚀 Starting NUCLEAR FOCAL LOSS MLX training on Mac M4...
+2025-09-08 20:49:40,591 - INFO - 📊 MEDICAL-GRADE Training Configuration:
+2025-09-08 20:49:40,591 - INFO -    - Model: MedSigLIP-448 (880M parameters)
+2025-09-08 20:49:40,591 - INFO -    - Device: mps
+2025-09-08 20:49:40,591 - INFO -    - Learning Rate: 2e-05
+2025-09-08 20:49:40,591 - INFO -    - Weight Decay: 1e-05
+2025-09-08 20:49:40,591 - INFO -    - Dropout: 0.3
+2025-09-08 20:49:40,591 - INFO -    - Batch Size: 1
+2025-09-08 20:49:40,591 - INFO -    - Gradient Accumulation: 12
+2025-09-08 20:49:40,591 - INFO -    - Epochs: 50
+2025-09-08 20:49:40,591 - INFO -    - Scheduler: none
+2025-09-08 20:49:40,591 - INFO - 💡 NUCLEAR FOCAL LOSS PARAMETERS:
+2025-09-08 20:49:40,591 - INFO -    - Alpha (α): 3.0 (MAXIMUM penalty)
+2025-09-08 20:49:40,591 - INFO -    - Gamma (γ): 4.0 (EXTREME focusing)
+2025-09-08 20:49:40,591 - INFO -    - Severe NPDR weight: 6.0x
+2025-09-08 20:49:40,591 - INFO -    - PDR weight: 5.0x
+2025-09-08 20:49:40,591 - INFO -    - Target: 90%+ validation accuracy breakthrough
+2025-09-08 20:49:40,591 - INFO - 
+2025-09-08 20:49:40,596 - INFO - 📊 Epoch 1 Memory: 63.2% used, 8.8GB available
+2025-09-08 20:49:40,596 - WARNING - ⚠️ High swap usage: 71.7%
+2025-09-08 20:49:40,596 - ERROR - ❌ Memory usage too high. Consider reducing batch size or restarting training.
+2025-09-08 20:49:40,596 - ERROR - ❌ Training failed: Memory usage exceeded safe threshold

@@ -2,7 +2,7 @@
 # MEDICAL-GRADE LoRA LOCAL V100 TRAINING - EXACT VERTEX AI PARAMETERS
 # Replicating medical_grade_lora_antioverfitting.sh for local V100 execution
 
-echo "🎯 LOCAL V100 TRAINING: FIXED PARAMETERS FOR BALANCED DATASET5"
+echo "🎯 LOCAL V100 TRAINING: DEBUG VERSION - SIMPLIFIED PARAMETERS"
 echo "Foundation Model: google/medsiglip-448 - OPTIMIZED PARAMETERS FOR BALANCED DATA"
 echo ""
 echo "🚀 BALANCED OPTIMIZATION: Leveraging dataset5 perfect balance for superior results"
@@ -11,17 +11,17 @@ echo "  ✅ Balanced Dataset5: 27k perfectly balanced samples (1.21:1 ratio)"
 echo "  ✅ Hardware: V100 16GB (optimized utilization with higher batch size)"
 echo "  ✅ Memory Optimized: LoRA r=16 for ~7GB usage vs 16GB available"
 echo ""
-echo "🎯 OPTIMIZED CONFIGURATION (FIXED FROM SLOW LEARNING):"
+echo "🎯 DEBUG CONFIGURATION (SIMPLIFIED FOR TROUBLESHOOTING):"
 echo "  ✅ LoRA Rank (r): 16 (maintains checkpoint compatibility)"
 echo "  ✅ LoRA Alpha: 32 (proven effective configuration)"
-echo "  🎯 Learning Rate: 1e-5 (OPTIMIZED: reduced from 2e-5 for better stability)"
-echo "  🎯 Class Weights: 2.0/1.5 (BALANCED: light correction for dataset5)"
+echo "  🎯 Learning Rate: 2e-5 (DEBUG: standard rate for basic training)"
+echo "  🎯 Class Weights: None (DEBUG: equal weights for all classes)"
 echo "  🚀 Scheduler: none (ORIGINAL: fixed LR throughout training)"
-echo "  ✅ Medical Warmup: 5 epochs (OPTIMIZED: reduced from 30 for faster learning)"
+echo "  ✅ Medical Warmup: 0 epochs (DEBUG: no warmup for immediate learning)"
 echo "  🎯 Batch Size: 6 (ORIGINAL: smaller batches with grad accumulation)"
 echo "  ✅ Dropout: 0.4 (ORIGINAL: moderate regularization)"
 echo "  ✅ Weight Decay: 1e-5 (ORIGINAL: light regularization)"
-echo "  🔥 Focal Loss: α=2.0, γ=3.0 (OPTIMIZED: increased focus for better learning)"
+echo "  🔥 Loss: CrossEntropy (DEBUG: simplified loss function)"
 echo ""
 echo "💡 WHY EXACT PARAMETERS WILL WORK ON LOCAL V100:"
 echo "  • 🎯 PROVEN CONFIG: Same parameters that achieved 81.76% success"
@@ -72,18 +72,12 @@ python local_trainer.py \
   --use_lora yes \
   --lora_r 16 \
   --lora_alpha 32 \
-  --learning_rate 1e-5 \
+  --learning_rate 2e-5 \
   --batch_size 6 \
   --freeze_backbone_epochs 0 \
-  --enable_focal_loss \
-  --focal_loss_alpha 2.0 \
-  --focal_loss_gamma 3.0 \
   --enable_medical_grade \
-  --enable_class_weights \
-  --class_weight_severe 2.0 \
-  --class_weight_pdr 1.5 \
   --gradient_accumulation_steps 6 \
-  --warmup_epochs 5 \
+  --warmup_epochs 0 \
   --scheduler none \
   --validation_frequency 1 \
   --patience 15 \
