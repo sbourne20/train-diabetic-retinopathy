@@ -95,7 +95,6 @@ python local_trainer.py \
   --experiment_name "medsiglip_lora_LOCAL_V100_EXACT_ORIGINAL_PARAMETERS" \
   --device cuda \
   --no_wandb \
-  --save_local_only \
   --output_dir ./results \
   --medical_terms data/medical_terms_type1.json
 
