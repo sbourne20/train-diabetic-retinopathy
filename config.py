@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 @dataclass
@@ -127,10 +127,10 @@ class LanguageConfig:
     
 @dataclass
 class Config:
-    model: ModelConfig = ModelConfig()
-    data: DataConfig = DataConfig()
-    training: TrainingConfig = TrainingConfig()
-    language: LanguageConfig = LanguageConfig()
+    model: ModelConfig = field(default_factory=ModelConfig)
+    data: DataConfig = field(default_factory=DataConfig)
+    training: TrainingConfig = field(default_factory=TrainingConfig)
+    language: LanguageConfig = field(default_factory=LanguageConfig)
     
     # Paths
     output_dir: str = "outputs"
