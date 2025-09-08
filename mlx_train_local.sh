@@ -77,28 +77,28 @@ python3 mlx_ai_trainer.py \
   --dataset-path dataset3_augmented_resized \
   --results-dir results \
   --num-epochs 50 \
-  --batch-size 2 \
+  --batch-size 1 \
   --learning-rate 2e-5 \
   --weight-decay 1e-5 \
   --dropout 0.3 \
   --scheduler none \
-  --gradient-accumulation-steps 6 \
-  --warmup-epochs 20 \
-  --validation-frequency 1 \
-  --checkpoint-frequency 2 \
+  --gradient-accumulation-steps 12 \
+  --warmup-epochs 10 \
+  --validation-frequency 2 \
+  --checkpoint-frequency 5 \
   --patience 15 \
   --min-delta 0.001 \
   --enable-focal-loss \
-  --focal-loss-alpha 4.0 \
-  --focal-loss-gamma 6.0 \
+  --focal-loss-alpha 3.0 \
+  --focal-loss-gamma 4.0 \
   --enable-class-weights \
-  --class-weight-severe 8.0 \
-  --class-weight-pdr 8.0 \
+  --class-weight-severe 6.0 \
+  --class-weight-pdr 5.0 \
   --enable-medical-grade \
   --gradient-clip-norm 1.0 \
   --use-lora \
-  --lora-r 16 \
-  --lora-alpha 32 \
+  --lora-r 8 \
+  --lora-alpha 16 \
   --experiment-name "mlx_medsiglip_lora_nuclear_focal_imbalanced_dataset3"
 
 echo ""

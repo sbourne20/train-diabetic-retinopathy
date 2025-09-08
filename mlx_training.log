@@ -445,3 +445,56 @@ Check the documentation of torch.load to learn more about types accepted by defa
 2025-09-08 20:30:18,849 - INFO - 📊 Setting up data loaders...
 2025-09-08 20:30:18,849 - INFO - 📊 Loading data splits for 5-class DR dataset...
 2025-09-08 20:30:18,959 - INFO - ✅ Data loaded: 118303 train, 17373 val samples
+2025-09-08 20:37:01,891 - INFO - 📊 Training class distribution:
+2025-09-08 20:37:01,891 - INFO -    Class 0: 55162 samples
+2025-09-08 20:37:01,891 - INFO -    Class 1: 18470 samples
+2025-09-08 20:37:01,891 - INFO -    Class 2: 24198 samples
+2025-09-08 20:37:01,891 - INFO -    Class 3: 10246 samples
+2025-09-08 20:37:01,891 - INFO -    Class 4: 10227 samples
+2025-09-08 20:37:01,892 - INFO - ⚙️ Setting up optimizer...
+2025-09-08 20:37:01,895 - INFO - ✅ NUCLEAR Focal Loss: α=4.0, γ=6.0
+2025-09-08 20:37:01,895 - INFO - ✅ EXTREME Class Weights: [1. 1. 1. 8. 8.]
+2025-09-08 20:37:01,895 - INFO -    - Severe NPDR (Class 3): 8.0x priority
+2025-09-08 20:37:01,895 - INFO -    - PDR (Class 4): 8.0x priority
+2025-09-08 20:37:01,897 - INFO - ✅ Using Medical-Grade NUCLEAR Focal Loss
+2025-09-08 20:37:01,897 - INFO - ✅ Optimizer configured: LR=2e-05, WD=1e-05
+2025-09-08 20:37:01,897 - INFO - ✅ Scheduler: none
+2025-09-08 20:37:01,897 - INFO - ✅ MLX Trainer initialized successfully
+2025-09-08 20:37:01,897 - INFO - 🚀 Starting NUCLEAR FOCAL LOSS MLX training on Mac M4...
+2025-09-08 20:37:01,897 - INFO - 📊 MEDICAL-GRADE Training Configuration:
+2025-09-08 20:37:01,897 - INFO -    - Model: MedSigLIP-448 (880M parameters)
+2025-09-08 20:37:01,897 - INFO -    - Device: mps
+2025-09-08 20:37:01,897 - INFO -    - Learning Rate: 2e-05
+2025-09-08 20:37:01,897 - INFO -    - Weight Decay: 1e-05
+2025-09-08 20:37:01,897 - INFO -    - Dropout: 0.3
+2025-09-08 20:37:01,897 - INFO -    - Batch Size: 2
+2025-09-08 20:37:01,897 - INFO -    - Gradient Accumulation: 6
+2025-09-08 20:37:01,897 - INFO -    - Epochs: 50
+2025-09-08 20:37:01,897 - INFO -    - Scheduler: none
+2025-09-08 20:37:01,897 - INFO - 💡 NUCLEAR FOCAL LOSS PARAMETERS:
+2025-09-08 20:37:01,897 - INFO -    - Alpha (α): 4.0 (MAXIMUM penalty)
+2025-09-08 20:37:01,897 - INFO -    - Gamma (γ): 6.0 (EXTREME focusing)
+2025-09-08 20:37:01,897 - INFO -    - Severe NPDR weight: 8.0x
+2025-09-08 20:37:01,897 - INFO -    - PDR weight: 8.0x
+2025-09-08 20:37:01,897 - INFO -    - Target: 90%+ validation accuracy breakthrough
+2025-09-08 20:37:01,897 - INFO - 
+2025-09-08 20:37:01,902 - INFO - 📊 Epoch 1 Memory: 62.2% used, 9.1GB available
+2025-09-08 20:37:01,902 - WARNING - ⚠️ High swap usage: 77.1%
+2025-09-08 20:37:01,902 - ERROR - ❌ Memory usage too high. Consider reducing batch size or restarting training.
+2025-09-08 20:37:01,902 - ERROR - ❌ Training failed: Memory usage exceeded safe threshold
+2025-09-08 20:42:57,394 - INFO - Using device: mps
+2025-09-08 20:42:57,394 - INFO - 🍎 Initial Memory State:
+2025-09-08 20:42:57,394 - INFO -    💾 System: 6.9GB/24.0GB (42.5%)
+2025-09-08 20:42:57,394 - INFO -    🔓 Available: 13.8GB
+2025-09-08 20:42:57,394 - INFO -    🍎 MLX Active: 0.00GB
+2025-09-08 20:42:57,394 - INFO - 🏥 Initializing MedSigLIP-448 model...
+2025-09-08 20:42:57,394 - INFO - 📥 Downloading MedSigLIP-448 model (first time only)...
+2025-09-08 20:42:57,394 - INFO - 💾 Will cache to: results/models/medsiglip-448
+2025-09-08 20:43:00,700 - INFO - ✅ Model downloaded and cached to: results/models/medsiglip-448
+2025-09-08 20:43:00,700 - INFO - 🚀 Next time training will start instantly!
+2025-09-08 20:43:00,703 - INFO - ✅ Model loaded with LoRA: 884587132 total parameters
+2025-09-08 20:43:00,703 - INFO - 🎯 LoRA Configuration: r=8, alpha=16
+2025-09-08 20:43:00,703 - INFO - 🚀 Trainable parameters: 456021692 (51.6% of total)
+2025-09-08 20:43:00,703 - INFO - 📊 Setting up data loaders...
+2025-09-08 20:43:00,703 - INFO - 📊 Loading data splits for 5-class DR dataset...
+2025-09-08 20:43:01,122 - INFO - ✅ Data loaded: 118303 train, 17373 val samples
