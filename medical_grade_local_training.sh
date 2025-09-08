@@ -73,7 +73,7 @@ python local_trainer.py \
   --lora_r 16 \
   --lora_alpha 32 \
   --learning_rate 2e-5 \
-  --batch_size 8 \
+  --batch_size 4 \
   --freeze_backbone_epochs 0 \
   --enable_focal_loss \
   --focal_loss_alpha 1.0 \
@@ -82,7 +82,7 @@ python local_trainer.py \
   --enable_class_weights \
   --class_weight_severe 2.0 \
   --class_weight_pdr 1.5 \
-  --gradient_accumulation_steps 3 \
+  --gradient_accumulation_steps 6 \
   --warmup_epochs 20 \
   --scheduler none \
   --validation_frequency 1 \
