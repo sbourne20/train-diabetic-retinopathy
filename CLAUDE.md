@@ -28,7 +28,7 @@ This project builds a comprehensive medical-grade diabetic retinopathy analysis 
 ### Objective
 Fine-tune MedSigLIP-448 foundation model for 5-class diabetic retinopathy classification on Google Cloud Vertex AI. You are ONLY ALLOWED TO USE MedSigLIP-448 foundation model. DO NOT USE ANY OTHER MODEL.
 
-### Training Server Access 
+### Local Training Server Access 
  ssh -p 6285 -i /Users/iwanbudihalim/.ssh/vast_ai root@206.172.240.211 -L 8080:localhost:8080
 
 
