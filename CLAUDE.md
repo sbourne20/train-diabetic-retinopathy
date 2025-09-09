@@ -28,6 +28,10 @@ This project builds a comprehensive medical-grade diabetic retinopathy analysis 
 ### Objective
 Fine-tune MedSigLIP-448 foundation model for 5-class diabetic retinopathy classification on Google Cloud Vertex AI. You are ONLY ALLOWED TO USE MedSigLIP-448 foundation model. DO NOT USE ANY OTHER MODEL.
 
+### Training Server Access 
+ ssh -p 6285 -i /Users/iwanbudihalim/.ssh/vast_ai root@206.172.240.211 -L 8080:localhost:8080
+
+
 ### Model Architecture
 - **Foundation Model**: `google/medsiglip-448` from HuggingFace
 - **Input Resolution**: 448×448 pixels
@@ -1139,3 +1143,161 @@ Required in `.env` file for medical production:
 7. **Risk Assessment**: Evaluation of clinical safety and efficacy at each phase
 
 **MEDICAL PRODUCTION MANDATE**: This system is intended for clinical use. All phases must be validated to medical device standards with appropriate regulatory approval before deployment.
+
+---
+
+## STANDARDIZED MODEL ANALYSIS TOOL
+
+### Objective
+Use the standardized `model_analyzer.py` tool for consistent checkpoint analysis across all training phases. This ensures uniform reporting and assessment of model performance.
+
+### Usage
+```bash
+# Basic analysis
+python model_analyzer.py --model ./results/models/checkpoint.pth
+
+# Detailed analysis with parameter information
+python model_analyzer.py --model ./results/models/checkpoint.pth --verbose
+
+# Save analysis report
+python model_analyzer.py --model ./results/models/checkpoint.pth --output analysis.json
+```
+
+### Key Features
+**1. Comprehensive Analysis**
+- File information (size, modification date)
+- Checkpoint structure analysis
+- Training metrics extraction (accuracy, loss, learning rates)
+- Model information (parameters, LoRA layers)
+- Optimizer configuration
+
+**2. Research Metrics**
+- Convergence analysis (early convergence detection)
+- Training stability (overfitting ratio, smoothness)
+- Medical validation history tracking
+- LoRA efficiency analysis
+- Research insights generation
+
+**3. Medical-Grade Assessment**
+- Clear medical grade classification:
+  - ✅ **≥90%**: FULL PASS (Production Ready)
+  - ⚠️ **≥85%**: NEAR PASS (Close to Production)
+  - 📈 **≥80%**: PROMISING LEVEL (Research Quality)
+  - ❌ **<80%**: NEEDS IMPROVEMENT (Below Standards)
+
+**4. High-Level Summary**
+- User-friendly assessment for non-technical users
+- Clear medical suitability determination
+- Actionable recommendations for improvement
+- Overfitting detection and warnings
+
+### Expected Analysis Output Format
+```
+🔍 Analyzing checkpoint: ./results/models/checkpoint.pth
+================================================================================
+✅ Checkpoint loaded successfully
+
+📁 FILE INFORMATION:
+   📍 Path: ./results/models/checkpoint.pth
+   📊 Size: 3.39 GB (3,643,152,221 bytes)
+   🕒 Modified: 2025-09-09 10:49:15
+
+🗂️  CHECKPOINT STRUCTURE:
+   🔑 Available keys: 11
+
+🎯 TRAINING METRICS:
+   📈 Current Epoch: 14
+   🎯 ACCURACY METRICS:
+      • best_val_accuracy: 0.8176 (81.76%)
+      • val_accuracy: 0.8176 (81.76%)
+      • train_accuracy: Not saved in checkpoint
+      ⚪ Training accuracy gap cannot be calculated
+
+🤖 MODEL INFORMATION:
+   🔢 Total Parameters: 1,326,512,700
+   💾 Model Size (approx): 4.94 GB
+   🎯 LoRA/Adapter Layers: 660
+
+🏥 MEDICAL GRADE ASSESSMENT:
+   🎯 Best Validation Accuracy: 0.8176 (81.76%)
+   📈 MEDICAL GRADE: PROMISING LEVEL (≥80% - Research Quality)
+   🏆 Performance Grade: PROMISING
+
+🔬 RESEARCH METRICS:
+   📈 CONVERGENCE ANALYSIS:
+      • Training Epochs: 15
+      • Best Performance at Epoch: 15
+      • Total Accuracy Improvement: +0.1699 (16.99%)
+      • ⚡ Early Convergence: YES (efficient training)
+   🎯 TRAINING STABILITY:
+      • Overfitting Ratio: 4.248 (❌ Significant overfitting)
+      • Training Smoothness: 0.308 (❌ Unstable training)
+
+📋 HIGH-LEVEL MODEL ASSESSMENT:
+   📊 Accuracy: 81.76% (decent)
+   ❌ Overfitting: Severe generalization concerns
+   🏥 Medical Grade: ❌ NOT SUITABLE for medical use (accuracy + overfitting issues)
+   🔧 Status: IMPROVE ACCURACY WITH BETTER TRAINING
+   💡 Additional: reduce overfitting (more dropout, weight decay, early stopping)
+   ============================================================
+```
+
+### Overfitting Detection Logic
+The analyzer calculates overfitting ratio using:
+```python
+# Requires both train_losses and val_losses in checkpoint
+recent_train_loss = average(last_3_training_losses)
+recent_val_loss = average(last_3_validation_losses)
+overfitting_ratio = recent_val_loss / recent_train_loss
+
+# Classification:
+# < 1.2: ✅ No significant overfitting
+# 1.2-1.5: ⚠️ Mild overfitting concerns  
+# 1.5-2.5: ⚠️ Moderate overfitting issues
+# > 2.5: ❌ Severe generalization concerns
+```
+
+### Medical Suitability Matrix
+| Accuracy | Overfitting | Medical Grade |
+|----------|-------------|---------------|
+| ≥90% | ✅ No | ✅ SUITABLE for production |
+| ≥90% | ⚠️ Mild | ⚠️ CONDITIONALLY SUITABLE |
+| ≥90% | ❌ Severe | ❌ NOT SUITABLE (overfitting) |
+| 80-89% | ✅ No | ⚠️ RESEARCH QUALITY |
+| 80-89% | ⚠️/❌ | ❌ NOT SUITABLE (accuracy + overfitting) |
+| <80% | Any | ❌ NOT SUITABLE (insufficient accuracy) |
+
+### Training Script Integration
+To enable complete analysis, training scripts should save:
+```python
+checkpoint = {
+    'epoch': epoch,
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'val_accuracy': current_val_accuracy,
+    'best_val_accuracy': best_val_accuracy,
+    'train_losses': train_loss_history,      # Required for overfitting
+    'val_losses': val_loss_history,          # Required for overfitting
+    'val_accuracies': val_accuracy_history,  # Required for convergence
+    'medical_validations': medical_history,  # Optional
+    # ... other training state
+}
+```
+
+### Success Criteria for Model Analysis
+- **Accuracy Assessment**: Clear classification against medical thresholds
+- **Overfitting Detection**: Reliable generalization assessment when data available
+- **Missing Data Handling**: Graceful degradation with clear explanations
+- **Medical Compliance**: Assessment aligned with medical device standards
+- **Actionable Insights**: Clear recommendations for model improvement
+- **Reproducible Results**: Consistent analysis across different checkpoint formats
+
+### Usage Guidelines
+1. **Always run analysis** after training completion
+2. **Save reports** for training experiment tracking
+3. **Use verbose mode** for detailed parameter inspection
+4. **Check overfitting** - if not shown, ensure training script saves loss histories
+5. **Follow recommendations** in high-level summary for model improvement
+6. **Track progress** across training iterations using saved JSON reports
+
+This standardized tool ensures consistent, medical-grade assessment of all model checkpoints throughout the project phases.
