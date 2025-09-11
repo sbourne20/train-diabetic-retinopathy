@@ -10,6 +10,12 @@ echo "  🎯 ISSUE: Current training shows 2.56x validation/training loss ratio"
 echo "  🛡️ SOLUTION: Stronger regularization, early stopping, reduced learning rate"
 echo "  🎯 TARGET: Achieve 81.76%+ with proper generalization"
 echo ""
+echo "🔄 RESUME CONFIGURATION:"
+echo "  📥 Resume from: best_model.pth (if exists)"
+echo "  💾 Checkpoints: Save every epoch (full monitoring)"
+echo "  ☁️ Cloud Storage: Epoch checkpoints to gs://dr-data-2/checkpoints"
+echo "  🏠 Local Storage: Best model only (save disk space)"
+echo ""
 echo "🔧 ANTI-OVERFITTING CONFIGURATION:"
 echo "  💧 Dropout: 0.6 (increased from 0.4 for stronger regularization)"
 echo "  🎯 Learning Rate: 1e-5 (reduced from 2e-5 for stability)"
@@ -18,7 +24,7 @@ echo "  ⏰ Early Stopping: patience 15 (reduced from 40)"
 echo "  📊 Validation Check: Every epoch (immediate overfitting detection)"
 echo "  🎯 Min Delta: 0.005 (increased sensitivity)"
 echo "  ✂️ Gradient Clipping: 0.5 (reduced from 1.0)"
-echo "  📉 LR Scheduler: cosine (instead of none for gradual decay)"
+echo "  📉 LR Scheduler: cosine_with_restarts (instead of none for gradual decay)"
 echo ""
 
 # Check if dataset3_augmented_resized exists
@@ -44,8 +50,8 @@ echo "✅ dataset3_augmented_resized found - proceeding with anti-overfitting tr
 echo "✅ .env file found - HuggingFace token should be loaded"
 echo ""
 
-# Run local training with ANTI-OVERFITTING parameters
-python local_trainer.py \
+# Run local training with ANTI-OVERFITTING parameters + CLOUD STORAGE
+python3 local_trainer.py \
   --mode train \
   --dataset_path ./dataset3_augmented_resized \
   --num_classes 5 \
@@ -67,7 +73,7 @@ python local_trainer.py \
   --class_weight_pdr 6.0 \
   --gradient_accumulation_steps 4 \
   --warmup_epochs 10 \
-  --scheduler cosine \
+  --scheduler cosine_with_restarts \
   --validation_frequency 1 \
   --patience 15 \
   --min_delta 0.005 \
@@ -75,11 +81,13 @@ python local_trainer.py \
   --dropout 0.6 \
   --max_grad_norm 0.5 \
   --checkpoint_frequency 1 \
+  --save_checkpoint gs://dr-data-2/checkpoints \
   --experiment_name "medsiglip_lora_r16_ANTI_OVERFITTING" \
   --device cuda \
   --no_wandb \
   --output_dir ./results \
-  --medical_terms data/medical_terms_type1.json
+  --medical_terms data/medical_terms_type1.json \
+  --resume_from_checkpoint ./results/result/best_model.pth
 
 echo ""
 echo "🛡️ ANTI-OVERFITTING SUCCESS CRITERIA:"

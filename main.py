@@ -117,6 +117,8 @@ def parse_args():
                        help='Save checkpoints every N epochs')
     parser.add_argument('--resume_from_checkpoint', default=None,
                        help='Resume training from checkpoint (local path or gs:// path)')
+    parser.add_argument('--save_checkpoint', default=None,
+                       help='Save checkpoints to GCS bucket (e.g., gs://dr-data-2/checkpoints)')
     
     return parser.parse_args()
 
@@ -165,6 +167,24 @@ def setup_experiment(args):
     config.training.resume_from_checkpoint = args.resume_from_checkpoint
     if args.resume_from_checkpoint:
         print(f"🔄 Resume from checkpoint: {args.resume_from_checkpoint}")
+    
+    # GCS checkpoint saving
+    config.training.save_checkpoint = args.save_checkpoint
+    if args.save_checkpoint:
+        # Extract bucket name from gs:// URL
+        if args.save_checkpoint.startswith('gs://'):
+            # Extract bucket name (e.g., "dr-data-2" from "gs://dr-data-2/checkpoints")
+            bucket_path = args.save_checkpoint[5:]  # Remove 'gs://'
+            bucket_name = bucket_path.split('/')[0]
+            config.training.gcs_bucket = bucket_name
+            print(f"💾 GCS checkpoint saving enabled: {args.save_checkpoint}")
+            print(f"🪣 GCS bucket: {bucket_name}")
+        else:
+            print(f"⚠️ Warning: Invalid GCS path format: {args.save_checkpoint}")
+            print("   Expected format: gs://bucket-name/path")
+            config.training.gcs_bucket = "dr-data-2"  # Fallback to default
+    else:
+        config.training.gcs_bucket = "dr-data-2"  # Default bucket
     
     # New dataset type 1 arguments
     if args.dataset_path:
@@ -318,7 +338,7 @@ def train_model(config, data_dict, args):
         class_weights=data_dict['dr_weights'],
         validation_frequency=config.training.validation_frequency,
         checkpoint_frequency=config.training.checkpoint_frequency,
-        gcs_bucket="dr-data-2",  # Use your GCS bucket
+        gcs_bucket=config.training.gcs_bucket,  # Use configured GCS bucket
         resume_from_checkpoint=config.training.resume_from_checkpoint,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
         # Medical-grade parameters from config

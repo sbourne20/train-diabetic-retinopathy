@@ -116,11 +116,13 @@ def parse_args():
     parser.add_argument('--min_delta', type=float, default=0.001, 
                        help='Minimum delta for early stopping')
     
-    # Checkpointing (local only)
+    # Checkpointing (local and GCS)
     parser.add_argument('--checkpoint_frequency', type=int, default=2, 
                        help='Save checkpoints every N epochs')
     parser.add_argument('--resume_from_checkpoint', default=None,
                        help='Resume from local checkpoint path')
+    parser.add_argument('--save_checkpoint', default=None,
+                       help='Save checkpoints to GCS bucket (e.g., gs://dr-data-2/checkpoints)')
     
     # Experiment settings
     parser.add_argument('--experiment_name', 
@@ -220,6 +222,24 @@ def setup_local_experiment(args):
     if args.resume_from_checkpoint:
         print(f"🔄 Resume from checkpoint: {args.resume_from_checkpoint}")
     
+    # GCS checkpoint saving
+    config.training.save_checkpoint = args.save_checkpoint
+    if args.save_checkpoint:
+        # Extract bucket name from gs:// URL
+        if args.save_checkpoint.startswith('gs://'):
+            # Extract bucket name (e.g., "dr-data-2" from "gs://dr-data-2/checkpoints")
+            bucket_path = args.save_checkpoint[5:]  # Remove 'gs://'
+            bucket_name = bucket_path.split('/')[0]
+            config.training.gcs_bucket = bucket_name
+            print(f"💾 GCS checkpoint saving enabled: {args.save_checkpoint}")
+            print(f"🪣 GCS bucket: {bucket_name}")
+        else:
+            print(f"⚠️ Warning: Invalid GCS path format: {args.save_checkpoint}")
+            print("   Expected format: gs://bucket-name/path")
+            config.training.gcs_bucket = None
+    else:
+        config.training.gcs_bucket = None
+    
     # Set experiment name
     config.experiment_name = args.experiment_name
     
@@ -238,6 +258,8 @@ def setup_local_experiment(args):
     print(f"   Focal Loss: α={config.training.focal_loss_alpha}, γ={config.training.focal_loss_gamma}")
     print(f"   Class Weights: Severe={config.training.class_weight_severe}, PDR={config.training.class_weight_pdr}")
     print(f"   Device: {config.device}")
+    if config.training.gcs_bucket:
+        print(f"   GCS Checkpoint: {config.training.gcs_bucket}")
     
     return config
 
@@ -347,7 +369,7 @@ def train_local_model(config, data_dict, args):
         class_weights=data_dict['dr_weights'],
         validation_frequency=config.training.validation_frequency,
         checkpoint_frequency=config.training.checkpoint_frequency,
-        gcs_bucket=None,  # Disable GCS for local training
+        gcs_bucket=config.training.gcs_bucket,  # Enable GCS if --save_checkpoint provided
         resume_from_checkpoint=config.training.resume_from_checkpoint,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
         # Medical-grade parameters (exact match)
@@ -359,11 +381,12 @@ def train_local_model(config, data_dict, args):
         max_grad_norm=config.training.max_grad_norm
     )
     
-    # Load checkpoint if provided
+    # Checkpoint loading is handled automatically in trainer.__init__
     if config.training.resume_from_checkpoint and os.path.exists(config.training.resume_from_checkpoint):
-        print(f"📥 Loading checkpoint: {config.training.resume_from_checkpoint}")
-        start_epoch = trainer.load_checkpoint(config.training.resume_from_checkpoint)
-        print(f"🔄 Resumed from epoch {start_epoch}")
+        print(f"📥 Checkpoint loading handled by trainer: {config.training.resume_from_checkpoint}")
+        print(f"🔄 Training will resume from epoch {trainer.start_epoch}")
+    else:
+        print("🆕 Starting fresh training from epoch 1")
     
     # Train model
     print("\n🎯 Starting local V100 training...")
@@ -372,6 +395,8 @@ def train_local_model(config, data_dict, args):
     # Ensure result directory exists
     os.makedirs(config.checkpoint_dir, exist_ok=True)
     print(f"📁 Models will be saved to: {config.checkpoint_dir}")
+    if config.training.gcs_bucket:
+        print(f"☁️ Checkpoints will also be saved to GCS bucket: {config.training.gcs_bucket}")
     
     # Train with custom save directory
     training_history = trainer.train(save_dir=config.checkpoint_dir)
