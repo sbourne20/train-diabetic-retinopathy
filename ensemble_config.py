@@ -131,6 +131,10 @@ class EnsembleTrainingConfig:
     sight_threatening_loss_weight: float = 1.0
     confidence_loss_weight: float = 0.5
     
+    # Class weighting (duplicated from data config for training access)
+    class_weight_severe: float = 8.0  # Severe NPDR multiplier
+    class_weight_pdr: float = 6.0     # PDR multiplier
+    
     # Ensemble-specific training
     train_individual_models: bool = True  # Train each model separately first
     train_ensemble_jointly: bool = True   # Then fine-tune ensemble together
