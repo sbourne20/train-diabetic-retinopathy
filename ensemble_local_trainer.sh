@@ -44,6 +44,7 @@ echo "=========================================="
 python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset3_augmented_resized \
+    --output_dir ./ensemble_results \
     --epochs 100 \
     --enable_clahe \
     --enable_smote \
