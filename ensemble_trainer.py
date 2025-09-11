@@ -364,13 +364,16 @@ class EnsembleTrainer:
                 # Update learning rate
                 if scheduler is not None:
                     if self.config.training.scheduler == 'plateau':
-                        scheduler.step(val_metrics['accuracy'])
+                        accuracy_key = 'ensemble_accuracy' if 'ensemble_accuracy' in val_metrics else 'accuracy'
+                        scheduler.step(val_metrics[accuracy_key])
                     else:
                         scheduler.step()
                 
-                # Check for improvement
-                if val_metrics['accuracy'] > best_accuracy:
-                    best_accuracy = val_metrics['accuracy']
+                # Check for improvement  
+                accuracy_key = 'ensemble_accuracy' if 'ensemble_accuracy' in val_metrics else 'accuracy'
+                current_accuracy = val_metrics[accuracy_key]
+                if current_accuracy > best_accuracy:
+                    best_accuracy = current_accuracy
                     patience_counter = 0
                     
                     # Save best model state
@@ -380,9 +383,10 @@ class EnsembleTrainer:
                     patience_counter += 1
                 
                 # Log progress
+                accuracy_key = 'ensemble_accuracy' if 'ensemble_accuracy' in val_metrics else 'accuracy'
                 logger.info(f"   Epoch {epoch+1:3d}/{self.config.training.num_epochs} | "
                            f"Train Acc: {train_metrics['accuracy']:.4f} | "
-                           f"Val Acc: {val_metrics['accuracy']:.4f} | "
+                           f"Val Acc: {val_metrics[accuracy_key]:.4f} | "
                            f"Best: {best_accuracy:.4f}")
                 
                 # Early stopping
