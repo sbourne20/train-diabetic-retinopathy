@@ -395,10 +395,11 @@ class EnsembleTrainer:
                     break
                 
                 # Store history
+                accuracy_key = 'ensemble_accuracy' if 'ensemble_accuracy' in val_metrics else 'accuracy'
                 model_history.append({
                     'epoch': epoch + 1,
                     'train_accuracy': train_metrics['accuracy'],
-                    'val_accuracy': val_metrics['accuracy'],
+                    'val_accuracy': val_metrics[accuracy_key],
                     'learning_rate': optimizer.param_groups[0]['lr']
                 })
         
@@ -409,9 +410,10 @@ class EnsembleTrainer:
         final_metrics = self._validate_single_model(model, model_name)
         medical_validation = validate_medical_grade_ensemble(final_metrics)
         
+        accuracy_key = 'ensemble_accuracy' if 'ensemble_accuracy' in final_metrics else 'accuracy'
         return {
             'best_accuracy': best_accuracy,
-            'final_accuracy': final_metrics['accuracy'],
+            'final_accuracy': final_metrics[accuracy_key],
             'final_sensitivity': final_metrics['mean_sensitivity'],
             'final_specificity': final_metrics['mean_specificity'],
             'medical_grade_pass': medical_validation['medical_grade_pass'],
