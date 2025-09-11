@@ -99,13 +99,18 @@ class EnsembleMedicalLoss(nn.Module):
         self.sight_threatening_weight = sight_threatening_weight
         self.confidence_weight = confidence_weight
         
-        # Loss functions
-        self.ce_loss = nn.CrossEntropyLoss(weight=class_weights)
+        # Loss functions (don't set weight here, handle device placement dynamically)
+        self.ce_loss = nn.CrossEntropyLoss()
         self.mse_loss = nn.MSELoss()
         
     def focal_loss(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """Compute focal loss for class imbalance."""
-        ce_loss = F.cross_entropy(inputs, targets, weight=self.class_weights, reduction='none')
+        # Ensure class weights are on the same device as inputs
+        class_weights = self.class_weights
+        if class_weights is not None:
+            class_weights = class_weights.to(inputs.device)
+        
+        ce_loss = F.cross_entropy(inputs, targets, weight=class_weights, reduction='none')
         pt = torch.exp(-ce_loss)
         focal_loss = self.focal_alpha * (1 - pt) ** self.focal_gamma * ce_loss
         return focal_loss.mean()
