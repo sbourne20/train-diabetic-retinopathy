@@ -66,7 +66,7 @@ python ensemble_local_trainer.py \
     --enable_focal_loss \
     --enable_class_weights \
     --validation_frequency 1 \
-    --checkpoint_frequency 4 \
+    --checkpoint_frequency 5 \
     --medical_terms data/medical_terms_type1.json
 
 EXIT_CODE=$?

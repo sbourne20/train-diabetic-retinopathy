@@ -389,6 +389,22 @@ class EnsembleTrainer:
                            f"Val Acc: {val_metrics[accuracy_key]:.4f} | "
                            f"Best: {best_accuracy:.4f}")
                 
+                # Save epoch checkpoint based on checkpoint_frequency
+                if hasattr(self.config.training, 'checkpoint_frequency') and (epoch + 1) % self.config.training.checkpoint_frequency == 0:
+                    checkpoint = {
+                        'epoch': epoch + 1,
+                        'model_name': model_name,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'train_accuracy': train_metrics['accuracy'],
+                        'val_accuracy': val_metrics[accuracy_key],
+                        'best_accuracy': best_accuracy,
+                        'config': self.config.__dict__
+                    }
+                    checkpoint_path = self.checkpoint_dir / f"{model_name}_epoch_{epoch+1:03d}_checkpoint.pth"
+                    torch.save(checkpoint, checkpoint_path)
+                    logger.info(f"💾 Saved {model_name} epoch {epoch+1} checkpoint: {checkpoint_path}")
+                
                 # Early stopping
                 if patience_counter >= self.config.training.patience:
                     logger.info(f"   Early stopping for {model_name} at epoch {epoch+1}")
