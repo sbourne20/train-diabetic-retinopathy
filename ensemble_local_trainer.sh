@@ -41,11 +41,25 @@ echo ""
 echo "🚀 Starting ensemble training..."
 echo "=========================================="
 
+# Ensure output directory structure exists
+echo "📁 Creating output directory structure..."
+mkdir -p ./results
+mkdir -p ./results/checkpoints
+mkdir -p ./results/logs  
+mkdir -p ./results/results
+echo "✅ Output directories created: $(pwd)/results"
+
 python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset3_augmented_resized \
-    --output_dir ./ensemble_results \
+    --output_dir ./results \
     --epochs 100 \
+    --batch_size 4 \
+    --learning_rate 5e-5 \
+    --weight_decay 1e-3 \
+    --individual_dropout 0.5 0.5 0.5 \
+    --patience 10 \
+    --min_delta 0.005 \
     --enable_clahe \
     --enable_smote \
     --enable_focal_loss \
@@ -60,8 +74,20 @@ echo ""
 echo "=========================================="
 if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Ensemble training completed successfully!"
-    echo "🎯 Check results in ./ensemble_results/ directory"
+    echo "🎯 Check results in ./results/ directory"
     echo "📊 Use ensemble_evaluator.py for comprehensive assessment"
+    echo ""
+    echo "📁 Checkpoint verification:"
+    if [ -d "./results/checkpoints" ]; then
+        checkpoint_count=$(ls -1 ./results/checkpoints/*.pth 2>/dev/null | wc -l || echo "0")
+        echo "   ✅ Checkpoints directory exists"
+        echo "   📊 Found $checkpoint_count checkpoint files"
+        if [ -f "./results/checkpoints/ensemble_best.pth" ]; then
+            echo "   🏆 Best ensemble model saved"
+        fi
+    else
+        echo "   ❌ Checkpoints directory not found"
+    fi
 else
     echo "❌ Training failed with exit code: $EXIT_CODE"
     echo "🔍 Check logs above for error details"
