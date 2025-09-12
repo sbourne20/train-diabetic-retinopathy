@@ -54,18 +54,19 @@ python ensemble_local_trainer.py \
     --dataset_path ./dataset3_augmented_resized \
     --output_dir ./results \
     --epochs 100 \
-    --batch_size 4 \
-    --learning_rate 5e-5 \
-    --weight_decay 1e-3 \
-    --individual_dropout 0.5 0.5 0.5 \
-    --patience 10 \
-    --min_delta 0.005 \
+    --batch_size 2 \
+    --learning_rate 1e-5 \
+    --weight_decay 5e-3 \
+    --individual_dropout 0.7 0.7 0.7 \
+    --max_grad_norm 0.5 \
+    --patience 8 \
+    --min_delta 0.01 \
     --enable_clahe \
     --enable_smote \
     --enable_focal_loss \
     --enable_class_weights \
     --validation_frequency 1 \
-    --checkpoint_frequency 5 \
+    --checkpoint_frequency 1 \
     --medical_terms data/medical_terms_type1.json
 
 EXIT_CODE=$?
