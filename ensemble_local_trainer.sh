@@ -55,12 +55,12 @@ python ensemble_local_trainer.py \
     --output_dir ./results \
     --epochs 100 \
     --batch_size 2 \
-    --learning_rate 1e-5 \
-    --weight_decay 5e-3 \
-    --individual_dropout 0.7 0.7 0.7 \
+    --learning_rate 5e-7 \
+    --weight_decay 1e-2 \
+    --individual_dropout 0.8 0.8 0.8 \
     --max_grad_norm 0.5 \
-    --patience 8 \
-    --min_delta 0.01 \
+    --patience 5 \
+    --min_delta 0.005 \
     --enable_clahe \
     --enable_smote \
     --enable_focal_loss \
