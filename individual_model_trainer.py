@@ -418,23 +418,44 @@ def main():
     # Prepare data loaders
     logger.info("📊 Preparing data loaders...")
 
+    # Load data paths and labels from directory structure
+    def load_dataset_from_directory(data_dir):
+        """Load image paths and labels from directory structure."""
+        data_paths = []
+        labels = []
+
+        data_dir = Path(data_dir)
+        for class_dir in sorted(data_dir.iterdir()):
+            if class_dir.is_dir():
+                class_label = int(class_dir.name)
+                for img_path in class_dir.glob('*.jpg'):
+                    data_paths.append(str(img_path))
+                    labels.append(class_label)
+
+        return data_paths, labels
+
+    # Load training data
+    train_paths, train_labels = load_dataset_from_directory(Path(args.dataset_path) / 'train')
+    val_paths, val_labels = load_dataset_from_directory(Path(args.dataset_path) / 'val')
+    test_paths, test_labels = load_dataset_from_directory(Path(args.dataset_path) / 'test')
+
     # Create datasets
     train_dataset = DRDataset(
-        dataset_path=Path(args.dataset_path) / 'train',
-        enable_clahe=args.enable_clahe,
-        mode='train'
+        data_paths=train_paths,
+        labels=train_labels,
+        enable_clahe=args.enable_clahe
     )
 
     val_dataset = DRDataset(
-        dataset_path=Path(args.dataset_path) / 'val',
-        enable_clahe=args.enable_clahe,
-        mode='val'
+        data_paths=val_paths,
+        labels=val_labels,
+        enable_clahe=args.enable_clahe
     )
 
     test_dataset = DRDataset(
-        dataset_path=Path(args.dataset_path) / 'test',
-        enable_clahe=args.enable_clahe,
-        mode='test'
+        data_paths=test_paths,
+        labels=test_labels,
+        enable_clahe=args.enable_clahe
     )
 
     # Create data loaders
@@ -443,8 +464,7 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
 
     # Compute class weights
-    all_labels = [label for _, label in train_dataset]
-    class_weights = compute_class_weights(np.array(all_labels), args.num_classes)
+    class_weights = compute_class_weights(np.array(train_labels), args.num_classes)
 
     logger.info(f"📊 Dataset sizes - Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {len(test_dataset)}")
 
