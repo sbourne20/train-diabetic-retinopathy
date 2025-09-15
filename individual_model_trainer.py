@@ -159,8 +159,9 @@ class IndividualModelTrainer:
 
         pbar = tqdm(self.train_loader, desc=f"Training {self.model_name}")
 
-        for batch_idx, (data, targets) in enumerate(pbar):
-            data, targets = data.to(self.device), targets.to(self.device)
+        for batch_idx, batch in enumerate(pbar):
+            data = batch['image'].to(self.device)
+            targets = batch['dr_grade'].to(self.device)
 
             self.optimizer.zero_grad()
 
@@ -207,8 +208,9 @@ class IndividualModelTrainer:
         all_targets = []
 
         with torch.no_grad():
-            for data, targets in tqdm(self.val_loader, desc=f"Validating {self.model_name}"):
-                data, targets = data.to(self.device), targets.to(self.device)
+            for batch in tqdm(self.val_loader, desc=f"Validating {self.model_name}"):
+                data = batch['image'].to(self.device)
+                targets = batch['dr_grade'].to(self.device)
 
                 outputs = self.model(data)
                 loss = self.criterion(outputs, targets)
