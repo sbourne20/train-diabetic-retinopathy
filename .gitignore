@@ -27,3 +27,4 @@ outputs/
 *.pth
 *.pkl
 *.joblib
+*.zip
