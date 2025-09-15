@@ -113,6 +113,16 @@ class IndividualModelTrainer:
                 nn.Dropout(self.config.dropout * 0.8),  # Second dropout layer
                 nn.Linear(512, num_classes)
             )
+        elif self.model_name == 'resnet18':
+            model = models.resnet18(pretrained=True)
+            # Conservative regularization - smaller model needs less aggressive dropout
+            model.fc = nn.Sequential(
+                nn.Dropout(self.config.dropout * 0.7),  # Slightly reduced for smaller model
+                nn.Linear(model.fc.in_features, 256),
+                nn.ReLU(),
+                nn.Dropout(self.config.dropout * 0.5),  # Second dropout layer
+                nn.Linear(256, num_classes)
+            )
         elif self.model_name == 'densenet121':
             model = models.densenet121(pretrained=True)
             # Ultra-strong regularization with multiple dropout layers
@@ -336,7 +346,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Individual Model Trainer for DR Classification')
 
     # Model selection
-    parser.add_argument('--model', choices=['resnet50', 'densenet121'], required=True,
+    parser.add_argument('--model', choices=['resnet50', 'resnet18', 'densenet121'], required=True,
                        help='Model architecture to train')
 
     # Dataset configuration
@@ -352,20 +362,20 @@ def parse_args():
                        help='Batch size for training')
     parser.add_argument('--gradient_accumulation_steps', type=int, default=2,
                        help='Gradient accumulation steps')
-    parser.add_argument('--learning_rate', type=float, default=1e-5,
-                       help='Initial learning rate (ultra-conservative)')
-    parser.add_argument('--weight_decay', type=float, default=5e-3,
-                       help='Weight decay for optimizer (maximum regularization)')
-    parser.add_argument('--dropout', type=float, default=0.7,
-                       help='Dropout rate (maximum regularization)')
+    parser.add_argument('--learning_rate', type=float, default=2e-5,
+                       help='Initial learning rate (conservative for ResNet18)')
+    parser.add_argument('--weight_decay', type=float, default=1e-3,
+                       help='Weight decay for optimizer (balanced regularization)')
+    parser.add_argument('--dropout', type=float, default=0.5,
+                       help='Dropout rate (balanced for smaller model)')
     parser.add_argument('--max_grad_norm', type=float, default=0.5,
                        help='Maximum gradient norm for clipping (strict)')
 
     # Early stopping
-    parser.add_argument('--patience', type=int, default=3,
-                       help='Early stopping patience (ultra-aggressive)')
-    parser.add_argument('--min_delta', type=float, default=0.01,
-                       help='Minimum improvement threshold (very strict)')
+    parser.add_argument('--patience', type=int, default=7,
+                       help='Early stopping patience (balanced for smaller model)')
+    parser.add_argument('--min_delta', type=float, default=0.005,
+                       help='Minimum improvement threshold (reasonable)')
 
     # Scheduler
     parser.add_argument('--scheduler', choices=['cosine', 'plateau'], default='cosine',
