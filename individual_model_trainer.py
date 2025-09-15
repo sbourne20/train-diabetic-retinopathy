@@ -66,20 +66,22 @@ class IndividualModelTrainer:
 
         # Initialize scheduler
         if config.scheduler == 'cosine':
+            # More conservative cosine annealing
             self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                self.optimizer, T_0=20, T_mult=2, eta_min=1e-6
+                self.optimizer, T_0=15, T_mult=1, eta_min=1e-7
             )
         else:
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                self.optimizer, mode='max', patience=5, factor=0.5, verbose=True
+                self.optimizer, mode='max', patience=3, factor=0.7, verbose=True
             )
 
-        # Initialize loss function
+        # Initialize loss function with label smoothing
         if config.enable_focal_loss:
             # Simple focal loss implementation
             self.criterion = self._create_focal_loss(class_weights)
         else:
-            self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+            # Use label smoothing to prevent overconfidence
+            self.criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
         # Initialize early stopping
         self.early_stopping = EarlyStopping(
@@ -342,20 +344,20 @@ def parse_args():
                        help='Batch size for training')
     parser.add_argument('--gradient_accumulation_steps', type=int, default=2,
                        help='Gradient accumulation steps')
-    parser.add_argument('--learning_rate', type=float, default=1e-4,
-                       help='Initial learning rate')
-    parser.add_argument('--weight_decay', type=float, default=1e-4,
-                       help='Weight decay for optimizer')
-    parser.add_argument('--dropout', type=float, default=0.3,
-                       help='Dropout rate')
+    parser.add_argument('--learning_rate', type=float, default=5e-5,
+                       help='Initial learning rate (reduced for stability)')
+    parser.add_argument('--weight_decay', type=float, default=1e-3,
+                       help='Weight decay for optimizer (increased)')
+    parser.add_argument('--dropout', type=float, default=0.5,
+                       help='Dropout rate (increased for regularization)')
     parser.add_argument('--max_grad_norm', type=float, default=1.0,
                        help='Maximum gradient norm for clipping')
 
     # Early stopping
-    parser.add_argument('--patience', type=int, default=10,
-                       help='Early stopping patience')
-    parser.add_argument('--min_delta', type=float, default=0.001,
-                       help='Minimum improvement threshold')
+    parser.add_argument('--patience', type=int, default=5,
+                       help='Early stopping patience (reduced)')
+    parser.add_argument('--min_delta', type=float, default=0.005,
+                       help='Minimum improvement threshold (increased)')
 
     # Scheduler
     parser.add_argument('--scheduler', choices=['cosine', 'plateau'], default='cosine',
