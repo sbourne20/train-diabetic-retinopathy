@@ -51,7 +51,7 @@ echo "✅ Output directories created: $(pwd)/results"
 
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./dataset3_augmented_resized \
+    --dataset_path ./dataset5 \
     --output_dir ./results \
     --epochs 100 \
     --batch_size 6 \

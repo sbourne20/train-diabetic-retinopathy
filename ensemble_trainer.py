@@ -117,53 +117,25 @@ class EnsembleMedicalLoss(nn.Module):
     
     def forward(self, outputs: Dict[str, torch.Tensor], targets: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
-        Compute multi-task medical loss.
-        
+        Compute simplified single-task DR classification loss for Phase 1.
+
+        Focus only on main DR classification to achieve 96.96% research target.
+        Multi-task complexity is reserved for later phases (1.5, 2.5, etc.).
+
         Args:
-            outputs: Model outputs containing dr_logits, referable_dr_logits, etc.
-            targets: Target dictionary with dr_grade, referable_dr, etc.
-            
+            outputs: Model outputs containing dr_logits (only dr_logits used)
+            targets: Target dictionary with dr_grade (only dr_grade used)
+
         Returns:
-            Dictionary containing individual losses and total loss
+            Dictionary containing only DR classification loss
         """
-        # Primary DR classification loss (focal)
+        # PHASE 1: Only DR classification loss (focal)
         dr_loss = self.focal_loss(outputs['dr_logits'], targets['dr_grade'])
-        
-        # Referable DR classification loss
-        referable_loss = self.ce_loss(outputs['referable_dr_logits'], targets['referable_dr'])
-        
-        # Sight-threatening DR classification loss
-        sight_threatening_loss = self.ce_loss(outputs['sight_threatening_logits'], targets['sight_threatening_dr'])
-        
-        # Confidence estimation loss
-        if 'grading_confidence' in outputs:
-            # Target confidence = max probability of DR prediction
-            dr_probs = F.softmax(outputs['dr_logits'], dim=1)
-            confidence_targets = torch.max(dr_probs, dim=1)[0]
-            confidence_pred = outputs['grading_confidence'].squeeze()
-            
-            # Ensure shapes match
-            if confidence_pred.dim() == 0:
-                confidence_pred = confidence_pred.unsqueeze(0).expand_as(confidence_targets)
-            
-            confidence_loss = self.mse_loss(confidence_pred, confidence_targets)
-        else:
-            confidence_loss = torch.tensor(0.0, device=dr_loss.device)
-        
-        # Total weighted loss
-        total_loss = (
-            self.dr_weight * dr_loss +
-            self.referable_weight * referable_loss +
-            self.sight_threatening_weight * sight_threatening_loss +
-            self.confidence_weight * confidence_loss
-        )
-        
+
+        # Return simplified loss structure for Phase 1
         return {
-            'total_loss': total_loss,
-            'dr_loss': dr_loss,
-            'referable_loss': referable_loss,
-            'sight_threatening_loss': sight_threatening_loss,
-            'confidence_loss': confidence_loss
+            'total_loss': dr_loss,
+            'dr_loss': dr_loss
         }
 
 class EnsembleTrainer:
@@ -308,17 +280,13 @@ class EnsembleTrainer:
         return schedulers
     
     def _prepare_targets(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        """Prepare target tensors for multi-task learning."""
+        """Prepare target tensors for Phase 1 single-task DR classification."""
         dr_grade = batch['dr_grade']
-        
-        # Generate referable and sight-threatening targets
-        referable_dr = (dr_grade >= 2).long()  # Classes 2,3,4 are referable
-        sight_threatening_dr = (dr_grade >= 3).long()  # Classes 3,4 are sight-threatening
-        
+
+        # PHASE 1: Only return main DR classification target
+        # Multi-task targets are reserved for later phases (1.5, 2.5, etc.)
         return {
-            'dr_grade': dr_grade,
-            'referable_dr': referable_dr,
-            'sight_threatening_dr': sight_threatening_dr
+            'dr_grade': dr_grade
         }
     
     def train_individual_models(self) -> Dict[str, Dict[str, float]]:
