@@ -80,8 +80,8 @@ class IndividualModelTrainer:
             # Simple focal loss implementation
             self.criterion = self._create_focal_loss(class_weights)
         else:
-            # Use label smoothing to prevent overconfidence
-            self.criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
+            # Use strong label smoothing to prevent overconfidence
+            self.criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.2)
 
         # Initialize early stopping
         self.early_stopping = EarlyStopping(
@@ -105,15 +105,23 @@ class IndividualModelTrainer:
 
         if self.model_name == 'resnet50':
             model = models.resnet50(pretrained=True)
+            # Ultra-strong regularization with multiple dropout layers
             model.fc = nn.Sequential(
                 nn.Dropout(self.config.dropout),
-                nn.Linear(model.fc.in_features, num_classes)
+                nn.Linear(model.fc.in_features, 512),
+                nn.ReLU(),
+                nn.Dropout(self.config.dropout * 0.8),  # Second dropout layer
+                nn.Linear(512, num_classes)
             )
         elif self.model_name == 'densenet121':
             model = models.densenet121(pretrained=True)
+            # Ultra-strong regularization with multiple dropout layers
             model.classifier = nn.Sequential(
                 nn.Dropout(self.config.dropout),
-                nn.Linear(model.classifier.in_features, num_classes)
+                nn.Linear(model.classifier.in_features, 512),
+                nn.ReLU(),
+                nn.Dropout(self.config.dropout * 0.8),  # Second dropout layer
+                nn.Linear(512, num_classes)
             )
         else:
             raise ValueError(f"Unsupported model: {self.model_name}")
@@ -344,20 +352,20 @@ def parse_args():
                        help='Batch size for training')
     parser.add_argument('--gradient_accumulation_steps', type=int, default=2,
                        help='Gradient accumulation steps')
-    parser.add_argument('--learning_rate', type=float, default=5e-5,
-                       help='Initial learning rate (reduced for stability)')
-    parser.add_argument('--weight_decay', type=float, default=1e-3,
-                       help='Weight decay for optimizer (increased)')
-    parser.add_argument('--dropout', type=float, default=0.5,
-                       help='Dropout rate (increased for regularization)')
-    parser.add_argument('--max_grad_norm', type=float, default=1.0,
-                       help='Maximum gradient norm for clipping')
+    parser.add_argument('--learning_rate', type=float, default=1e-5,
+                       help='Initial learning rate (ultra-conservative)')
+    parser.add_argument('--weight_decay', type=float, default=5e-3,
+                       help='Weight decay for optimizer (maximum regularization)')
+    parser.add_argument('--dropout', type=float, default=0.7,
+                       help='Dropout rate (maximum regularization)')
+    parser.add_argument('--max_grad_norm', type=float, default=0.5,
+                       help='Maximum gradient norm for clipping (strict)')
 
     # Early stopping
-    parser.add_argument('--patience', type=int, default=5,
-                       help='Early stopping patience (reduced)')
-    parser.add_argument('--min_delta', type=float, default=0.005,
-                       help='Minimum improvement threshold (increased)')
+    parser.add_argument('--patience', type=int, default=3,
+                       help='Early stopping patience (ultra-aggressive)')
+    parser.add_argument('--min_delta', type=float, default=0.01,
+                       help='Minimum improvement threshold (very strict)')
 
     # Scheduler
     parser.add_argument('--scheduler', choices=['cosine', 'plateau'], default='cosine',
