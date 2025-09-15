@@ -28,12 +28,14 @@ from datetime import datetime
 import numpy as np
 from tqdm import tqdm
 
-# Import the existing dataset and utilities from ensemble trainer
+# Import the existing dataset and utilities
 try:
-    from ensemble_dataset import create_ensemble_dataloaders, DRDataset
-    from ensemble_trainer import EarlyStopping, save_checkpoint, compute_metrics
-except ImportError:
-    print("❌ Error: Required modules not found. Ensure ensemble_dataset.py and ensemble_trainer.py are available.")
+    from ensemble_dataset import DRDataset
+    from utils import EarlyStopping, compute_class_weights
+    from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
+except ImportError as e:
+    print(f"❌ Error: Required modules not found: {e}")
+    print("Ensure ensemble_dataset.py and utils.py are available.")
     sys.exit(1)
 
 # Setup logging
@@ -74,16 +76,15 @@ class IndividualModelTrainer:
 
         # Initialize loss function
         if config.enable_focal_loss:
-            from focal_loss import FocalLoss
-            self.criterion = FocalLoss(alpha=class_weights, gamma=2.0)
+            # Simple focal loss implementation
+            self.criterion = self._create_focal_loss(class_weights)
         else:
             self.criterion = nn.CrossEntropyLoss(weight=class_weights)
 
         # Initialize early stopping
         self.early_stopping = EarlyStopping(
             patience=config.patience,
-            min_delta=config.min_delta,
-            mode='max'
+            min_delta=config.min_delta
         )
 
         # Training state
@@ -116,6 +117,38 @@ class IndividualModelTrainer:
             raise ValueError(f"Unsupported model: {self.model_name}")
 
         return model
+
+    def _create_focal_loss(self, class_weights):
+        """Create simple focal loss function."""
+        class FocalLoss(nn.Module):
+            def __init__(self, alpha=None, gamma=2.0):
+                super(FocalLoss, self).__init__()
+                self.alpha = alpha
+                self.gamma = gamma
+                self.ce_loss = nn.CrossEntropyLoss(weight=alpha)
+
+            def forward(self, inputs, targets):
+                ce_loss = self.ce_loss(inputs, targets)
+                pt = torch.exp(-ce_loss)
+                focal_loss = (1 - pt) ** self.gamma * ce_loss
+                return focal_loss
+
+        return FocalLoss(alpha=class_weights, gamma=2.0)
+
+    def _compute_metrics(self, targets, predictions):
+        """Compute detailed classification metrics."""
+        accuracy = accuracy_score(targets, predictions)
+        f1 = f1_score(targets, predictions, average='weighted')
+
+        # Classification report
+        report = classification_report(targets, predictions, output_dict=True, zero_division=0)
+
+        return {
+            'accuracy': accuracy,
+            'f1_score': f1,
+            'classification_report': report,
+            'confusion_matrix': confusion_matrix(targets, predictions).tolist()
+        }
 
     def train_epoch(self, epoch):
         """Train for one epoch."""
@@ -195,7 +228,7 @@ class IndividualModelTrainer:
         self.val_accuracies.append(val_accuracy)
 
         # Compute detailed metrics
-        metrics = compute_metrics(all_targets, all_predictions)
+        metrics = self._compute_metrics(all_targets, all_predictions)
 
         return val_loss, val_accuracy, metrics
 
@@ -232,8 +265,9 @@ class IndividualModelTrainer:
             if epoch % self.config.checkpoint_frequency == 0:
                 self._save_checkpoint(epoch, val_acc, metrics, is_best=False)
 
-            # Early stopping check
-            if self.early_stopping(val_acc):
+            # Early stopping check (convert accuracy to loss for EarlyStopping)
+            val_loss_for_stopping = 1.0 - val_acc  # Higher accuracy = lower "loss"
+            if self.early_stopping(val_loss_for_stopping, self.model):
                 logger.info(f"🛑 Early stopping triggered at epoch {epoch}")
                 break
 
@@ -383,12 +417,36 @@ def main():
 
     # Prepare data loaders
     logger.info("📊 Preparing data loaders...")
-    train_loader, val_loader, test_loader, class_weights, class_counts = create_ensemble_dataloaders(
-        dataset_path=args.dataset_path,
-        batch_size=args.batch_size,
+
+    # Create datasets
+    train_dataset = DRDataset(
+        dataset_path=Path(args.dataset_path) / 'train',
         enable_clahe=args.enable_clahe,
-        enable_smote=args.enable_smote
+        mode='train'
     )
+
+    val_dataset = DRDataset(
+        dataset_path=Path(args.dataset_path) / 'val',
+        enable_clahe=args.enable_clahe,
+        mode='val'
+    )
+
+    test_dataset = DRDataset(
+        dataset_path=Path(args.dataset_path) / 'test',
+        enable_clahe=args.enable_clahe,
+        mode='test'
+    )
+
+    # Create data loaders
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
+
+    # Compute class weights
+    all_labels = [label for _, label in train_dataset]
+    class_weights = compute_class_weights(np.array(all_labels), args.num_classes)
+
+    logger.info(f"📊 Dataset sizes - Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {len(test_dataset)}")
 
     logger.info(f"🏥 Class weights: {class_weights}")
 
