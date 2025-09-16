@@ -248,21 +248,41 @@ class CLAHETransform:
 
     def __call__(self, image):
         """Apply CLAHE to PIL image."""
-        if isinstance(image, Image.Image):
-            # Convert PIL to numpy
-            image_np = np.array(image)
-        else:
-            image_np = image
+        try:
+            if isinstance(image, Image.Image):
+                # Convert PIL to numpy
+                image_np = np.array(image)
+            else:
+                image_np = image
 
-        # Apply CLAHE to each channel
-        if len(image_np.shape) == 3:  # Color image
-            lab = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
-            lab[:, :, 0] = self.clahe.apply(lab[:, :, 0])
-            image_enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
-        else:  # Grayscale
-            image_enhanced = self.clahe.apply(image_np)
+            # Ensure image_np is valid numpy array
+            if not isinstance(image_np, np.ndarray):
+                logger.warning(f"CLAHE: Invalid image type {type(image_np)}, skipping CLAHE")
+                return image if isinstance(image, Image.Image) else Image.fromarray(image_np)
 
-        return Image.fromarray(image_enhanced.astype(np.uint8))
+            # Ensure uint8 type
+            if image_np.dtype != np.uint8:
+                image_np = image_np.astype(np.uint8)
+
+            # Apply CLAHE to each channel
+            if len(image_np.shape) == 3 and image_np.shape[2] == 3:  # Color image
+                # Convert RGB to LAB
+                lab = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
+                # Apply CLAHE to L channel
+                lab[:, :, 0] = self.clahe.apply(lab[:, :, 0])
+                # Convert back to RGB
+                image_enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+            elif len(image_np.shape) == 2:  # Grayscale
+                image_enhanced = self.clahe.apply(image_np)
+            else:
+                logger.warning(f"CLAHE: Unsupported image shape {image_np.shape}, skipping CLAHE")
+                return image if isinstance(image, Image.Image) else Image.fromarray(image_np)
+
+            return Image.fromarray(image_enhanced.astype(np.uint8))
+
+        except Exception as e:
+            logger.warning(f"CLAHE preprocessing failed: {e}, skipping CLAHE for this image")
+            return image if isinstance(image, Image.Image) else Image.fromarray(image_np)
 
 class BinaryDataset(Dataset):
     """Dataset for binary classification tasks in OVO ensemble."""
@@ -472,8 +492,8 @@ def create_binary_datasets(base_train_dataset, base_val_dataset, class_pairs, tr
         binary_datasets[pair_name] = {
             'train': binary_train,
             'val': binary_val,
-            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True),
-            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=8, pin_memory=True, persistent_workers=True)
+            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=2, pin_memory=True),
+            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=2, pin_memory=True)
         }
 
         logger.info(f"📊 Binary dataset {pair_name}: Train={len(binary_train)}, Val={len(binary_val)}")
@@ -829,7 +849,7 @@ def prepare_ovo_data(config):
     ])
 
     test_dataset_final = ImageFolder(str(test_path), transform=test_transform)
-    test_loader = DataLoader(test_dataset_final, batch_size=32, shuffle=False, num_workers=8, pin_memory=True, persistent_workers=True)
+    test_loader = DataLoader(test_dataset_final, batch_size=32, shuffle=False, num_workers=2, pin_memory=True)
 
     return train_dataset, val_dataset, test_dataset_final, test_loader, class_counts
 

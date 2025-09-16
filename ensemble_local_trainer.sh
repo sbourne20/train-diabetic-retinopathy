@@ -46,7 +46,7 @@ if [ ! -f "data/medical_terms_type1.json" ]; then
 fi
 
 echo "🏥 OVO MEDICAL-GRADE CONFIGURATION:"
-echo "  ✅ CLAHE preprocessing enabled (enhanced for binary classification)"
+echo "  ✅ Standard preprocessing (CLAHE disabled for stability)"
 echo "  ✅ Balanced dataset (4.6:1 ratio)"
 echo "  ✅ Transfer learning with frozen weights"
 echo "  ✅ Binary classification heads for each class pair"
@@ -88,7 +88,7 @@ python ensemble_local_trainer.py \
     --enable_class_weights \
     --patience 15 \
     --early_stopping_patience 8 \
-    --experiment_name ovo_ensemble_fast_balanced_dataset6 \
+    --experiment_name ovo_ensemble_no_clahe_stable \
     --target_accuracy 0.9696 \
     --seed 42
 
