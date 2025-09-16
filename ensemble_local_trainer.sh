@@ -79,18 +79,16 @@ python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset6 \
     --output_dir ./ovo_ensemble_results \
-    --epochs 50 \
-    --batch_size 16 \
-    --learning_rate 1e-4 \
+    --epochs 30 \
+    --batch_size 32 \
+    --learning_rate 2e-4 \
     --weight_decay 1e-4 \
     --base_models mobilenet_v2 inception_v3 densenet121 \
     --freeze_weights \
-    --enable_clahe \
-    --clahe_clip_limit 3.0 \
     --enable_class_weights \
-    --patience 10 \
-    --early_stopping_patience 5 \
-    --experiment_name ovo_ensemble_balanced_dataset6 \
+    --patience 15 \
+    --early_stopping_patience 8 \
+    --experiment_name ovo_ensemble_fast_balanced_dataset6 \
     --target_accuracy 0.9696 \
     --seed 42
 
