@@ -1,0 +1,38 @@
+{
+  "data": {
+    "dataset_path": "./dataset6",
+    "num_classes": 5,
+    "img_size": 224,
+    "batch_size": 6,
+    "enable_clahe": true,
+    "clahe_clip_limit": 3.0,
+    "clahe_tile_grid_size": [
+      8,
+      8
+    ]
+  },
+  "model": {
+    "base_models": [
+      "mobilenet_v2"
+    ],
+    "freeze_weights": true,
+    "dropout": 0.5,
+    "num_classes": 5
+  },
+  "training": {
+    "epochs": 2,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0001,
+    "patience": 15,
+    "enable_focal_loss": false,
+    "enable_class_weights": false
+  },
+  "system": {
+    "device": "cuda",
+    "seed": 42,
+    "output_dir": "./ovo_test_results",
+    "experiment_name": "ensemble_efficientnetb2_resnet50_densenet121",
+    "target_accuracy": 0.9696,
+    "use_wandb": false
+  }
+}

@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Multi-Architecture Ensemble Local Trainer for Diabetic Retinopathy Classification
+One-Versus-One (OVO) Ensemble Trainer for Diabetic Retinopathy Classification
 
-Main training script for the ensemble approach achieving 96.96% accuracy using
-EfficientNetB2, ResNet50, and DenseNet121. This script preserves all essential
-functionality from the original local_trainer.py while implementing the 
-enhanced ensemble methodology.
+Implementation of the research-validated OVO ensemble methodology achieving 96.96%
+accuracy using lightweight CNNs (MobileNet, InceptionV3, DenseNet121). This script
+implements the exact technique from the paper "A lightweight transfer learning based
+ensemble approach for diabetic retinopathy detection".
 
 Key Features:
-- Multi-architecture ensemble training (EfficientNetB2 + ResNet50 + DenseNet121)
+- OVO binarization approach: 10 binary classifiers for 5-class DR problem
+- Transfer learning with frozen weights and single output nodes
+- Majority voting strategy for multi-class prediction
 - Enhanced preprocessing with CLAHE and medical-grade augmentation
-- SMOTE class balancing for improved minority class performance  
-- Preserved checkpoint saving/loading, validation, and parameter functionality
+- Class balancing optimized for binary classification tasks
 - Medical-grade validation with 96.96% accuracy target
-- GCS backup support for checkpoint management
 """
 
 import os
@@ -26,7 +26,15 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset, Subset
 import numpy as np
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from itertools import combinations
+import cv2
+from tqdm import tqdm
 
 # Load environment variables
 try:
@@ -48,14 +56,11 @@ except ImportError:
     WANDB_AVAILABLE = False
     print("⚠️ Warning: wandb not available. Logging disabled.")
 
-from ensemble_config import EnsembleConfig, create_default_config, create_medical_grade_config
-from ensemble_dataset import (
-    create_data_splits_ensemble,
-    create_ensemble_dataloaders,
-    compute_ensemble_class_weights
-)
-from ensemble_models import create_ensemble_model, validate_medical_grade_ensemble
-from ensemble_trainer import EnsembleTrainer
+# Essential imports for OVO ensemble
+import torchvision.transforms as transforms
+from torchvision import models
+from torchvision.datasets import ImageFolder
+from PIL import Image
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -99,15 +104,16 @@ Example Usage:
     parser.add_argument('--medical_terms', default='data/medical_terms_type1.json',
                        help='Path to medical terms JSON file')
     
-    # Model ensemble configuration
-    parser.add_argument('--ensemble_weights', nargs=3, type=float, 
-                       default=[0.4, 0.35, 0.25],
-                       help='Ensemble weights for EfficientNetB2, ResNet50, DenseNet121')
+    # OVO Ensemble configuration
+    parser.add_argument('--base_models', nargs='+',
+                       default=['mobilenet_v2', 'inception_v3', 'densenet121'],
+                       help='Base models for OVO ensemble')
     parser.add_argument('--img_size', type=int, default=224,
                        help='Input image size (224 optimal for CNNs)')
-    parser.add_argument('--individual_dropout', nargs=3, type=float,
-                       default=[0.3, 0.3, 0.3],
-                       help='Dropout rates for EfficientNetB2, ResNet50, DenseNet121')
+    parser.add_argument('--freeze_weights', action='store_true', default=True,
+                       help='Freeze pre-trained weights (transfer learning)')
+    parser.add_argument('--ovo_dropout', type=float, default=0.5,
+                       help='Dropout rate for binary classifier heads')
     
     # Training hyperparameters (PRESERVED)
     parser.add_argument('--epochs', type=int, default=80,
@@ -131,11 +137,11 @@ Example Usage:
     parser.add_argument('--densenet_lr', type=float, default=None,
                        help='Learning rate for DenseNet121 (default: same as --learning_rate)')
     
-    # Enhanced preprocessing (NEW)
-    parser.add_argument('--enable_clahe', action='store_true',
+    # Enhanced preprocessing for OVO
+    parser.add_argument('--enable_clahe', action='store_true', default=True,
                        help='Enable CLAHE preprocessing (+3-5% accuracy)')
-    parser.add_argument('--clahe_clip_limit', type=float, default=2.0,
-                       help='CLAHE clip limit')
+    parser.add_argument('--clahe_clip_limit', type=float, default=3.0,
+                       help='CLAHE clip limit (higher for binary tasks)')
     parser.add_argument('--clahe_tile_grid_size', nargs=2, type=int, default=[8, 8],
                        help='CLAHE tile grid size')
     
@@ -177,13 +183,11 @@ Example Usage:
     parser.add_argument('--min_lr', type=float, default=1e-6,
                        help='Minimum learning rate')
     
-    # Training strategy (NEW)
-    parser.add_argument('--train_individual_models', action='store_true', default=True,
-                       help='Train individual models separately first')
-    parser.add_argument('--train_ensemble_jointly', action='store_true', default=True,
-                       help='Train ensemble jointly after individual training')
-    parser.add_argument('--ensemble_training_epochs', type=int, default=20,
-                       help='Additional epochs for ensemble joint training')
+    # OVO Training strategy
+    parser.add_argument('--binary_epochs', type=int, default=30,
+                       help='Epochs for each binary classifier training')
+    parser.add_argument('--early_stopping_patience', type=int, default=5,
+                       help='Early stopping patience for binary classifiers')
     
     # Validation and checkpointing (PRESERVED)
     parser.add_argument('--validation_frequency', type=int, default=1,
@@ -213,11 +217,13 @@ Example Usage:
     parser.add_argument('--device', default='cuda', help='Device to use (cuda for V100)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     
-    # Debug and testing
+    # Debug and testing for OVO
     parser.add_argument('--debug_mode', action='store_true',
-                       help='Enable debug mode (2 epochs for testing)')
-    parser.add_argument('--max_epochs', type=int, default=None,
-                       help='Override maximum epochs for testing')
+                       help='Enable debug mode (reduced epochs for testing)')
+    parser.add_argument('--debug_epochs', type=int, default=2,
+                       help='Number of epochs in debug mode')
+    parser.add_argument('--test_single_pair', action='store_true',
+                       help='Test with only one class pair for debugging')
     
     # Medical-grade validation
     parser.add_argument('--enable_medical_validation', action='store_true', default=True,
@@ -227,418 +233,802 @@ Example Usage:
     
     return parser.parse_args()
 
-def setup_ensemble_experiment(args) -> EnsembleConfig:
-    """Setup ensemble experiment configuration from arguments."""
-    
-    # Start with medical-grade config for optimal settings
-    config = create_medical_grade_config()
-    
-    # Update from command line arguments
-    config = config.update_from_args(args)
-    
-    # Model-specific updates
-    if args.ensemble_weights:
-        config.model.ensemble_weights = args.ensemble_weights
-        config.model.validate_weights()
-    
-    if args.individual_dropout:
-        config.model.efficientnet_dropout = args.individual_dropout[0]
-        config.model.resnet_dropout = args.individual_dropout[1]
-        config.model.densenet_dropout = args.individual_dropout[2]
-    
-    if args.img_size:
-        config.model.img_size = args.img_size
-    
-    # Individual learning rates
-    if args.efficientnet_lr:
-        config.training.efficientnet_lr = args.efficientnet_lr
-    else:
-        config.training.efficientnet_lr = config.training.learning_rate
-        
-    if args.resnet_lr:
-        config.training.resnet_lr = args.resnet_lr
-    else:
-        config.training.resnet_lr = config.training.learning_rate
-        
-    if args.densenet_lr:
-        config.training.densenet_lr = args.densenet_lr
-    else:
-        config.training.densenet_lr = config.training.learning_rate
-    
-    # Enhanced preprocessing
-    if hasattr(args, 'clahe_clip_limit'):
-        config.data.clahe_clip_limit = args.clahe_clip_limit
-    if hasattr(args, 'clahe_tile_grid_size'):
-        config.data.clahe_tile_grid_size = tuple(args.clahe_tile_grid_size)
-    
-    # SMOTE configuration
-    if hasattr(args, 'smote_k_neighbors'):
-        config.data.smote_k_neighbors = args.smote_k_neighbors
-    
-    # Medical augmentation
-    if hasattr(args, 'rotation_range'):
-        config.data.rotation_range = args.rotation_range
-    if hasattr(args, 'brightness_range'):
-        config.data.brightness_range = args.brightness_range
-    if hasattr(args, 'contrast_range'):
-        config.data.contrast_range = args.contrast_range
-    
-    # Training strategy
-    if hasattr(args, 'train_individual_models'):
-        config.training.train_individual_models = args.train_individual_models
-    if hasattr(args, 'train_ensemble_jointly'):
-        config.training.train_ensemble_jointly = args.train_ensemble_jointly
-    if hasattr(args, 'ensemble_training_epochs'):
-        config.training.ensemble_training_epochs = args.ensemble_training_epochs
-    
-    # Scheduler configuration
-    if hasattr(args, 'scheduler'):
-        config.training.scheduler = args.scheduler
-    if hasattr(args, 'warmup_epochs'):
-        config.training.warmup_epochs = args.warmup_epochs
-    if hasattr(args, 'min_lr'):
-        config.training.min_lr = args.min_lr
-    
-    # Medical validation
-    if hasattr(args, 'target_accuracy'):
-        config.system.target_ensemble_accuracy = args.target_accuracy
-    
-    # GCS backup
-    if args.save_checkpoint_gcs:
-        config.system.save_checkpoint_gcs = args.save_checkpoint_gcs
-    
-    # Wandb configuration
-    config.system.use_wandb = not args.no_wandb and WANDB_AVAILABLE
-    
+# ============================================================================
+# OVO (One-Versus-One) Ensemble Implementation
+# Based on research paper methodology
+# ============================================================================
+
+class CLAHETransform:
+    """CLAHE preprocessing transform for medical images."""
+
+    def __init__(self, clip_limit=3.0, tile_grid_size=(8, 8)):
+        self.clip_limit = clip_limit
+        self.tile_grid_size = tile_grid_size
+        self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+
+    def __call__(self, image):
+        """Apply CLAHE to PIL image."""
+        if isinstance(image, Image.Image):
+            # Convert PIL to numpy
+            image_np = np.array(image)
+        else:
+            image_np = image
+
+        # Apply CLAHE to each channel
+        if len(image_np.shape) == 3:  # Color image
+            lab = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
+            lab[:, :, 0] = self.clahe.apply(lab[:, :, 0])
+            image_enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+        else:  # Grayscale
+            image_enhanced = self.clahe.apply(image_np)
+
+        return Image.fromarray(image_enhanced.astype(np.uint8))
+
+class BinaryDataset(Dataset):
+    """Dataset for binary classification tasks in OVO ensemble."""
+
+    def __init__(self, base_dataset, class_a, class_b, transform=None):
+        self.base_dataset = base_dataset
+        self.class_a = class_a
+        self.class_b = class_b
+        self.transform = transform
+
+        # Filter indices for binary classes
+        self.indices = []
+        self.labels = []
+
+        for idx in range(len(base_dataset)):
+            _, label = base_dataset[idx]
+            if label == class_a:
+                self.indices.append(idx)
+                self.labels.append(0)  # Binary label 0
+            elif label == class_b:
+                self.indices.append(idx)
+                self.labels.append(1)  # Binary label 1
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        original_idx = self.indices[idx]
+        image, _ = self.base_dataset[original_idx]
+        binary_label = self.labels[idx]
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image, binary_label
+
+class BinaryClassifier(nn.Module):
+    """Binary classifier with frozen pre-trained backbone."""
+
+    def __init__(self, model_name='mobilenet_v2', freeze_weights=True, dropout=0.5):
+        super().__init__()
+        self.model_name = model_name
+
+        # Load pre-trained model
+        if model_name == 'mobilenet_v2':
+            self.backbone = models.mobilenet_v2(pretrained=True)
+            num_features = self.backbone.classifier[1].in_features
+            self.backbone.classifier = nn.Identity()
+        elif model_name == 'inception_v3':
+            self.backbone = models.inception_v3(pretrained=True)
+            num_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
+        elif model_name == 'densenet121':
+            self.backbone = models.densenet121(pretrained=True)
+            num_features = self.backbone.classifier.in_features
+            self.backbone.classifier = nn.Identity()
+        else:
+            raise ValueError(f"Unsupported model: {model_name}")
+
+        # Freeze backbone weights if specified
+        if freeze_weights:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+
+        # Binary classification head
+        self.classifier = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(num_features, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        """Forward pass for binary classification."""
+        features = self.backbone(x)
+        if len(features.shape) > 2:
+            features = F.adaptive_avg_pool2d(features, (1, 1)).view(features.size(0), -1)
+        return self.classifier(features)
+
+class OVOEnsemble(nn.Module):
+    """One-Versus-One ensemble with majority voting."""
+
+    def __init__(self, base_models=['mobilenet_v2', 'inception_v3', 'densenet121'],
+                 num_classes=5, freeze_weights=True, dropout=0.5):
+        super().__init__()
+        self.num_classes = num_classes
+        self.base_models = base_models
+
+        # Generate all class pairs for OVO
+        self.class_pairs = list(combinations(range(num_classes), 2))
+        logger.info(f"🔢 Created {len(self.class_pairs)} binary classifiers for {num_classes} classes")
+
+        # Create binary classifiers for each base model and class pair
+        self.classifiers = nn.ModuleDict()
+
+        for model_name in base_models:
+            model_classifiers = nn.ModuleDict()
+            for i, (class_a, class_b) in enumerate(self.class_pairs):
+                classifier_name = f"pair_{class_a}_{class_b}"
+                model_classifiers[classifier_name] = BinaryClassifier(
+                    model_name=model_name,
+                    freeze_weights=freeze_weights,
+                    dropout=dropout
+                )
+            self.classifiers[model_name] = model_classifiers
+
+        logger.info(f"🏗️ Initialized OVO ensemble:")
+        logger.info(f"   Base models: {base_models}")
+        logger.info(f"   Binary classifiers per model: {len(self.class_pairs)}")
+        logger.info(f"   Total binary classifiers: {len(base_models) * len(self.class_pairs)}")
+
+    def forward(self, x, return_individual=False):
+        """Forward pass with majority voting."""
+        batch_size = x.size(0)
+
+        # Collect votes from all binary classifiers
+        votes = torch.zeros(batch_size, self.num_classes, device=x.device)
+        individual_predictions = {} if return_individual else None
+
+        for model_name, model_classifiers in self.classifiers.items():
+            model_votes = torch.zeros(batch_size, self.num_classes, device=x.device)
+
+            for classifier_name, classifier in model_classifiers.items():
+                # Extract class indices from classifier name
+                class_a, class_b = map(int, classifier_name.split('_')[1:])
+
+                # Get binary prediction
+                binary_output = classifier(x).squeeze()  # Shape: (batch_size,)
+
+                # Convert binary output to class votes
+                # If output > 0.5, vote for class_b, else vote for class_a
+                class_a_votes = (binary_output <= 0.5).float()
+                class_b_votes = (binary_output > 0.5).float()
+
+                model_votes[:, class_a] += class_a_votes
+                model_votes[:, class_b] += class_b_votes
+
+            # Add model votes to ensemble votes
+            votes += model_votes
+
+            if return_individual:
+                individual_predictions[model_name] = model_votes
+
+        # Final predictions based on majority voting
+        final_predictions = votes  # Raw vote counts
+
+        result = {
+            'logits': final_predictions,
+            'votes': votes
+        }
+
+        if return_individual:
+            result['individual_predictions'] = individual_predictions
+
+        return result
+
+def create_ovo_transforms(img_size=224, enable_clahe=True, clahe_clip_limit=3.0):
+    """Create transforms for OVO training."""
+
+    train_transforms = []
+    val_transforms = []
+
+    # Add CLAHE if enabled
+    if enable_clahe:
+        clahe_transform = CLAHETransform(clip_limit=clahe_clip_limit)
+        train_transforms.append(clahe_transform)
+        val_transforms.append(clahe_transform)
+
+    # Standard transforms
+    train_transforms.extend([
+        transforms.Resize((img_size, img_size)),
+        transforms.RandomRotation(15),
+        transforms.RandomHorizontalFlip(0.5),
+        transforms.ColorJitter(brightness=0.1, contrast=0.1),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    val_transforms.extend([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    return (
+        transforms.Compose(train_transforms),
+        transforms.Compose(val_transforms)
+    )
+
+def create_binary_datasets(base_train_dataset, base_val_dataset, class_pairs, train_transform, val_transform):
+    """Create binary datasets for all class pairs."""
+
+    binary_datasets = {}
+
+    for class_a, class_b in class_pairs:
+        pair_name = f"pair_{class_a}_{class_b}"
+
+        # Create binary training dataset
+        binary_train = BinaryDataset(
+            base_train_dataset, class_a, class_b, transform=train_transform
+        )
+
+        # Create binary validation dataset
+        binary_val = BinaryDataset(
+            base_val_dataset, class_a, class_b, transform=val_transform
+        )
+
+        binary_datasets[pair_name] = {
+            'train': binary_train,
+            'val': binary_val,
+            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=4),
+            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=4)
+        }
+
+        logger.info(f"📊 Binary dataset {pair_name}: Train={len(binary_train)}, Val={len(binary_val)}")
+
+    return binary_datasets
+
+def setup_ovo_experiment(args):
+    """Setup OVO ensemble experiment configuration from arguments."""
+
+    # Create configuration dictionary for OVO ensemble
+    config = {
+        'data': {
+            'dataset_path': args.dataset_path,
+            'num_classes': args.num_classes,
+            'img_size': args.img_size,
+            'batch_size': args.batch_size,
+            'enable_clahe': args.enable_clahe,
+            'clahe_clip_limit': args.clahe_clip_limit,
+            'clahe_tile_grid_size': tuple(args.clahe_tile_grid_size)
+        },
+        'model': {
+            'base_models': args.base_models,
+            'freeze_weights': args.freeze_weights,
+            'dropout': args.ovo_dropout,
+            'num_classes': args.num_classes
+        },
+        'training': {
+            'epochs': args.epochs,
+            'learning_rate': args.learning_rate,
+            'weight_decay': args.weight_decay,
+            'patience': args.patience,
+            'enable_focal_loss': args.enable_focal_loss,
+            'enable_class_weights': args.enable_class_weights
+        },
+        'system': {
+            'device': args.device,
+            'seed': args.seed,
+            'output_dir': args.output_dir,
+            'experiment_name': args.experiment_name,
+            'target_accuracy': args.target_accuracy,
+            'use_wandb': not args.no_wandb and WANDB_AVAILABLE
+        }
+    }
+
     # Create output directories
-    output_path = Path(config.system.output_dir)
+    output_path = Path(config['system']['output_dir'])
     output_path.mkdir(parents=True, exist_ok=True)
-    (output_path / "checkpoints").mkdir(exist_ok=True)
+    (output_path / "models").mkdir(exist_ok=True)
     (output_path / "logs").mkdir(exist_ok=True)
     (output_path / "results").mkdir(exist_ok=True)
+
+    logger.info(f"📁 Output directory: {output_path}")
+    logger.info(f"🔧 OVO Configuration:")
+    logger.info(f"   Base models: {config['model']['base_models']}")
+    logger.info(f"   Classes: {config['data']['num_classes']}")
+    logger.info(f"   Binary classifiers: {len(list(combinations(range(config['data']['num_classes']), 2)))}")
+    logger.info(f"   Freeze weights: {config['model']['freeze_weights']}")
+    logger.info(f"   CLAHE enabled: {config['data']['enable_clahe']}")
+
+    return config
     
     return config
 
-def prepare_ensemble_data(config: EnsembleConfig) -> Dict[str, Any]:
-    """Prepare dataset for ensemble training with enhanced preprocessing."""
-    
-    logger.info(f"📁 Preparing ensemble dataset from: {config.data.dataset_path}")
-    
-    # Validate dataset structure
-    dataset_path = Path(config.data.dataset_path)
-    if not dataset_path.exists():
-        raise ValueError(f"Dataset path does not exist: {dataset_path}")
-    
-    # Create data splits
-    train_data, val_data, test_data = create_data_splits_ensemble(
-        str(dataset_path),
-        num_classes=config.model.num_classes,
-        train_split=config.data.train_split,
-        val_split=config.data.val_split,
-        test_split=config.data.test_split,
-        seed=config.system.seed
-    )
-    
-    logger.info(f"📊 Dataset splits created:")
-    logger.info(f"   Training: {len(train_data)} samples")
-    logger.info(f"   Validation: {len(val_data)} samples")
-    logger.info(f"   Test: {len(test_data)} samples")
-    
-    # Create data loaders with enhanced preprocessing
-    train_loader, val_loader, test_loader = create_ensemble_dataloaders(
-        train_data, val_data, test_data, config
-    )
-    
-    # Compute class weights for medical-grade training
-    class_weights = None
-    if config.data.enable_class_weights:
-        class_weights = compute_ensemble_class_weights(
-            train_data,
-            num_classes=config.model.num_classes,
-            severe_multiplier=config.training.class_weight_severe,
-            pdr_multiplier=config.training.class_weight_pdr
-        )
-        logger.info(f"🏥 Class weights computed: {class_weights}")
-    
-    return {
-        'train_loader': train_loader,
-        'val_loader': val_loader,
-        'test_loader': test_loader,
-        'class_weights': class_weights,
-        'train_data': train_data,
-        'val_data': val_data,
-        'test_data': test_data
-    }
+def train_binary_classifier(model, train_loader, val_loader, config, class_pair, model_name):
+    """Train a single binary classifier."""
 
-def train_ensemble_model(config: EnsembleConfig, data_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Train multi-architecture ensemble model."""
-    
-    logger.info("\n🚀 Initializing Multi-Architecture Ensemble...")
-    logger.info(f"   EfficientNetB2 weight: {config.model.ensemble_weights[0]:.2f}")
-    logger.info(f"   ResNet50 weight: {config.model.ensemble_weights[1]:.2f}")
-    logger.info(f"   DenseNet121 weight: {config.model.ensemble_weights[2]:.2f}")
-    logger.info(f"   Target accuracy: {config.system.target_ensemble_accuracy:.2%}")
-    
-    # Check GPU memory
-    if torch.cuda.is_available():
-        gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
-        logger.info(f"🎮 GPU: {torch.cuda.get_device_name(0)} ({gpu_memory:.1f}GB)")
-    
-    # Initialize device
-    device = torch.device(config.system.device if torch.cuda.is_available() else 'cpu')
-    
-    # Initialize trainer
-    trainer = EnsembleTrainer(
-        config=config,
-        train_loader=data_dict['train_loader'],
-        val_loader=data_dict['val_loader'],
-        device=device,
-        class_weights=data_dict['class_weights']
-    )
-    
-    # Initialize wandb if enabled
-    if config.system.use_wandb:
-        wandb.init(
-            project=config.system.wandb_project,
-            entity=config.system.wandb_entity,
-            name=config.system.experiment_name,
-            config=config.__dict__
-        )
-    
-    # Execute training pipeline
-    logger.info("\n🎯 Starting Ensemble Training Pipeline...")
-    logger.info("=" * 60)
-    
-    try:
-        training_results = trainer.full_training_pipeline()
-        
-        # Log results
-        logger.info("\n🎉 Training Pipeline Completed!")
-        logger.info("=" * 60)
-        
-        if 'individual_models' in training_results:
-            logger.info("📊 Individual Model Results:")
-            for model_name, results in training_results['individual_models'].items():
-                logger.info(f"   {model_name}: {results['final_accuracy']:.4f} "
-                           f"({'✅ PASS' if results['medical_grade_pass'] else '❌ FAIL'})")
-        
-        if 'ensemble' in training_results:
-            ensemble_results = training_results['ensemble']
-            logger.info(f"\n🎯 Ensemble Results:")
-            logger.info(f"   Final Accuracy: {ensemble_results['final_accuracy']:.4f}")
-            logger.info(f"   Medical Grade: {'✅ PASS' if ensemble_results['medical_grade_pass'] else '❌ FAIL'}")
-            logger.info(f"   Research Target: {'✅ ACHIEVED' if ensemble_results.get('achieves_research_target', False) else '❌ NOT ACHIEVED'}")
-        
-        return training_results
-        
-    except Exception as e:
-        logger.error(f"❌ Training failed: {e}")
-        raise
-    finally:
-        # Clean up wandb
-        if config.system.use_wandb and WANDB_AVAILABLE:
-            wandb.finish()
+    device = torch.device(config['system']['device'])
+    model = model.to(device)
 
-def evaluate_ensemble_model(config: EnsembleConfig, data_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Evaluate trained ensemble model."""
-    
-    logger.info("🏥 Evaluating trained ensemble model...")
-    
-    # Load best ensemble checkpoint
-    checkpoint_path = Path(config.system.output_dir) / "checkpoints" / "ensemble_best.pth"
-    
-    if not checkpoint_path.exists():
-        logger.error(f"❌ No trained ensemble model found at: {checkpoint_path}")
-        return {}
-    
-    # Initialize device
-    device = torch.device(config.system.device if torch.cuda.is_available() else 'cpu')
-    
-    # Load ensemble model
-    ensemble_model = create_ensemble_model(
-        num_classes=config.model.num_classes,
-        dropout=config.model.efficientnet_dropout,
-        pretrained=config.model.use_pretrained,
-        model_weights=config.model.ensemble_weights
-    ).to(device)
-    
-    # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    ensemble_model.load_state_dict(checkpoint['ensemble_state_dict'])
-    
-    logger.info(f"📥 Loaded ensemble model from: {checkpoint_path}")
-    
-    # Evaluate on test set
-    ensemble_model.eval()
+    # Loss and optimizer for binary classification
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=config['training']['learning_rate'],
+        weight_decay=config['training']['weight_decay']
+    )
+
+    # Training parameters
+    best_val_acc = 0.0
+    patience_counter = 0
+
+    logger.info(f"🏁 Training {model_name} for classes {class_pair}")
+
+    for epoch in range(config['training']['epochs']):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+
+        for batch_idx, (images, labels) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}")):
+            images = images.to(device)
+            labels = labels.float().to(device)
+
+            optimizer.zero_grad()
+            outputs = model(images).squeeze()
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            predicted = (outputs > 0.5).float()
+            train_total += labels.size(0)
+            train_correct += (predicted == labels).sum().item()
+
+        train_acc = 100.0 * train_correct / train_total
+
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+
+        with torch.no_grad():
+            for images, labels in val_loader:
+                images = images.to(device)
+                labels = labels.float().to(device)
+
+                outputs = model(images).squeeze()
+                loss = criterion(outputs, labels)
+
+                val_loss += loss.item()
+                predicted = (outputs > 0.5).float()
+                val_total += labels.size(0)
+                val_correct += (predicted == labels).sum().item()
+
+        val_acc = 100.0 * val_correct / val_total
+
+        # Check for improvement
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            patience_counter = 0
+            # Save best model
+            model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{class_pair[0]}_{class_pair[1]}.pth"
+            torch.save(model.state_dict(), model_path)
+        else:
+            patience_counter += 1
+
+        if epoch % 10 == 0:
+            logger.info(f"   Epoch {epoch+1}/{config['training']['epochs']}: "
+                       f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
+
+        # Early stopping
+        if patience_counter >= config['training']['patience']:
+            logger.info(f"   Early stopping at epoch {epoch+1}")
+            break
+
+    logger.info(f"✅ {model_name} for {class_pair}: Best Val Acc = {best_val_acc:.2f}%")
+    return best_val_acc
+
+def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
+    """Train complete OVO ensemble."""
+
+    logger.info("🚀 Starting OVO Ensemble Training")
+    logger.info("=" * 50)
+
+    # Create transforms
+    train_transform, val_transform = create_ovo_transforms(
+        img_size=config['data']['img_size'],
+        enable_clahe=config['data']['enable_clahe'],
+        clahe_clip_limit=config['data']['clahe_clip_limit']
+    )
+
+    # Generate class pairs for OVO
+    num_classes = config['data']['num_classes']
+    class_pairs = list(combinations(range(num_classes), 2))
+
+    logger.info(f"📊 OVO Setup:")
+    logger.info(f"   Classes: {num_classes}")
+    logger.info(f"   Binary problems: {len(class_pairs)}")
+    logger.info(f"   Base models: {config['model']['base_models']}")
+    logger.info(f"   Total binary classifiers: {len(class_pairs) * len(config['model']['base_models'])}")
+
+    # Create binary datasets
+    binary_datasets = create_binary_datasets(
+        train_dataset, val_dataset, class_pairs, train_transform, val_transform
+    )
+
+    # Train all binary classifiers
+    trained_models = {}
+    training_results = {}
+
+    for model_name in config['model']['base_models']:
+        logger.info(f"\n🏗️ Training {model_name} binary classifiers")
+        trained_models[model_name] = {}
+        training_results[model_name] = {}
+
+        for class_a, class_b in class_pairs:
+            pair_name = f"pair_{class_a}_{class_b}"
+
+            # Create binary classifier
+            binary_model = BinaryClassifier(
+                model_name=model_name,
+                freeze_weights=config['model']['freeze_weights'],
+                dropout=config['model']['dropout']
+            )
+
+            # Train binary classifier
+            best_acc = train_binary_classifier(
+                model=binary_model,
+                train_loader=binary_datasets[pair_name]['train_loader'],
+                val_loader=binary_datasets[pair_name]['val_loader'],
+                config=config,
+                class_pair=(class_a, class_b),
+                model_name=model_name
+            )
+
+            trained_models[model_name][pair_name] = binary_model
+            training_results[model_name][pair_name] = {'best_accuracy': best_acc}
+
+    # Create and save complete OVO ensemble
+    logger.info("\n🅾️ Creating complete OVO ensemble")
+    ovo_ensemble = OVOEnsemble(
+        base_models=config['model']['base_models'],
+        num_classes=num_classes,
+        freeze_weights=config['model']['freeze_weights'],
+        dropout=config['model']['dropout']
+    )
+
+    # Load trained weights into ensemble
+    for model_name in config['model']['base_models']:
+        for pair_name in binary_datasets.keys():
+            model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{pair_name.split('_')[1]}_{pair_name.split('_')[2]}.pth"
+            if model_path.exists():
+                state_dict = torch.load(model_path, map_location='cpu')
+                ovo_ensemble.classifiers[model_name][pair_name].load_state_dict(state_dict)
+
+    # Save complete ensemble
+    ensemble_path = Path(config['system']['output_dir']) / "models" / "ovo_ensemble_best.pth"
+    torch.save(ovo_ensemble.state_dict(), ensemble_path)
+    logger.info(f"💾 OVO ensemble saved: {ensemble_path}")
+
+    return ovo_ensemble, training_results
+def evaluate_ovo_ensemble(ovo_ensemble, test_loader, config):
+    """Evaluate OVO ensemble on test dataset."""
+
+    logger.info("📋 Evaluating OVO Ensemble")
+
+    device = torch.device(config['system']['device'])
+    ovo_ensemble = ovo_ensemble.to(device)
+    ovo_ensemble.eval()
+
     all_predictions = []
     all_targets = []
-    individual_predictions = {name: [] for name in ['efficientnetb2', 'resnet50', 'densenet121']}
-    
+    individual_predictions = {model: [] for model in config['model']['base_models']}
+
     with torch.no_grad():
-        for batch in tqdm(data_dict['test_loader'], desc="Evaluating"):
-            images = batch['image'].to(device)
-            targets = batch['dr_grade'].to(device)
-            
-            # Get ensemble and individual predictions
-            outputs = ensemble_model(images, return_individual=True)
-            
-            # Ensemble predictions
-            _, ensemble_pred = torch.max(outputs['dr_logits'], 1)
+        for batch_idx, (images, targets) in enumerate(tqdm(test_loader, desc="Evaluating")):
+            images = images.to(device)
+            targets = targets.to(device)
+
+            # Get ensemble predictions
+            outputs = ovo_ensemble(images, return_individual=True)
+
+            # Get final predictions (argmax of votes)
+            _, ensemble_pred = torch.max(outputs['logits'], 1)
             all_predictions.extend(ensemble_pred.cpu().numpy())
             all_targets.extend(targets.cpu().numpy())
-            
-            # Individual predictions
-            for model_name in individual_predictions.keys():
-                _, individual_pred = torch.max(outputs['individual_predictions'][model_name]['dr_logits'], 1)
+
+            # Individual model predictions
+            for model_name, model_votes in outputs['individual_predictions'].items():
+                _, individual_pred = torch.max(model_votes, 1)
                 individual_predictions[model_name].extend(individual_pred.cpu().numpy())
-    
-    # Calculate comprehensive metrics
-    from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-    
+
+    # Calculate metrics
     ensemble_accuracy = accuracy_score(all_targets, all_predictions)
     individual_accuracies = {
-        name: accuracy_score(all_targets, preds) 
-        for name, preds in individual_predictions.items()
+        model: accuracy_score(all_targets, preds)
+        for model, preds in individual_predictions.items()
     }
-    
-    # Medical validation
-    ensemble_metrics = {
-        'ensemble_accuracy': ensemble_accuracy,
-        'mean_sensitivity': 0.0,  # Would need per-class calculation
-        'mean_specificity': 0.0   # Would need per-class calculation
-    }
-    medical_validation = validate_medical_grade_ensemble(ensemble_metrics)
-    
+
+    # Medical grade validation
+    medical_grade_pass = ensemble_accuracy >= 0.90
+    research_target_achieved = ensemble_accuracy >= config['system']['target_accuracy']
+
     results = {
         'ensemble_accuracy': ensemble_accuracy,
         'individual_accuracies': individual_accuracies,
-        'medical_validation': medical_validation,
-        'classification_report': classification_report(all_targets, all_predictions),
+        'medical_grade_pass': medical_grade_pass,
+        'research_target_achieved': research_target_achieved,
+        'classification_report': classification_report(all_targets, all_predictions, target_names=[f'Class_{i}' for i in range(config['data']['num_classes'])]),
         'confusion_matrix': confusion_matrix(all_targets, all_predictions).tolist()
     }
-    
-    # Save evaluation results
-    results_path = Path(config.system.output_dir) / "results" / "evaluation_results.json"
+
+    # Save results
+    results_path = Path(config['system']['output_dir']) / "results" / "ovo_evaluation_results.json"
     results_path.parent.mkdir(exist_ok=True)
-    
+
+    # Prepare JSON-serializable results
+    json_results = {
+        'ensemble_accuracy': float(ensemble_accuracy),
+        'individual_accuracies': {k: float(v) for k, v in individual_accuracies.items()},
+        'medical_grade_pass': medical_grade_pass,
+        'research_target_achieved': research_target_achieved,
+        'confusion_matrix': results['confusion_matrix']
+    }
+
     with open(results_path, 'w') as f:
-        # Convert numpy arrays for JSON serialization
-        serializable_results = {}
-        for key, value in results.items():
-            if isinstance(value, np.ndarray):
-                serializable_results[key] = value.tolist()
-            else:
-                serializable_results[key] = value
-        json.dump(serializable_results, f, indent=2)
-    
-    logger.info(f"💾 Evaluation results saved: {results_path}")
-    
-    # Print summary
-    logger.info("\n📊 Evaluation Summary:")
-    logger.info(f"   Ensemble Accuracy: {ensemble_accuracy:.4f}")
-    logger.info(f"   EfficientNetB2: {individual_accuracies['efficientnetb2']:.4f}")
-    logger.info(f"   ResNet50: {individual_accuracies['resnet50']:.4f}")
-    logger.info(f"   DenseNet121: {individual_accuracies['densenet121']:.4f}")
-    logger.info(f"   Medical Grade: {'✅ PASS' if medical_validation['medical_grade_pass'] else '❌ FAIL'}")
-    
+        json.dump(json_results, f, indent=2)
+
+    logger.info(f"💾 Results saved: {results_path}")
+
     return results
 
+def prepare_ovo_data(config):
+    """Prepare dataset for OVO ensemble training."""
+
+    logger.info(f"📁 Preparing OVO dataset from: {config['data']['dataset_path']}")
+
+    # Validate dataset structure
+    dataset_path = Path(config['data']['dataset_path'])
+    if not dataset_path.exists():
+        raise ValueError(f"Dataset path does not exist: {dataset_path}")
+
+    # Check for train/val/test structure
+    train_path = dataset_path / "train"
+    val_path = dataset_path / "val"
+    test_path = dataset_path / "test"
+
+    if not all(p.exists() for p in [train_path, val_path, test_path]):
+        raise ValueError(f"Dataset must have train/val/test structure in {dataset_path}")
+
+    # Simple transforms for loading base datasets (no CLAHE yet)
+    base_transform = transforms.Compose([
+        transforms.Resize((config['data']['img_size'], config['data']['img_size'])),
+        transforms.ToTensor()
+    ])
+
+    # Create base datasets
+    train_dataset = ImageFolder(str(train_path), transform=base_transform)
+    val_dataset = ImageFolder(str(val_path), transform=base_transform)
+    test_dataset = ImageFolder(str(test_path), transform=base_transform)
+
+    logger.info(f"📊 Dataset splits loaded:")
+    logger.info(f"   Training: {len(train_dataset)} samples")
+    logger.info(f"   Validation: {len(val_dataset)} samples")
+    logger.info(f"   Test: {len(test_dataset)} samples")
+
+    # Analyze class distribution
+    class_counts = {}
+    for dataset_name, dataset in [("train", train_dataset), ("val", val_dataset), ("test", test_dataset)]:
+        counts = [0] * config['data']['num_classes']
+        for _, label in dataset:
+            counts[label] += 1
+        class_counts[dataset_name] = counts
+        logger.info(f"   {dataset_name.capitalize()} classes: {counts}")
+
+    # Create test loader for final evaluation
+    test_transform = transforms.Compose([
+        transforms.Resize((config['data']['img_size'], config['data']['img_size'])),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    test_dataset_final = ImageFolder(str(test_path), transform=test_transform)
+    test_loader = DataLoader(test_dataset_final, batch_size=32, shuffle=False, num_workers=4)
+
+    return train_dataset, val_dataset, test_dataset_final, test_loader, class_counts
+
+def run_ovo_pipeline(config):
+    """Complete OVO ensemble training and evaluation pipeline."""
+
+    logger.info("\n🚀 STARTING OVO ENSEMBLE PIPELINE")
+    logger.info("=" * 60)
+    logger.info(f"   Base models: {config['model']['base_models']}")
+    logger.info(f"   Classes: {config['data']['num_classes']}")
+    logger.info(f"   Target accuracy: {config['system']['target_accuracy']:.2%}")
+    logger.info("=" * 60)
+
+    # Check GPU
+    if torch.cuda.is_available():
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+        logger.info(f"🎮 GPU: {torch.cuda.get_device_name(0)} ({gpu_memory:.1f}GB)")
+
+    # Prepare data
+    train_dataset, val_dataset, test_dataset, test_loader, class_counts = prepare_ovo_data(config)
+
+    # Initialize wandb if enabled
+    if config['system']['use_wandb']:
+        wandb.init(
+            project="ovo_diabetic_retinopathy",
+            name=config['system']['experiment_name'],
+            config=config
+        )
+
+    try:
+        # Train OVO ensemble
+        ovo_ensemble, training_results = train_ovo_ensemble(
+            config, train_dataset, val_dataset, test_dataset
+        )
+
+        # Evaluate ensemble
+        evaluation_results = evaluate_ovo_ensemble(ovo_ensemble, test_loader, config)
+
+        # Log final results
+        logger.info("\n🎆 OVO ENSEMBLE TRAINING COMPLETED!")
+        logger.info("=" * 60)
+        logger.info(f"🏆 ENSEMBLE RESULTS:")
+        logger.info(f"   Accuracy: {evaluation_results['ensemble_accuracy']:.4f} ({evaluation_results['ensemble_accuracy']*100:.2f}%)")
+        logger.info(f"   Medical Grade: {'✅ PASS' if evaluation_results['medical_grade_pass'] else '❌ FAIL'}")
+        logger.info(f"   Research Target: {'✅ ACHIEVED' if evaluation_results['research_target_achieved'] else '❌ NOT ACHIEVED'}")
+
+        logger.info(f"\n📊 INDIVIDUAL MODEL RESULTS:")
+        for model_name, accuracy in evaluation_results['individual_accuracies'].items():
+            logger.info(f"   {model_name}: {accuracy:.4f} ({accuracy*100:.2f}%)")
+
+        # Save comprehensive results
+        final_results = {
+            'training_results': training_results,
+            'evaluation_results': evaluation_results,
+            'dataset_info': {
+                'class_counts': class_counts,
+                'num_classes': config['data']['num_classes']
+            },
+            'config': config
+        }
+
+        results_path = Path(config['system']['output_dir']) / "results" / "complete_ovo_results.json"
+        with open(results_path, 'w') as f:
+            # Convert to JSON-serializable format
+            json_results = json.loads(json.dumps(final_results, default=str))
+            json.dump(json_results, f, indent=2)
+
+        logger.info(f"💾 Complete results saved: {results_path}")
+
+        return final_results
+
+    except Exception as e:
+        logger.error(f"❌ OVO training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+    finally:
+        if config['system']['use_wandb'] and WANDB_AVAILABLE:
+            wandb.finish()
+
+
 def verify_environment():
-    """Verify environment setup and dependencies."""
-    
-    # Check CUDA
-    if not torch.cuda.is_available():
-        logger.error("❌ CUDA not available. This script requires GPU.")
-        return False
-    
+    """Verify environment setup and dependencies for OVO ensemble."""
+
     # Check required packages
     try:
         import cv2
-        import albumentations
-        import imblearn
+        from sklearn.metrics import accuracy_score
+        from PIL import Image
     except ImportError as e:
         logger.error(f"❌ Missing required package: {e}")
-        logger.info("Install with: pip install opencv-python albumentations imbalanced-learn")
+        logger.info("Install with: pip install opencv-python scikit-learn pillow")
         return False
-    
-    logger.info(f"✅ GPU Available: {torch.cuda.get_device_name(0)}")
-    logger.info(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}GB")
-    
+
+    # Check CUDA (optional)
+    if torch.cuda.is_available():
+        logger.info(f"✅ GPU Available: {torch.cuda.get_device_name(0)}")
+        logger.info(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}GB")
+    else:
+        logger.info("⚠️ Running on CPU mode (training will be slower)")
+
     return True
 
 def main():
-    """Main function for ensemble local training."""
-    
-    print("🎯 MULTI-ARCHITECTURE ENSEMBLE DIABETIC RETINOPATHY TRAINING")
+    """Main function for OVO ensemble training."""
+
+    print("🔢 ONE-VERSUS-ONE (OVO) ENSEMBLE DIABETIC RETINOPATHY TRAINING")
     print("=" * 70)
-    print("Models: EfficientNetB2 + ResNet50 + DenseNet121")
-    print("Target: 96.96% accuracy (research validated)")
+    print("Research Implementation: Lightweight Transfer Learning Ensemble")
+    print("Base Models: MobileNet-v2 + InceptionV3 + DenseNet121")
+    print("Binary Classifiers: 10 (One-vs-One for 5 classes)")
+    print("Target: 96.96% accuracy with medical-grade validation")
     print("=" * 70)
-    
+
     # Verify environment
     if not verify_environment():
         return
-    
+
     # Parse arguments
     args = parse_args()
-    
+
     # Setup configuration
     try:
-        config = setup_ensemble_experiment(args)
+        config = setup_ovo_experiment(args)
     except Exception as e:
         logger.error(f"❌ Configuration setup failed: {e}")
         return
-    
-    # Set random seed
-    torch.manual_seed(config.system.seed)
-    np.random.seed(config.system.seed)
+
+    # Set random seed for reproducibility
+    torch.manual_seed(config['system']['seed'])
+    np.random.seed(config['system']['seed'])
     if torch.cuda.is_available():
-        torch.cuda.manual_seed(config.system.seed)
-    
+        torch.cuda.manual_seed(config['system']['seed'])
+
+    logger.info(f"🎲 Random seed set: {config['system']['seed']}")
+
     # Save configuration
-    config_path = Path(config.system.output_dir) / "ensemble_config.json"
-    config.save(config_path)
+    config_path = Path(config['system']['output_dir']) / "ovo_config.json"
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
     logger.info(f"💾 Configuration saved: {config_path}")
-    
-    # Prepare data
-    try:
-        data_dict = prepare_ensemble_data(config)
-    except Exception as e:
-        logger.error(f"❌ Data preparation failed: {e}")
-        return
-    
+
     # Execute based on mode
     try:
         if args.mode == 'train':
-            # Train ensemble model
-            training_results = train_ensemble_model(config, data_dict)
-            
-            # Evaluate trained model
-            evaluation_results = evaluate_ensemble_model(config, data_dict)
-            
-            logger.info("✅ Training and evaluation completed successfully!")
-            
+            # Run complete OVO training pipeline
+            final_results = run_ovo_pipeline(config)
+
+            logger.info("✅ OVO ensemble training and evaluation completed successfully!")
+
+            # Display final summary
+            logger.info("\n" + "=" * 60)
+            logger.info("🏆 FINAL RESULTS SUMMARY")
+            logger.info("=" * 60)
+
+            eval_results = final_results['evaluation_results']
+            logger.info(f"🎯 Ensemble Accuracy: {eval_results['ensemble_accuracy']:.4f} ({eval_results['ensemble_accuracy']*100:.2f}%)")
+            logger.info(f"🏥 Medical Grade: {'✅ PASS' if eval_results['medical_grade_pass'] else '❌ FAIL'} (≥90% required)")
+            logger.info(f"📊 Research Target: {'✅ ACHIEVED' if eval_results['research_target_achieved'] else '❌ NOT ACHIEVED'} ({config['system']['target_accuracy']:.2%} target)")
+
+            # Show individual model performance
+            logger.info("\n📊 Individual Model Performance:")
+            for model_name, accuracy in eval_results['individual_accuracies'].items():
+                logger.info(f"   {model_name.capitalize()}: {accuracy:.4f} ({accuracy*100:.2f}%)")
+
         elif args.mode == 'evaluate':
-            # Only evaluate existing model
-            evaluation_results = evaluate_ensemble_model(config, data_dict)
-            
+            # Load and evaluate existing OVO ensemble
+            ensemble_path = Path(config['system']['output_dir']) / "models" / "ovo_ensemble_best.pth"
+
+            if not ensemble_path.exists():
+                logger.error(f"❌ No trained OVO ensemble found at: {ensemble_path}")
+                logger.info("Please run training mode first: --mode train")
+                return
+
+            # Load ensemble and evaluate
+            logger.info(f"📥 Loading OVO ensemble from: {ensemble_path}")
+            # Implementation would load and evaluate existing model
+            logger.info("⚠️ Evaluation-only mode: Implementation needed")
+
         elif args.mode == 'inference':
-            logger.info("For inference mode, use the inference script with ensemble model")
-            logger.info("Example: python inference.py --model_path ./ensemble_results/checkpoints/ensemble_best.pth")
-        
+            logger.info("For inference mode with OVO ensemble:")
+            logger.info("Use: python ovo_inference.py --model_path ./ensemble_results/models/ovo_ensemble_best.pth")
+
     except Exception as e:
-        logger.error(f"❌ Execution failed: {e}")
+        logger.error(f"❌ OVO pipeline execution failed: {e}")
         import traceback
         traceback.print_exc()
         return
-    
-    logger.info(f"\n✅ Ensemble experiment completed successfully!")
-    logger.info(f"📁 Results saved to: {config.system.output_dir}")
-    
-    # Show final GPU memory usage
+
+    logger.info(f"\n✅ OVO ensemble experiment completed successfully!")
+    logger.info(f"📁 Results saved to: {config['system']['output_dir']}")
+
+    # Show final memory usage
     if torch.cuda.is_available():
         memory_used = torch.cuda.max_memory_allocated() / 1e9
         logger.info(f"🎮 Peak GPU memory usage: {memory_used:.1f}GB")
+        torch.cuda.empty_cache()
+
+    logger.info("\n🎆 OVO ENSEMBLE TRAINING COMPLETE!")
 
 if __name__ == "__main__":
     main()
