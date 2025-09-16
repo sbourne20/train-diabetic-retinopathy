@@ -472,8 +472,8 @@ def create_binary_datasets(base_train_dataset, base_val_dataset, class_pairs, tr
         binary_datasets[pair_name] = {
             'train': binary_train,
             'val': binary_val,
-            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=4),
-            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=4)
+            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True),
+            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=8, pin_memory=True, persistent_workers=True)
         }
 
         logger.info(f"📊 Binary dataset {pair_name}: Train={len(binary_train)}, Val={len(binary_val)}")
@@ -829,7 +829,7 @@ def prepare_ovo_data(config):
     ])
 
     test_dataset_final = ImageFolder(str(test_path), transform=test_transform)
-    test_loader = DataLoader(test_dataset_final, batch_size=32, shuffle=False, num_workers=4)
+    test_loader = DataLoader(test_dataset_final, batch_size=32, shuffle=False, num_workers=8, pin_memory=True, persistent_workers=True)
 
     return train_dataset, val_dataset, test_dataset_final, test_loader, class_counts
 
@@ -963,6 +963,13 @@ def main():
     np.random.seed(config['system']['seed'])
     if torch.cuda.is_available():
         torch.cuda.manual_seed(config['system']['seed'])
+
+        # Enable CUDA optimizations for better GPU utilization
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
+        if hasattr(torch.backends.cudnn, 'allow_tf32'):
+            torch.backends.cudnn.allow_tf32 = True
+        logger.info("🚀 CUDA optimizations enabled for better GPU utilization")
 
     logger.info(f"🎲 Random seed set: {config['system']['seed']}")
 
