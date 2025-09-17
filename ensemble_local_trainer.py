@@ -647,9 +647,9 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
         else:
             patience_counter += 1
 
-        if epoch % 10 == 0:
-            logger.info(f"   Epoch {epoch+1}/{config['training']['epochs']}: "
-                       f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
+        # Log every epoch for better monitoring
+        logger.info(f"   Epoch {epoch+1}/{config['training']['epochs']}: "
+                   f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
 
         # Early stopping
         if patience_counter >= config['training']['patience']:
