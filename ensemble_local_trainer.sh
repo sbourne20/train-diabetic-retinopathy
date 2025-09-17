@@ -80,7 +80,8 @@ python ensemble_local_trainer.py \
     --dataset_path ./dataset6 \
     --output_dir ./ovo_ensemble_results \
     --epochs 25 \
-    --batch_size 64 \
+    --batch_size 32 \
+    --img_size 299 \
     --learning_rate 2e-4 \
     --weight_decay 1e-4 \
     --base_models mobilenet_v2 inception_v3 densenet121 \

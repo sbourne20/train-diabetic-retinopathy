@@ -332,7 +332,7 @@ class BinaryClassifier(nn.Module):
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
         elif model_name == 'inception_v3':
-            self.backbone = models.inception_v3(pretrained=True)
+            self.backbone = models.inception_v3(pretrained=True, aux_logits=False)  # Disable auxiliary output
             num_features = self.backbone.fc.in_features
             self.backbone.fc = nn.Identity()
         elif model_name == 'densenet121':
@@ -356,7 +356,17 @@ class BinaryClassifier(nn.Module):
 
     def forward(self, x):
         """Forward pass for binary classification."""
+        # Ensure input tensor has minimum size for InceptionV3
+        if self.model_name == 'inception_v3' and x.size(-1) < 75:
+            # Upscale if too small
+            x = F.interpolate(x, size=(299, 299), mode='bilinear', align_corners=False)
+
         features = self.backbone(x)
+
+        # Handle InceptionV3 auxiliary outputs (should not happen with aux_logits=False)
+        if isinstance(features, tuple):
+            features = features[0]  # Take main output only
+
         if len(features.shape) > 2:
             features = F.adaptive_avg_pool2d(features, (1, 1)).view(features.size(0), -1)
         return self.classifier(features)
@@ -441,10 +451,13 @@ class OVOEnsemble(nn.Module):
 def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0):
     """Create transforms for OVO training with standardized image sizes."""
 
+    # Ensure minimum size for InceptionV3 (requires 75x75 minimum, 299x299 optimal)
+    safe_img_size = max(img_size, 299)  # Use 299x299 for InceptionV3 compatibility
+
     # Standardized transforms with explicit size control
     train_transforms = [
         # Force consistent size first
-        transforms.Resize((img_size, img_size), antialias=True),
+        transforms.Resize((safe_img_size, safe_img_size), antialias=True),
         # Medical-grade augmentation (conservative)
         transforms.RandomRotation(10),  # Reduced for medical images
         transforms.RandomHorizontalFlip(0.3),  # Reduced probability
@@ -456,7 +469,7 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
 
     val_transforms = [
         # Force consistent size
-        transforms.Resize((img_size, img_size), antialias=True),
+        transforms.Resize((safe_img_size, safe_img_size), antialias=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
@@ -465,7 +478,7 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
     if enable_clahe:
         logger.warning("CLAHE is disabled for stability. Standard transforms will be used.")
 
-    logger.info(f"✅ Transforms created with standardized size: {img_size}x{img_size}")
+    logger.info(f"✅ Transforms created with InceptionV3-safe size: {safe_img_size}x{safe_img_size} (requested: {img_size}x{img_size})")
 
     return (
         transforms.Compose(train_transforms),
