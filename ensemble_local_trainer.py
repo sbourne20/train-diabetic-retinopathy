@@ -493,8 +493,8 @@ def create_binary_datasets(base_train_dataset, base_val_dataset, class_pairs, tr
         binary_datasets[pair_name] = {
             'train': binary_train,
             'val': binary_val,
-            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=0, pin_memory=True, drop_last=True),
-            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=0, pin_memory=True, drop_last=False)
+            'train_loader': DataLoader(binary_train, batch_size=64, shuffle=True, num_workers=4, pin_memory=True, drop_last=True, persistent_workers=True),
+            'val_loader': DataLoader(binary_val, batch_size=128, shuffle=False, num_workers=4, pin_memory=True, drop_last=False, persistent_workers=True)
         }
 
         logger.info(f"📊 Binary dataset {pair_name}: Train={len(binary_train)}, Val={len(binary_val)}")
