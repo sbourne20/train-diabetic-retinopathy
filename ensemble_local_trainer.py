@@ -334,9 +334,11 @@ class BinaryClassifier(nn.Module):
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
         elif model_name == 'inception_v3':
-            self.backbone = models.inception_v3(pretrained=True, aux_logits=False)  # Disable auxiliary output
+            self.backbone = models.inception_v3(pretrained=True)  # Keep aux_logits=True (default)
             num_features = self.backbone.fc.in_features
             self.backbone.fc = nn.Identity()
+            # Set to eval mode to disable auxiliary outputs during inference
+            self.backbone.training = True  # We'll handle aux outputs in forward()
         elif model_name == 'densenet121':
             self.backbone = models.densenet121(pretrained=True)
             num_features = self.backbone.classifier.in_features
@@ -363,9 +365,14 @@ class BinaryClassifier(nn.Module):
             # Upscale if too small
             x = F.interpolate(x, size=(299, 299), mode='bilinear', align_corners=False)
 
-        features = self.backbone(x)
+        # Handle InceptionV3 auxiliary outputs during training
+        if self.model_name == 'inception_v3' and self.training:
+            features, aux_features = self.backbone(x)
+            # We only use main features, ignore auxiliary
+        else:
+            features = self.backbone(x)
 
-        # Handle InceptionV3 auxiliary outputs (should not happen with aux_logits=False)
+        # Handle any remaining tuple outputs
         if isinstance(features, tuple):
             features = features[0]  # Take main output only
 
