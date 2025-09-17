@@ -542,7 +542,11 @@ def setup_ovo_experiment(args):
             'weight_decay': args.weight_decay,
             'patience': args.patience,
             'enable_focal_loss': args.enable_focal_loss,
-            'enable_class_weights': args.enable_class_weights
+            'enable_class_weights': args.enable_class_weights,
+            'resume': args.resume
+        },
+        'paths': {
+            'output_dir': args.output_dir
         },
         'system': {
             'device': args.device,
