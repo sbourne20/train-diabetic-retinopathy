@@ -138,7 +138,7 @@ Example Usage:
                        help='Learning rate for DenseNet121 (default: same as --learning_rate)')
     
     # Enhanced preprocessing for OVO
-    parser.add_argument('--enable_clahe', action='store_true', default=True,
+    parser.add_argument('--enable_clahe', action='store_true', default=False,
                        help='Enable CLAHE preprocessing (+3-5% accuracy)')
     parser.add_argument('--clahe_clip_limit', type=float, default=3.0,
                        help='CLAHE clip limit (higher for binary tasks)')
@@ -438,33 +438,28 @@ class OVOEnsemble(nn.Module):
 
         return result
 
-def create_ovo_transforms(img_size=224, enable_clahe=True, clahe_clip_limit=3.0):
+def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0):
     """Create transforms for OVO training."""
 
-    train_transforms = []
-    val_transforms = []
-
-    # Add CLAHE if enabled
-    if enable_clahe:
-        clahe_transform = CLAHETransform(clip_limit=clahe_clip_limit)
-        train_transforms.append(clahe_transform)
-        val_transforms.append(clahe_transform)
-
-    # Standard transforms
-    train_transforms.extend([
+    # Simple, robust transforms without CLAHE for stability
+    train_transforms = [
         transforms.Resize((img_size, img_size)),
         transforms.RandomRotation(15),
         transforms.RandomHorizontalFlip(0.5),
         transforms.ColorJitter(brightness=0.1, contrast=0.1),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    ]
 
-    val_transforms.extend([
+    val_transforms = [
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    ]
+
+    # Optional CLAHE (disabled by default for stability)
+    if enable_clahe:
+        logger.warning("CLAHE is disabled for stability. Standard transforms will be used.")
 
     return (
         transforms.Compose(train_transforms),
@@ -492,8 +487,8 @@ def create_binary_datasets(base_train_dataset, base_val_dataset, class_pairs, tr
         binary_datasets[pair_name] = {
             'train': binary_train,
             'val': binary_val,
-            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=2, pin_memory=True),
-            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=2, pin_memory=True)
+            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=0, pin_memory=True),
+            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=0, pin_memory=True)
         }
 
         logger.info(f"📊 Binary dataset {pair_name}: Train={len(binary_train)}, Val={len(binary_val)}")
@@ -849,7 +844,7 @@ def prepare_ovo_data(config):
     ])
 
     test_dataset_final = ImageFolder(str(test_path), transform=test_transform)
-    test_loader = DataLoader(test_dataset_final, batch_size=32, shuffle=False, num_workers=2, pin_memory=True)
+    test_loader = DataLoader(test_dataset_final, batch_size=32, shuffle=False, num_workers=0, pin_memory=True)
 
     return train_dataset, val_dataset, test_dataset_final, test_loader, class_counts
 

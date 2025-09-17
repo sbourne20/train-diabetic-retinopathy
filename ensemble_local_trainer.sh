@@ -79,7 +79,7 @@ python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset6 \
     --output_dir ./ovo_ensemble_results \
-    --epochs 30 \
+    --epochs 25 \
     --batch_size 32 \
     --learning_rate 2e-4 \
     --weight_decay 1e-4 \
@@ -88,7 +88,7 @@ python ensemble_local_trainer.py \
     --enable_class_weights \
     --patience 15 \
     --early_stopping_patience 8 \
-    --experiment_name ovo_ensemble_no_clahe_stable \
+    --experiment_name ovo_stable_no_transforms_issues \
     --target_accuracy 0.9696 \
     --seed 42
 
