@@ -811,16 +811,11 @@ def prepare_ovo_data(config):
     if not all(p.exists() for p in [train_path, val_path, test_path]):
         raise ValueError(f"Dataset must have train/val/test structure in {dataset_path}")
 
-    # Simple transforms for loading base datasets (no CLAHE yet)
-    base_transform = transforms.Compose([
-        transforms.Resize((config['data']['img_size'], config['data']['img_size'])),
-        transforms.ToTensor()
-    ])
-
-    # Create base datasets
-    train_dataset = ImageFolder(str(train_path), transform=base_transform)
-    val_dataset = ImageFolder(str(val_path), transform=base_transform)
-    test_dataset = ImageFolder(str(test_path), transform=base_transform)
+    # NO transforms for base datasets - let binary datasets handle all transforms
+    # Create base datasets without any transforms
+    train_dataset = ImageFolder(str(train_path), transform=None)
+    val_dataset = ImageFolder(str(val_path), transform=None)
+    test_dataset = ImageFolder(str(test_path), transform=None)
 
     logger.info(f"📊 Dataset splits loaded:")
     logger.info(f"   Training: {len(train_dataset)} samples")
