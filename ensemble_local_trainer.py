@@ -439,20 +439,24 @@ class OVOEnsemble(nn.Module):
         return result
 
 def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0):
-    """Create transforms for OVO training."""
+    """Create transforms for OVO training with standardized image sizes."""
 
-    # Simple, robust transforms without CLAHE for stability
+    # Standardized transforms with explicit size control
     train_transforms = [
-        transforms.Resize((img_size, img_size)),
-        transforms.RandomRotation(15),
-        transforms.RandomHorizontalFlip(0.5),
-        transforms.ColorJitter(brightness=0.1, contrast=0.1),
+        # Force consistent size first
+        transforms.Resize((img_size, img_size), antialias=True),
+        # Medical-grade augmentation (conservative)
+        transforms.RandomRotation(10),  # Reduced for medical images
+        transforms.RandomHorizontalFlip(0.3),  # Reduced probability
+        transforms.ColorJitter(brightness=0.05, contrast=0.05),  # Subtle changes
+        # Convert to tensor and normalize
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
 
     val_transforms = [
-        transforms.Resize((img_size, img_size)),
+        # Force consistent size
+        transforms.Resize((img_size, img_size), antialias=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
@@ -460,6 +464,8 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
     # Optional CLAHE (disabled by default for stability)
     if enable_clahe:
         logger.warning("CLAHE is disabled for stability. Standard transforms will be used.")
+
+    logger.info(f"✅ Transforms created with standardized size: {img_size}x{img_size}")
 
     return (
         transforms.Compose(train_transforms),
@@ -487,8 +493,8 @@ def create_binary_datasets(base_train_dataset, base_val_dataset, class_pairs, tr
         binary_datasets[pair_name] = {
             'train': binary_train,
             'val': binary_val,
-            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=0, pin_memory=True),
-            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=0, pin_memory=True)
+            'train_loader': DataLoader(binary_train, batch_size=16, shuffle=True, num_workers=0, pin_memory=True, drop_last=True),
+            'val_loader': DataLoader(binary_val, batch_size=32, shuffle=False, num_workers=0, pin_memory=True, drop_last=False)
         }
 
         logger.info(f"📊 Binary dataset {pair_name}: Train={len(binary_train)}, Val={len(binary_val)}")
@@ -585,6 +591,13 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
             optimizer.zero_grad()
             outputs = model(images).squeeze()
+
+            # Ensure both outputs and labels have the same shape for BCELoss
+            if outputs.dim() == 0:  # If scalar, add batch dimension
+                outputs = outputs.unsqueeze(0)
+            if labels.dim() == 0:  # If scalar, add batch dimension
+                labels = labels.unsqueeze(0)
+
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -608,6 +621,13 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
                 labels = labels.float().to(device)
 
                 outputs = model(images).squeeze()
+
+                # Ensure both outputs and labels have the same shape for BCELoss
+                if outputs.dim() == 0:  # If scalar, add batch dimension
+                    outputs = outputs.unsqueeze(0)
+                if labels.dim() == 0:  # If scalar, add batch dimension
+                    labels = labels.unsqueeze(0)
+
                 loss = criterion(outputs, labels)
 
                 val_loss += loss.item()
