@@ -114,7 +114,9 @@ Example Usage:
                        help='Freeze pre-trained weights (transfer learning)')
     parser.add_argument('--ovo_dropout', type=float, default=0.5,
                        help='Dropout rate for binary classifier heads')
-    
+    parser.add_argument('--resume', action='store_true', default=False,
+                       help='Resume training from existing checkpoints')
+
     # Training hyperparameters (PRESERVED)
     parser.add_argument('--epochs', type=int, default=80,
                        help='Number of training epochs')
@@ -702,6 +704,24 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
 
     # Train all binary classifiers
     trained_models = {}
+
+    # Resume logic - check for existing checkpoints
+    completed_classifiers = []
+    if config['training'].get('resume', False):
+        models_dir = os.path.join(config['paths']['output_dir'], 'models')
+        if os.path.exists(models_dir):
+            for model_name in config['model']['base_models']:
+                for class_a, class_b in class_pairs:
+                    checkpoint_path = os.path.join(models_dir, f'best_{model_name}_{class_a}_{class_b}.pth')
+                    if os.path.exists(checkpoint_path):
+                        classifier_key = f"{model_name}_{class_a}_{class_b}"
+                        completed_classifiers.append(classifier_key)
+                        logger.info(f"✅ Found existing checkpoint: {classifier_key}")
+
+            if completed_classifiers:
+                logger.info(f"🔄 Resuming training - {len(completed_classifiers)} classifiers already completed")
+            else:
+                logger.info("🆕 No existing checkpoints found - starting fresh")
     training_results = {}
 
     for model_name in config['model']['base_models']:
@@ -711,6 +731,12 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
 
         for class_a, class_b in class_pairs:
             pair_name = f"pair_{class_a}_{class_b}"
+            classifier_key = f"{model_name}_{class_a}_{class_b}"
+
+            # Skip if already completed (resume functionality)
+            if classifier_key in completed_classifiers:
+                logger.info(f"⏭️ Skipping {classifier_key} - already completed")
+                continue
 
             # Create binary classifier
             binary_model = BinaryClassifier(

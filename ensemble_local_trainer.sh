@@ -86,6 +86,7 @@ python ensemble_local_trainer.py \
     --weight_decay 1e-4 \
     --base_models mobilenet_v2 inception_v3 densenet121 \
     --freeze_weights \
+    --resume \
     --enable_class_weights \
     --patience 15 \
     --early_stopping_patience 8 \
