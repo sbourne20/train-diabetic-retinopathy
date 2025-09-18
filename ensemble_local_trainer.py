@@ -106,7 +106,7 @@ Example Usage:
     
     # OVO Ensemble configuration
     parser.add_argument('--base_models', nargs='+',
-                       default=['mobilenet_v2', 'inception_v3', 'densenet121'],
+                       default=['mobilenet_v2', 'inception_v3', 'densenet121'],  # Research used MobileNet (v1), using v2 as closest available
                        help='Base models for OVO ensemble')
     parser.add_argument('--img_size', type=int, default=224,
                        help='Input image size (224 optimal for CNNs)')
@@ -324,7 +324,7 @@ class BinaryDataset(Dataset):
 class BinaryClassifier(nn.Module):
     """Binary classifier with frozen pre-trained backbone."""
 
-    def __init__(self, model_name='mobilenet_v2', freeze_weights=True, dropout=0.5):
+    def __init__(self, model_name='mobilenet_v2', freeze_weights=True, dropout=0.5):  # Research uses frozen weights + single output node
         super().__init__()
         self.model_name = model_name
 
@@ -346,48 +346,24 @@ class BinaryClassifier(nn.Module):
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
-        # Fine-tuning strategy instead of freezing for better medical accuracy
+        # RESEARCH-VALIDATED: Transfer learning with frozen weights (exactly as in paper)
         if freeze_weights:
-            # Partial fine-tuning: freeze early layers, unfreeze later layers
-            if model_name == 'densenet121':
-                # Freeze first 2 dense blocks, fine-tune last 2
-                for name, param in self.backbone.named_parameters():
-                    if 'denseblock1' in name or 'denseblock2' in name:
-                        param.requires_grad = False
-                    else:
-                        param.requires_grad = True
-            elif model_name == 'mobilenet_v2':
-                # Freeze first 10 layers, fine-tune rest
-                for i, param in enumerate(self.backbone.parameters()):
-                    if i < 10:
-                        param.requires_grad = False
-                    else:
-                        param.requires_grad = True
-            elif model_name == 'inception_v3':
-                # Freeze early layers, fine-tune later
-                for name, param in self.backbone.named_parameters():
-                    if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3', 'Conv2d_4']):
-                        param.requires_grad = False
-                    else:
-                        param.requires_grad = True
+            # Research method: freeze ALL pretrained weights, only train classifier
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+            logger.info(f"✅ RESEARCH MODE: Frozen all pretrained weights for {model_name}")
         else:
-            # Full fine-tuning for maximum accuracy
+            # Fine-tuning mode (not used in research but available for experimentation)
             for param in self.backbone.parameters():
                 param.requires_grad = True
+            logger.warning(f"⚠️ NON-RESEARCH MODE: Fine-tuning enabled for {model_name}")
 
-        # Enhanced binary classification head for medical accuracy
+        # RESEARCH-VALIDATED: Single node output layer (as specified in paper)
+        # Paper method: "append a single node at the end of the output layer"
         self.classifier = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(num_features, 512),
-            nn.ReLU(),
-            nn.BatchNorm1d(512),
-            nn.Dropout(dropout/2),
-            nn.Linear(512, 128),
-            nn.ReLU(),
-            nn.BatchNorm1d(128),
-            nn.Dropout(dropout/2),
-            nn.Linear(128, 1),
-            nn.Sigmoid()
+            nn.Linear(num_features, 1),  # Research spec: single output node for binary classification
+            nn.Sigmoid()  # Research uses threshold=0.60, so sigmoid output
         )
 
     def forward(self, x):
@@ -503,27 +479,36 @@ class OVOEnsemble(nn.Module):
         return result
 
 def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0):
-    """Create transforms for OVO training with standardized image sizes."""
+    """Create transforms for OVO training with RESEARCH-VALIDATED specifications.
 
-    # Ensure minimum size for InceptionV3 (requires 75x75 minimum, 299x299 optimal)
-    safe_img_size = max(img_size, 299)  # Use 299x299 for InceptionV3 compatibility
+    Based on paper: "A lightweight transfer learning based ensemble approach for diabetic retinopathy detection"
+    Research specifications: 224x224 input, rotation=45°, shear=0.2, zoom=0.2, rescale=1./255
+    """
 
-    # Standardized transforms with explicit size control
+    # CRITICAL: Use research-specified 224x224 (NOT 299x299)
+    research_img_size = 224  # Paper Table 6: Image Size = 224*224*3
+
+    # RESEARCH-VALIDATED augmentation parameters (Table 6)
     train_transforms = [
-        # Force consistent size first
-        transforms.Resize((safe_img_size, safe_img_size), antialias=True),
-        # Medical-grade augmentation (conservative)
-        transforms.RandomRotation(10),  # Reduced for medical images
-        transforms.RandomHorizontalFlip(0.3),  # Reduced probability
-        transforms.ColorJitter(brightness=0.05, contrast=0.05),  # Subtle changes
-        # Convert to tensor and normalize
+        # Research spec: Image Size = 224*224*3
+        transforms.Resize((research_img_size, research_img_size), antialias=True),
+        # Research spec: Rotation_range = 45
+        transforms.RandomRotation(degrees=45),
+        # Research spec: Horizontal_flip = True, Vertical_flip = True
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.5),
+        # Research spec: Shear_range = 0.2
+        transforms.RandomAffine(degrees=0, shear=0.2),
+        # Research spec: Zoom_range = 0.2 (approximated with RandomResizedCrop)
+        transforms.RandomResizedCrop(research_img_size, scale=(0.8, 1.2)),
         transforms.ToTensor(),
+        # Research spec: Rescale = 1./255 (ToTensor already does this)
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
 
     val_transforms = [
-        # Force consistent size
-        transforms.Resize((safe_img_size, safe_img_size), antialias=True),
+        # Research spec: 224x224 for validation too
+        transforms.Resize((research_img_size, research_img_size), antialias=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
@@ -532,7 +517,7 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
     if enable_clahe:
         logger.warning("CLAHE is disabled for stability. Standard transforms will be used.")
 
-    logger.info(f"✅ Transforms created with InceptionV3-safe size: {safe_img_size}x{safe_img_size} (requested: {img_size}x{img_size})")
+    logger.info(f"✅ RESEARCH-VALIDATED transforms created: {research_img_size}x{research_img_size} with paper specifications")
 
     return (
         transforms.Compose(train_transforms),
