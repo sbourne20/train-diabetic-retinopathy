@@ -35,7 +35,7 @@ python ensemble_local_trainer.py \
     --ovo_dropout 0.3 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
-    --resume true \
+    --resume \
     --seed 42
 
 echo ""
