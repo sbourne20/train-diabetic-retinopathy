@@ -1107,8 +1107,54 @@ def main():
 
             # Load ensemble and evaluate
             logger.info(f"📥 Loading OVO ensemble from: {ensemble_path}")
-            # Implementation would load and evaluate existing model
-            logger.info("⚠️ Evaluation-only mode: Implementation needed")
+
+            # Load test dataset
+            logger.info("📊 Loading test dataset...")
+            test_dataset = ImageFolder(
+                root=Path(config['data']['dataset_path']) / "test",
+                transform=create_ovo_transforms(
+                    img_size=config['data']['img_size'],
+                    enable_clahe=config['data']['enable_clahe']
+                )[1]  # Use validation transforms for test
+            )
+
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=config['data']['batch_size'],
+                shuffle=False,
+                num_workers=4,
+                pin_memory=True
+            )
+
+            logger.info(f"📋 Test dataset: {len(test_dataset)} images")
+
+            # Create OVO ensemble and load weights
+            ovo_ensemble = OVOEnsemble(
+                base_models=config['model']['base_models'],
+                num_classes=config['data']['num_classes'],
+                freeze_weights=config['model']['freeze_weights'],
+                dropout=config['model']['dropout']
+            )
+
+            # Load the complete ensemble state
+            state_dict = torch.load(ensemble_path, map_location='cpu')
+            ovo_ensemble.load_state_dict(state_dict)
+            logger.info("✅ OVO ensemble loaded successfully")
+
+            # Evaluate the ensemble
+            eval_results = evaluate_ovo_ensemble(ovo_ensemble, test_loader, config)
+
+            # Display results
+            logger.info("\n" + "="*60)
+            logger.info("🏆 EVALUATION RESULTS")
+            logger.info("="*60)
+            logger.info(f"🎯 Ensemble Accuracy: {eval_results['ensemble_accuracy']:.4f} ({eval_results['ensemble_accuracy']*100:.2f}%)")
+            logger.info(f"🏥 Medical Grade: {'✅ PASS' if eval_results['medical_grade_pass'] else '❌ FAIL'}")
+            logger.info(f"📊 Research Target: {'✅ ACHIEVED' if eval_results['research_target_achieved'] else '❌ NOT ACHIEVED'}")
+            logger.info("\n📊 Individual Model Performance:")
+            for model_name, accuracy in eval_results['individual_accuracies'].items():
+                logger.info(f"   {model_name}: {accuracy:.4f} ({accuracy*100:.2f}%)")
+            logger.info("="*60)
 
         elif args.mode == 'inference':
             logger.info("For inference mode with OVO ensemble:")
