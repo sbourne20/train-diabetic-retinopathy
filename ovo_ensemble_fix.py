@@ -55,10 +55,20 @@ class BinaryClassifier(nn.Module):
             for param in self.backbone.parameters():
                 param.requires_grad = False
 
+        # MATCH TRAINED MODEL ARCHITECTURE: Multi-layer classifier with BatchNorm
+        # This matches the actual trained models in ovo_ensemble_results_v2/models/
         self.classifier = nn.Sequential(
-            nn.Dropout(dropout),
-            nn.Linear(num_features, 1),
-            nn.Sigmoid()
+            nn.Dropout(dropout),                    # Layer 0: Dropout
+            nn.Linear(num_features, 512),          # Layer 1: Linear reduction
+            nn.ReLU(),                             # Layer 2: Activation
+            nn.BatchNorm1d(512),                   # Layer 3: BatchNorm
+            nn.Dropout(dropout),                   # Layer 4: Dropout
+            nn.Linear(512, 128),                   # Layer 5: Further reduction
+            nn.ReLU(),                             # Layer 6: Activation
+            nn.BatchNorm1d(128),                   # Layer 7: BatchNorm
+            nn.Dropout(dropout),                   # Layer 8: Dropout
+            nn.Linear(128, 1),                     # Layer 9: Final output
+            nn.Sigmoid()                           # Layer 10: Sigmoid activation
         )
 
     def forward(self, x):
