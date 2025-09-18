@@ -165,7 +165,7 @@ def evaluate_postprocessing_strategies():
 
     results_dir = Path("./ovo_ensemble_results_v2")
     ensemble_path = results_dir / "models" / "ovo_ensemble_best.pth"
-    dataset_path = "./dataset6"
+    dataset_path = "./dataset6/"
 
     print("🚀 Pure Post-Processing Medical-Grade Optimization...")
     print("   Strategy: Original voting untouched + intelligent post-processing")
