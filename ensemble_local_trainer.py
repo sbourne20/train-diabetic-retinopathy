@@ -110,8 +110,8 @@ Example Usage:
                        help='Base models for OVO ensemble')
     parser.add_argument('--img_size', type=int, default=224,
                        help='Input image size (224 optimal for CNNs)')
-    parser.add_argument('--freeze_weights', action='store_true', default=True,
-                       help='Freeze pre-trained weights (transfer learning)')
+    parser.add_argument('--freeze_weights', type=str, default='true',
+                       help='Freeze pre-trained weights (true/false)')
     parser.add_argument('--ovo_dropout', type=float, default=0.5,
                        help='Dropout rate for binary classifier heads')
     parser.add_argument('--resume', action='store_true', default=False,
@@ -346,15 +346,47 @@ class BinaryClassifier(nn.Module):
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
-        # Freeze backbone weights if specified
+        # Fine-tuning strategy instead of freezing for better medical accuracy
         if freeze_weights:
+            # Partial fine-tuning: freeze early layers, unfreeze later layers
+            if model_name == 'densenet121':
+                # Freeze first 2 dense blocks, fine-tune last 2
+                for name, param in self.backbone.named_parameters():
+                    if 'denseblock1' in name or 'denseblock2' in name:
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'mobilenet_v2':
+                # Freeze first 10 layers, fine-tune rest
+                for i, param in enumerate(self.backbone.parameters()):
+                    if i < 10:
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'inception_v3':
+                # Freeze early layers, fine-tune later
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3', 'Conv2d_4']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+        else:
+            # Full fine-tuning for maximum accuracy
             for param in self.backbone.parameters():
-                param.requires_grad = False
+                param.requires_grad = True
 
-        # Binary classification head
+        # Enhanced binary classification head for medical accuracy
         self.classifier = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(num_features, 1),
+            nn.Linear(num_features, 512),
+            nn.ReLU(),
+            nn.BatchNorm1d(512),
+            nn.Dropout(dropout/2),
+            nn.Linear(512, 128),
+            nn.ReLU(),
+            nn.BatchNorm1d(128),
+            nn.Dropout(dropout/2),
+            nn.Linear(128, 1),
             nn.Sigmoid()
         )
 
@@ -544,7 +576,7 @@ def setup_ovo_experiment(args):
         },
         'model': {
             'base_models': args.base_models,
-            'freeze_weights': args.freeze_weights,
+            'freeze_weights': args.freeze_weights.lower() == 'true',
             'dropout': args.ovo_dropout,
             'num_classes': args.num_classes
         },
@@ -595,12 +627,29 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
     device = torch.device(config['system']['device'])
     model = model.to(device)
 
-    # Loss and optimizer for binary classification
+    # Enhanced loss and optimizer for binary classification
     criterion = nn.BCELoss()
-    optimizer = optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=config['training']['learning_rate'],
-        weight_decay=config['training']['weight_decay']
+
+    # Different learning rates for backbone vs classifier
+    backbone_params = []
+    classifier_params = []
+
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            if 'backbone' in name:
+                backbone_params.append(param)
+            else:
+                classifier_params.append(param)
+
+    # Use lower learning rate for pre-trained backbone, higher for classifier head
+    optimizer = optim.Adam([
+        {'params': backbone_params, 'lr': config['training']['learning_rate'] * 0.1},  # 10x lower for backbone
+        {'params': classifier_params, 'lr': config['training']['learning_rate']}       # Full rate for classifier
+    ], weight_decay=config['training']['weight_decay'])
+
+    # Learning rate scheduler for better convergence
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='max', factor=0.5, patience=3, verbose=True
     )
 
     # Training parameters
@@ -668,6 +717,9 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
         val_acc = 100.0 * val_correct / val_total
 
+        # Step the learning rate scheduler
+        scheduler.step(val_acc)
+
         # Check for improvement
         if val_acc > best_val_acc:
             best_val_acc = val_acc
@@ -675,6 +727,7 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
             # Save best model
             model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{class_pair[0]}_{class_pair[1]}.pth"
             torch.save(model.state_dict(), model_path)
+            logger.info(f"🎯 New best for {model_name}_{class_pair}: {val_acc:.2f}%")
         else:
             patience_counter += 1
 
