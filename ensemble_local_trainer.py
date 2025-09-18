@@ -656,6 +656,15 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
     best_val_acc = 0.0
     patience_counter = 0
 
+    # Track training history for comprehensive logging
+    train_history = {
+        'train_accuracies': [],
+        'val_accuracies': [],
+        'train_losses': [],
+        'val_losses': [],
+        'learning_rates': []
+    }
+
     logger.info(f"🏁 Training {model_name} for classes {class_pair}")
 
     for epoch in range(config['training']['epochs']):
@@ -717,6 +726,13 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
         val_acc = 100.0 * val_correct / val_total
 
+        # Record training history
+        train_history['train_accuracies'].append(train_acc)
+        train_history['val_accuracies'].append(val_acc)
+        train_history['train_losses'].append(train_loss / len(train_loader))
+        train_history['val_losses'].append(val_loss / len(val_loader))
+        train_history['learning_rates'].append(optimizer.param_groups[0]['lr'])
+
         # Step the learning rate scheduler
         scheduler.step(val_acc)
 
@@ -724,9 +740,23 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             patience_counter = 0
-            # Save best model
+
+            # Save comprehensive checkpoint with training metrics
             model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{class_pair[0]}_{class_pair[1]}.pth"
-            torch.save(model.state_dict(), model_path)
+            checkpoint = {
+                'epoch': epoch + 1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'best_val_accuracy': best_val_acc,
+                'current_val_accuracy': val_acc,
+                'current_train_accuracy': train_acc,
+                'train_history': train_history,
+                'class_pair': class_pair,
+                'model_name': model_name,
+                'config': config
+            }
+            torch.save(checkpoint, model_path)
             logger.info(f"🎯 New best for {model_name}_{class_pair}: {val_acc:.2f}%")
         else:
             patience_counter += 1
@@ -847,10 +877,20 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
 
             if model_path.exists():
                 try:
-                    state_dict = torch.load(model_path, map_location='cpu')
-                    ovo_ensemble.classifiers[model_name][pair_name].load_state_dict(state_dict)
+                    checkpoint = torch.load(model_path, map_location='cpu')
+
+                    # Handle both old format (state_dict only) and new format (checkpoint with metrics)
+                    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                        # New format with training metrics
+                        ovo_ensemble.classifiers[model_name][pair_name].load_state_dict(checkpoint['model_state_dict'])
+                        best_acc = checkpoint.get('best_val_accuracy', 0.0)
+                        logger.info(f"✅ Loaded: {model_path.name} (Best Val Acc: {best_acc:.2f}%)")
+                    else:
+                        # Old format (just state_dict)
+                        ovo_ensemble.classifiers[model_name][pair_name].load_state_dict(checkpoint)
+                        logger.info(f"✅ Loaded: {model_path.name} (legacy format)")
+
                     loaded_count += 1
-                    logger.info(f"✅ Loaded: {model_path.name}")
                 except Exception as e:
                     logger.warning(f"❌ Failed to load {model_path.name}: {e}")
             else:
