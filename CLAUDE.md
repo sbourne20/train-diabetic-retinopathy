@@ -31,7 +31,7 @@ This project builds a comprehensive medical-grade diabetic retinopathy analysis 
 Train multi-architecture ensemble using EfficientNetB2, DenseNet121, and ResNet50 for 5-class diabetic retinopathy classification to achieve 96.96% accuracy as demonstrated in research literature. This ensemble approach replaces the single MedSigLIP-448 model to meet medical-grade accuracy requirements.
 
 ### Local Training Server Access 
- ssh -p 6285 -i /Users/iwanbudihalim/.ssh/vast_ai root@206.172.240.211 -L 8080:localhost:8080
+  ssh -p 6209 -i vast_ai root@206.172.240.211 -L 8080:localhost:8080
 
 
 ### Model Architecture
