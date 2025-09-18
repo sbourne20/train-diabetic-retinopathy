@@ -88,35 +88,8 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
         # Normalize by accumulated weights
         normalized_scores = class_scores / (confidence_weights + 1e-8)
 
-        # Multi-class boundary adjustment based on confusion matrix analysis
-        # Class 1: 79→C0, 65→C2 (confused with No DR and Moderate)
-        # Class 2: 105→C0, 70→C3 (confused with No DR and Severe)
-        # Class 4: 66→C3, 26→C2 (confused with Severe and Moderate)
-
-        # Store original for targeted adjustments
-        original_scores = normalized_scores.clone()
-
-        # 1. Reduce Class 0 dominance when minority classes are confident
-        minority_confidence = original_scores[:, 1] + original_scores[:, 2] + original_scores[:, 4]
-        class0_penalty = torch.where(minority_confidence > self.class1_threshold, 0.80, 1.0)
-        normalized_scores[:, 0] *= class0_penalty
-
-        # 2. Class 1 vs Class 2 competition (Class 1 → Class 2 confusion)
-        class1_vs_class2 = original_scores[:, 1] / (original_scores[:, 2] + 1e-8)
-        class1_boost = torch.where(class1_vs_class2 > 0.25, 1.4, 1.0)
-        normalized_scores[:, 1] *= class1_boost
-
-        # 3. Class 2 vs Class 3 competition (Class 2 → Class 3 confusion)
-        class2_vs_class3 = original_scores[:, 2] / (original_scores[:, 3] + 1e-8)
-        class2_boost = torch.where(class2_vs_class3 > 0.4, 1.3, 1.0)
-        normalized_scores[:, 2] *= class2_boost
-
-        # 4. Class 4 vs Class 3 competition (Class 4 → Class 3 confusion)
-        class4_vs_class3 = original_scores[:, 4] / (original_scores[:, 3] + 1e-8)
-        class4_boost = torch.where(class4_vs_class3 > 0.3, 1.5, 1.0)
-        normalized_scores[:, 4] *= class4_boost
-
-        # Apply conservative temperature scaling
+        # Simple, safe approach - just use the weighted scores as-is
+        # The problem may be in the voting algorithm itself, not the final adjustments
         final_scores = torch.softmax(normalized_scores / self.temperature, dim=1)
 
         return {'logits': final_scores}
@@ -167,8 +140,8 @@ def evaluate_medical_grade_ensemble():
     ensemble = ensemble.to(device)
     ensemble.eval()
 
-    # Test adaptive threshold parameters
-    threshold_params = [0.10, 0.12, 0.15, 0.18, 0.20, 0.25]
+    # Test single baseline (no optimization needed for simple approach)
+    threshold_params = [1.0]
     best_results = None
     best_accuracy = 0
 

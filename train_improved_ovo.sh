@@ -8,7 +8,7 @@ echo "🚀 Starting Improved OVO Ensemble Training"
 echo "==========================================="
 
 # Create output directory
-mkdir -p ./ovo_ensemble_results_v2
+mkdir -p ./ovo_ensemble_results_v3
 
 echo "📊 Training improved OVO ensemble with:"
 echo "  - Memory optimization enabled (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True)"
@@ -22,8 +22,8 @@ echo "  - Automatic checkpoint resuming"
 # Train improved OVO ensemble
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./dataset6 \
-    --output_dir ./ovo_ensemble_results_v2 \
+    --dataset_path ./dataset7 \
+    --output_dir ./ovo_ensemble_results_v3 \
     --img_size 299 \
     --base_models mobilenet_v2 inception_v3 densenet121 \
     --experiment_name improved_ovo_ensemble \
@@ -40,4 +40,4 @@ python ensemble_local_trainer.py \
 
 echo ""
 echo "✅ Improved OVO training completed!"
-echo "📁 Results saved to: ./ovo_ensemble_results_v2"
+echo "📁 Results saved to: ./ovo_ensemble_results_v3"
