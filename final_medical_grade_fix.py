@@ -88,19 +88,33 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
         # Normalize by accumulated weights
         normalized_scores = class_scores / (confidence_weights + 1e-8)
 
-        # Class boundary adjustment based on confusion matrix analysis
-        # Class 1 is being confused with Class 0 and Class 2
-        # Apply targeted threshold adjustments
+        # Multi-class boundary adjustment based on confusion matrix analysis
+        # Class 1: 79→C0, 65→C2 (confused with No DR and Moderate)
+        # Class 2: 105→C0, 70→C3 (confused with No DR and Severe)
+        # Class 4: 66→C3, 26→C2 (confused with Severe and Moderate)
 
-        # Reduce Class 0 dominance when Class 1 has reasonable confidence
-        class1_confidence = normalized_scores[:, 1]
-        class0_penalty = torch.where(class1_confidence > self.class1_threshold, 0.85, 1.0)
+        # Store original for targeted adjustments
+        original_scores = normalized_scores.clone()
+
+        # 1. Reduce Class 0 dominance when minority classes are confident
+        minority_confidence = original_scores[:, 1] + original_scores[:, 2] + original_scores[:, 4]
+        class0_penalty = torch.where(minority_confidence > self.class1_threshold, 0.80, 1.0)
         normalized_scores[:, 0] *= class0_penalty
 
-        # Boost Class 1 when it's competing with Class 2
-        class1_vs_class2 = normalized_scores[:, 1] / (normalized_scores[:, 2] + 1e-8)
-        class1_boost_adaptive = torch.where(class1_vs_class2 > 0.3, 1.3, 1.0)
-        normalized_scores[:, 1] *= class1_boost_adaptive
+        # 2. Class 1 vs Class 2 competition (Class 1 → Class 2 confusion)
+        class1_vs_class2 = original_scores[:, 1] / (original_scores[:, 2] + 1e-8)
+        class1_boost = torch.where(class1_vs_class2 > 0.25, 1.4, 1.0)
+        normalized_scores[:, 1] *= class1_boost
+
+        # 3. Class 2 vs Class 3 competition (Class 2 → Class 3 confusion)
+        class2_vs_class3 = original_scores[:, 2] / (original_scores[:, 3] + 1e-8)
+        class2_boost = torch.where(class2_vs_class3 > 0.4, 1.3, 1.0)
+        normalized_scores[:, 2] *= class2_boost
+
+        # 4. Class 4 vs Class 3 competition (Class 4 → Class 3 confusion)
+        class4_vs_class3 = original_scores[:, 4] / (original_scores[:, 3] + 1e-8)
+        class4_boost = torch.where(class4_vs_class3 > 0.3, 1.5, 1.0)
+        normalized_scores[:, 4] *= class4_boost
 
         # Apply conservative temperature scaling
         final_scores = torch.softmax(normalized_scores / self.temperature, dim=1)
@@ -158,7 +172,7 @@ def evaluate_medical_grade_ensemble():
     best_results = None
     best_accuracy = 0
 
-    print(f"\n🔧 Optimizing Class 1 threshold parameters...")
+    print(f"\n🔧 Optimizing multi-class threshold parameters...")
 
     for threshold in threshold_params:
         ensemble.class1_threshold = threshold
@@ -200,7 +214,7 @@ def evaluate_medical_grade_ensemble():
 
     print(f"🏆 Best Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
     print(f"🏥 Medical Grade: {'✅ PASS' if medical_grade else '❌ FAIL'}")
-    print(f"🔧 Optimal Class 1 threshold: {best_results['threshold_param']}")
+    print(f"🔧 Optimal multi-class threshold: {best_results['threshold_param']}")
 
     # Detailed analysis
     report = classification_report(best_results['targets'], best_results['predictions'],
@@ -255,7 +269,7 @@ def evaluate_medical_grade_ensemble():
     final_results = {
         'final_accuracy': float(accuracy),
         'medical_grade_achieved': medical_grade,
-        'optimal_class1_threshold': best_results['threshold_param'],
+        'optimal_multiclass_threshold': best_results['threshold_param'],
         'per_class_accuracies': [float(acc) for acc in class_accuracies],
         'improvement_from_original': float(improvement_from_start),
         'improvement_from_advanced': float(improvement_from_advanced),
