@@ -376,7 +376,7 @@ def main():
 
     # Configuration
     results_dir = "./ovo_ensemble_results_v2"
-    dataset_path = "./dataset7b"
+    dataset_path = "./dataset6"
 
     # Load config
     config_path = Path(results_dir) / "ovo_config.json"
