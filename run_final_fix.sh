@@ -11,10 +11,10 @@ echo "   CRITICAL ISSUE: Class 1 only 46.7% accuracy!"
 echo "   Class 1 F1-score: 0.552 (far below medical threshold)"
 echo ""
 
-echo "🎯 AGGRESSIVE Fix Strategy:"
-echo "   1. Class 1 boost: 4.0→8.0x (much more aggressive)"
+echo "🎯 CONSERVATIVE Fix Strategy:"
+echo "   1. Class 1 boost: 1.0→2.0x (conservative log-space)"
 echo "   2. Minority class boosting: Classes 3,4 also boosted"
-echo "   3. Better temperature scaling (1.2 vs 1.5)"
+echo "   3. Optimized temperature scaling (1.1)"
 echo "   4. Target: Get Class 1 above 70% accuracy"
 echo ""
 

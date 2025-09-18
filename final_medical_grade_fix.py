@@ -24,8 +24,8 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.binary_accuracies = {}
-        self.class1_boost = 4.0  # Aggressive boost for problematic Class 1
-        self.temperature = 1.2   # Temperature scaling
+        self.class1_boost = 1.5  # Conservative boost for Class 1
+        self.temperature = 1.1   # Conservative temperature scaling
 
     def load_binary_accuracies(self, results_dir):
         """Load binary classifier validation accuracies."""
@@ -88,13 +88,16 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
         # Normalize by accumulated weights
         normalized_scores = class_scores / (confidence_weights + 1e-8)
 
-        # Aggressive minority class boosting
-        normalized_scores[:, 1] *= self.class1_boost     # Class 1 (Mild NPDR)
-        normalized_scores[:, 3] *= 1.8                   # Class 3 (Severe NPDR)
-        normalized_scores[:, 4] *= 1.6                   # Class 4 (PDR)
+        # Conservative minority class adjustment in log space
+        log_scores = torch.log(normalized_scores + 1e-8)
 
-        # Final softmax for proper probability distribution
-        final_scores = torch.softmax(normalized_scores, dim=1)
+        # Small additive boosts in log space to preserve distributions
+        log_scores[:, 1] += torch.log(torch.tensor(self.class1_boost))  # Class 1 (Mild NPDR)
+        log_scores[:, 3] += torch.log(torch.tensor(1.3))                # Class 3 (Severe NPDR)
+        log_scores[:, 4] += torch.log(torch.tensor(1.2))                # Class 4 (PDR)
+
+        # Convert back to probabilities with proper normalization
+        final_scores = torch.softmax(log_scores, dim=1)
 
         return {'logits': final_scores}
 
@@ -144,8 +147,8 @@ def evaluate_medical_grade_ensemble():
     ensemble = ensemble.to(device)
     ensemble.eval()
 
-    # Test aggressive Class 1 boost factors
-    boost_factors = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    # Test conservative Class 1 boost factors
+    boost_factors = [1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0]
     best_results = None
     best_accuracy = 0
 
