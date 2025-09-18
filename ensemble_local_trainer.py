@@ -445,7 +445,7 @@ class OVOEnsemble(nn.Module):
         logger.info(f"   Total binary classifiers: {len(base_models) * len(self.class_pairs)}")
 
     def forward(self, x, return_individual=False):
-        """Forward pass with majority voting."""
+        """Forward pass with corrected OVO majority voting."""
         batch_size = x.size(0)
 
         # Collect votes from all binary classifiers
@@ -459,16 +459,20 @@ class OVOEnsemble(nn.Module):
                 # Extract class indices from classifier name
                 class_a, class_b = map(int, classifier_name.split('_')[1:])
 
-                # Get binary prediction
+                # Get binary prediction probability
                 binary_output = classifier(x).squeeze()  # Shape: (batch_size,)
 
-                # Convert binary output to class votes
-                # If output > 0.5, vote for class_b, else vote for class_a
-                class_a_votes = (binary_output <= 0.5).float()
-                class_b_votes = (binary_output > 0.5).float()
+                # Handle single sample case
+                if binary_output.dim() == 0:
+                    binary_output = binary_output.unsqueeze(0)
 
-                model_votes[:, class_a] += class_a_votes
-                model_votes[:, class_b] += class_b_votes
+                # Use confidence-weighted voting instead of hard votes
+                # Higher confidence = stronger vote
+                class_a_confidence = 1.0 - binary_output  # confidence for class_a
+                class_b_confidence = binary_output        # confidence for class_b
+
+                model_votes[:, class_a] += class_a_confidence
+                model_votes[:, class_b] += class_b_confidence
 
             # Add model votes to ensemble votes
             votes += model_votes
@@ -476,17 +480,21 @@ class OVOEnsemble(nn.Module):
             if return_individual:
                 individual_predictions[model_name] = model_votes
 
-        # Normalize votes by participation count to avoid class bias
-        # Each class participates in (num_classes - 1) binary classifiers
-        participation_count = self.num_classes - 1  # Each class appears in 4 out of 10 pairs for 5 classes
-        normalized_votes = votes / participation_count
+        # FIXED: Proper OVO normalization
+        # Each class participates in exactly (num_classes - 1) binary classifiers
+        # Total votes per class should be normalized by: num_base_models * (num_classes - 1)
+        total_votes_per_class = len(self.base_models) * (self.num_classes - 1)
 
-        # Final predictions based on normalized majority voting
-        final_predictions = normalized_votes
+        # Convert votes to probability-like scores
+        probability_scores = votes / total_votes_per_class
+
+        # Apply softmax for proper probability distribution
+        final_predictions = F.softmax(probability_scores, dim=1)
 
         result = {
             'logits': final_predictions,
-            'votes': votes
+            'votes': votes,
+            'raw_scores': probability_scores
         }
 
         if return_individual:

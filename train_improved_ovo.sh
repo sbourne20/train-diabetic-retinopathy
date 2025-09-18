@@ -22,7 +22,7 @@ echo "  - Automatic checkpoint resuming"
 # Train improved OVO ensemble
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./dataset7 \
+    --dataset_path ./dataset7b \
     --output_dir ./ovo_ensemble_results_v3 \
     --img_size 299 \
     --base_models mobilenet_v2 inception_v3 densenet121 \
