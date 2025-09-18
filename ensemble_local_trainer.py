@@ -779,12 +779,26 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
     )
 
     # Load trained weights into ensemble
+    logger.info("🔄 Loading trained binary classifiers into ensemble...")
+    loaded_count = 0
     for model_name in config['model']['base_models']:
         for pair_name in binary_datasets.keys():
-            model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{pair_name.split('_')[1]}_{pair_name.split('_')[2]}.pth"
+            # Extract class indices from pair_name (e.g., "pair_0_1" -> "0_1")
+            class_a, class_b = pair_name.split('_')[1], pair_name.split('_')[2]
+            model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{class_a}_{class_b}.pth"
+
             if model_path.exists():
-                state_dict = torch.load(model_path, map_location='cpu')
-                ovo_ensemble.classifiers[model_name][pair_name].load_state_dict(state_dict)
+                try:
+                    state_dict = torch.load(model_path, map_location='cpu')
+                    ovo_ensemble.classifiers[model_name][pair_name].load_state_dict(state_dict)
+                    loaded_count += 1
+                    logger.info(f"✅ Loaded: {model_path.name}")
+                except Exception as e:
+                    logger.warning(f"❌ Failed to load {model_path.name}: {e}")
+            else:
+                logger.warning(f"❌ Missing checkpoint: {model_path.name}")
+
+    logger.info(f"📦 Loaded {loaded_count}/30 binary classifiers into ensemble")
 
     # Save complete ensemble
     ensemble_path = Path(config['system']['output_dir']) / "models" / "ovo_ensemble_best.pth"
