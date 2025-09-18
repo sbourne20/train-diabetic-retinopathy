@@ -444,8 +444,13 @@ class OVOEnsemble(nn.Module):
             if return_individual:
                 individual_predictions[model_name] = model_votes
 
-        # Final predictions based on majority voting
-        final_predictions = votes  # Raw vote counts
+        # Normalize votes by participation count to avoid class bias
+        # Each class participates in (num_classes - 1) binary classifiers
+        participation_count = self.num_classes - 1  # Each class appears in 4 out of 10 pairs for 5 classes
+        normalized_votes = votes / participation_count
+
+        # Final predictions based on normalized majority voting
+        final_predictions = normalized_votes
 
         result = {
             'logits': final_predictions,
@@ -811,7 +816,7 @@ def evaluate_ovo_ensemble(ovo_ensemble, test_loader, config):
 
     logger.info("📋 Evaluating OVO Ensemble")
 
-    device = torch.device(config['system']['device'])
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     ovo_ensemble = ovo_ensemble.to(device)
     ovo_ensemble.eval()
 

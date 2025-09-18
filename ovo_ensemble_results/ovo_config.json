@@ -39,6 +39,6 @@
     "output_dir": "./ovo_ensemble_results",
     "experiment_name": "ovo_evaluation_test",
     "target_accuracy": 0.9696,
-    "use_wandb": true
+    "use_wandb": false
   }
 }
