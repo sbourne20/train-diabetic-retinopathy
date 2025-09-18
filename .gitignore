@@ -28,3 +28,5 @@ outputs/
 *.pkl
 *.joblib
 *.zip
+ovo_ensemble_results_v2/*
+ovo_ensemble_results_v2/results/*
