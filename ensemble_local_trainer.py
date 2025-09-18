@@ -106,7 +106,7 @@ Example Usage:
     
     # OVO Ensemble configuration
     parser.add_argument('--base_models', nargs='+',
-                       default=['mobilenet_v2', 'inception_v3', 'densenet121'],  # Research used MobileNet (v1), using v2 as closest available
+                       default=['mobilenet_v2', 'inception_v3', 'densenet121'],
                        help='Base models for OVO ensemble')
     parser.add_argument('--img_size', type=int, default=224,
                        help='Input image size (224 optimal for CNNs)')
@@ -324,7 +324,7 @@ class BinaryDataset(Dataset):
 class BinaryClassifier(nn.Module):
     """Binary classifier with frozen pre-trained backbone."""
 
-    def __init__(self, model_name='mobilenet_v2', freeze_weights=True, dropout=0.5):  # Research uses frozen weights + single output node
+    def __init__(self, model_name='mobilenet_v2', freeze_weights=True, dropout=0.5):
         super().__init__()
         self.model_name = model_name
 
@@ -346,24 +346,48 @@ class BinaryClassifier(nn.Module):
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
-        # RESEARCH-VALIDATED: Transfer learning with frozen weights (exactly as in paper)
+        # Fine-tuning strategy instead of freezing for better medical accuracy
         if freeze_weights:
-            # Research method: freeze ALL pretrained weights, only train classifier
-            for param in self.backbone.parameters():
-                param.requires_grad = False
-            logger.info(f"✅ RESEARCH MODE: Frozen all pretrained weights for {model_name}")
+            # Partial fine-tuning: freeze early layers, unfreeze later layers
+            if model_name == 'densenet121':
+                # Freeze first 2 dense blocks, fine-tune last 2
+                for name, param in self.backbone.named_parameters():
+                    if 'denseblock1' in name or 'denseblock2' in name:
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'mobilenet_v2':
+                # Freeze first 10 layers, fine-tune rest
+                for i, param in enumerate(self.backbone.parameters()):
+                    if i < 10:
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'inception_v3':
+                # Freeze early layers, fine-tune later
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3', 'Conv2d_4']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
         else:
-            # Fine-tuning mode (not used in research but available for experimentation)
+            # Full fine-tuning for maximum accuracy
             for param in self.backbone.parameters():
                 param.requires_grad = True
-            logger.warning(f"⚠️ NON-RESEARCH MODE: Fine-tuning enabled for {model_name}")
 
-        # RESEARCH-VALIDATED: Single node output layer (as specified in paper)
-        # Paper method: "append a single node at the end of the output layer"
+        # Enhanced binary classification head for medical accuracy
         self.classifier = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(num_features, 1),  # Research spec: single output node for binary classification
-            nn.Sigmoid()  # Research uses threshold=0.60, so sigmoid output
+            nn.Linear(num_features, 512),
+            nn.ReLU(),
+            nn.BatchNorm1d(512),
+            nn.Dropout(dropout/2),
+            nn.Linear(512, 128),
+            nn.ReLU(),
+            nn.BatchNorm1d(128),
+            nn.Dropout(dropout/2),
+            nn.Linear(128, 1),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -421,7 +445,7 @@ class OVOEnsemble(nn.Module):
         logger.info(f"   Total binary classifiers: {len(base_models) * len(self.class_pairs)}")
 
     def forward(self, x, return_individual=False):
-        """Forward pass with corrected OVO majority voting."""
+        """Forward pass with majority voting."""
         batch_size = x.size(0)
 
         # Collect votes from all binary classifiers
@@ -435,20 +459,16 @@ class OVOEnsemble(nn.Module):
                 # Extract class indices from classifier name
                 class_a, class_b = map(int, classifier_name.split('_')[1:])
 
-                # Get binary prediction probability
+                # Get binary prediction
                 binary_output = classifier(x).squeeze()  # Shape: (batch_size,)
 
-                # Handle single sample case
-                if binary_output.dim() == 0:
-                    binary_output = binary_output.unsqueeze(0)
+                # Convert binary output to class votes
+                # If output > 0.5, vote for class_b, else vote for class_a
+                class_a_votes = (binary_output <= 0.5).float()
+                class_b_votes = (binary_output > 0.5).float()
 
-                # Use confidence-weighted voting instead of hard votes
-                # Higher confidence = stronger vote
-                class_a_confidence = 1.0 - binary_output  # confidence for class_a
-                class_b_confidence = binary_output        # confidence for class_b
-
-                model_votes[:, class_a] += class_a_confidence
-                model_votes[:, class_b] += class_b_confidence
+                model_votes[:, class_a] += class_a_votes
+                model_votes[:, class_b] += class_b_votes
 
             # Add model votes to ensemble votes
             votes += model_votes
@@ -456,21 +476,17 @@ class OVOEnsemble(nn.Module):
             if return_individual:
                 individual_predictions[model_name] = model_votes
 
-        # FIXED: Proper OVO normalization
-        # Each class participates in exactly (num_classes - 1) binary classifiers
-        # Total votes per class should be normalized by: num_base_models * (num_classes - 1)
-        total_votes_per_class = len(self.base_models) * (self.num_classes - 1)
+        # Normalize votes by participation count to avoid class bias
+        # Each class participates in (num_classes - 1) binary classifiers
+        participation_count = self.num_classes - 1  # Each class appears in 4 out of 10 pairs for 5 classes
+        normalized_votes = votes / participation_count
 
-        # Convert votes to probability-like scores
-        probability_scores = votes / total_votes_per_class
-
-        # Apply softmax for proper probability distribution
-        final_predictions = F.softmax(probability_scores, dim=1)
+        # Final predictions based on normalized majority voting
+        final_predictions = normalized_votes
 
         result = {
             'logits': final_predictions,
-            'votes': votes,
-            'raw_scores': probability_scores
+            'votes': votes
         }
 
         if return_individual:
@@ -479,36 +495,27 @@ class OVOEnsemble(nn.Module):
         return result
 
 def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0):
-    """Create transforms for OVO training with RESEARCH-VALIDATED specifications.
+    """Create transforms for OVO training with standardized image sizes."""
 
-    Based on paper: "A lightweight transfer learning based ensemble approach for diabetic retinopathy detection"
-    Research specifications: 224x224 input, rotation=45°, shear=0.2, zoom=0.2, rescale=1./255
-    """
+    # Ensure minimum size for InceptionV3 (requires 75x75 minimum, 299x299 optimal)
+    safe_img_size = max(img_size, 299)  # Use 299x299 for InceptionV3 compatibility
 
-    # CRITICAL: Use research-specified 224x224 (NOT 299x299)
-    research_img_size = 224  # Paper Table 6: Image Size = 224*224*3
-
-    # RESEARCH-VALIDATED augmentation parameters (Table 6)
+    # Standardized transforms with explicit size control
     train_transforms = [
-        # Research spec: Image Size = 224*224*3
-        transforms.Resize((research_img_size, research_img_size), antialias=True),
-        # Research spec: Rotation_range = 45
-        transforms.RandomRotation(degrees=45),
-        # Research spec: Horizontal_flip = True, Vertical_flip = True
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.5),
-        # Research spec: Shear_range = 0.2
-        transforms.RandomAffine(degrees=0, shear=0.2),
-        # Research spec: Zoom_range = 0.2 (approximated with RandomResizedCrop)
-        transforms.RandomResizedCrop(research_img_size, scale=(0.8, 1.2)),
+        # Force consistent size first
+        transforms.Resize((safe_img_size, safe_img_size), antialias=True),
+        # Medical-grade augmentation (conservative)
+        transforms.RandomRotation(10),  # Reduced for medical images
+        transforms.RandomHorizontalFlip(0.3),  # Reduced probability
+        transforms.ColorJitter(brightness=0.05, contrast=0.05),  # Subtle changes
+        # Convert to tensor and normalize
         transforms.ToTensor(),
-        # Research spec: Rescale = 1./255 (ToTensor already does this)
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
 
     val_transforms = [
-        # Research spec: 224x224 for validation too
-        transforms.Resize((research_img_size, research_img_size), antialias=True),
+        # Force consistent size
+        transforms.Resize((safe_img_size, safe_img_size), antialias=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
@@ -517,7 +524,7 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
     if enable_clahe:
         logger.warning("CLAHE is disabled for stability. Standard transforms will be used.")
 
-    logger.info(f"✅ RESEARCH-VALIDATED transforms created: {research_img_size}x{research_img_size} with paper specifications")
+    logger.info(f"✅ Transforms created with InceptionV3-safe size: {safe_img_size}x{safe_img_size} (requested: {img_size}x{img_size})")
 
     return (
         transforms.Compose(train_transforms),
