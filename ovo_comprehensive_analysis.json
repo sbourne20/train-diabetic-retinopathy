@@ -459,39 +459,270 @@
       }
     },
     "3_4": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_3_4.pth",
+      "file_size_mb": 275.38455963134766,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 16,
+      "best_val_accuracy": 81.27090301003345,
+      "current_val_accuracy": 81.27090301003345,
+      "current_train_accuracy": 91.38808139534883,
+      "class_pair": [
+        3,
+        4
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 16,
+        "final_train_acc": 91.38808139534883,
+        "final_val_acc": 81.27090301003345,
+        "max_val_acc": 81.27090301003345,
+        "min_train_loss": 0.21857245820899343,
+        "min_val_loss": 0.48955057859420775
+      }
     }
   },
   "densenet121": {
     "0_1": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_0_1.pth",
+      "file_size_mb": 87.27637672424316,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 13,
+      "best_val_accuracy": 91.95949970220369,
+      "current_val_accuracy": 91.95949970220369,
+      "current_train_accuracy": 93.53227459016394,
+      "class_pair": [
+        0,
+        1
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 13,
+        "final_train_acc": 93.53227459016394,
+        "final_val_acc": 91.95949970220369,
+        "max_val_acc": 91.95949970220369,
+        "min_train_loss": 0.1793005043854479,
+        "min_val_loss": 0.20195789369089262
+      }
     },
     "0_2": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_0_2.pth",
+      "file_size_mb": 87.27662086486816,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 19,
+      "best_val_accuracy": 91.32922535211267,
+      "current_val_accuracy": 91.32922535211267,
+      "current_train_accuracy": 97.03598484848484,
+      "class_pair": [
+        0,
+        2
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 19,
+        "final_train_acc": 97.03598484848484,
+        "final_val_acc": 91.32922535211267,
+        "max_val_acc": 91.32922535211267,
+        "min_train_loss": 0.0815569336497874,
+        "min_val_loss": 0.2259766281478935
+      }
     },
     "0_3": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_0_3.pth",
+      "file_size_mb": 87.27674293518066,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 22,
+      "best_val_accuracy": 99.76176295413937,
+      "current_val_accuracy": 99.76176295413937,
+      "current_train_accuracy": 99.75665983606558,
+      "class_pair": [
+        0,
+        3
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 22,
+        "final_train_acc": 99.75665983606558,
+        "final_val_acc": 99.76176295413937,
+        "max_val_acc": 99.76176295413937,
+        "min_train_loss": 0.008365778345042138,
+        "min_val_loss": 0.010351470265439795
+      }
     },
     "0_4": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_0_4.pth",
+      "file_size_mb": 87.27662086486816,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 19,
+      "best_val_accuracy": 99.2852888624181,
+      "current_val_accuracy": 99.2852888624181,
+      "current_train_accuracy": 99.65420081967213,
+      "class_pair": [
+        0,
+        4
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 19,
+        "final_train_acc": 99.65420081967213,
+        "final_val_acc": 99.2852888624181,
+        "max_val_acc": 99.2852888624181,
+        "min_train_loss": 0.012522141234453034,
+        "min_val_loss": 0.03040585177950561
+      }
     },
     "1_2": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_1_2.pth",
+      "file_size_mb": 87.27674293518066,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 22,
+      "best_val_accuracy": 85.22250209907641,
+      "current_val_accuracy": 85.22250209907641,
+      "current_train_accuracy": 91.89680232558139,
+      "class_pair": [
+        1,
+        2
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 22,
+        "final_train_acc": 91.89680232558139,
+        "final_val_acc": 85.22250209907641,
+        "max_val_acc": 85.22250209907641,
+        "min_train_loss": 0.20207794703716456,
+        "min_val_loss": 0.35170559734106066
+      }
     },
     "1_3": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_1_3.pth",
+      "file_size_mb": 87.27710914611816,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 30,
+      "best_val_accuracy": 91.30434782608695,
+      "current_val_accuracy": 91.30434782608695,
+      "current_train_accuracy": 98.47383720930233,
+      "class_pair": [
+        1,
+        3
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 30,
+        "final_train_acc": 98.47383720930233,
+        "final_val_acc": 91.30434782608695,
+        "max_val_acc": 91.30434782608695,
+        "min_train_loss": 0.047441404356166374,
+        "min_val_loss": 0.23587184846401216
+      }
     },
     "1_4": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_1_4.pth",
+      "file_size_mb": 87.27710914611816,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 30,
+      "best_val_accuracy": 92.3076923076923,
+      "current_val_accuracy": 92.3076923076923,
+      "current_train_accuracy": 99.0188953488372,
+      "class_pair": [
+        1,
+        4
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 30,
+        "final_train_acc": 99.0188953488372,
+        "final_val_acc": 92.3076923076923,
+        "max_val_acc": 92.3076923076923,
+        "min_train_loss": 0.03791218309468308,
+        "min_val_loss": 0.23031646013259888
+      }
     },
     "2_3": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_2_3.pth",
+      "file_size_mb": 87.27668190002441,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 20,
+      "best_val_accuracy": 95.29806884970613,
+      "current_val_accuracy": 95.29806884970613,
+      "current_train_accuracy": 97.29287790697674,
+      "class_pair": [
+        2,
+        3
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 20,
+        "final_train_acc": 97.29287790697674,
+        "final_val_acc": 95.29806884970613,
+        "max_val_acc": 95.29806884970613,
+        "min_train_loss": 0.08272047067970731,
+        "min_val_loss": 0.15918423142284155
+      }
     },
     "2_4": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_2_4.pth",
+      "file_size_mb": 87.27704811096191,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 29,
+      "best_val_accuracy": 94.96221662468514,
+      "current_val_accuracy": 94.96221662468514,
+      "current_train_accuracy": 97.52906976744185,
+      "class_pair": [
+        2,
+        4
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 29,
+        "final_train_acc": 97.52906976744185,
+        "final_val_acc": 94.96221662468514,
+        "max_val_acc": 94.96221662468514,
+        "min_train_loss": 0.07637306287624808,
+        "min_val_loss": 0.22206430956721307
+      }
     },
     "3_4": {
-      "status": "missing"
+      "model_path": "ovo_ensemble_results_v2/models/best_densenet121_3_4.pth",
+      "file_size_mb": 87.27692604064941,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 26,
+      "best_val_accuracy": 84.44816053511705,
+      "current_val_accuracy": 84.44816053511705,
+      "current_train_accuracy": 92.98691860465117,
+      "class_pair": [
+        3,
+        4
+      ],
+      "model_name": "densenet121",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 26,
+        "final_train_acc": 92.98691860465117,
+        "final_val_acc": 84.44816053511705,
+        "max_val_acc": 84.44816053511705,
+        "min_train_loss": 0.16615907085496326,
+        "min_val_loss": 0.45983182191848754
+      }
     }
   }
 }

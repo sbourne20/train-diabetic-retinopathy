@@ -1,0 +1,47 @@
+{
+  "ensemble_accuracy": 0.8094488188976378,
+  "individual_accuracies": {
+    "mobilenet_v2": 0.7795275590551181,
+    "inception_v3": 0.768503937007874,
+    "densenet121": 0.8056692913385827
+  },
+  "medical_grade_pass": false,
+  "research_target_achieved": false,
+  "confusion_matrix": [
+    [
+      1321,
+      6,
+      53,
+      0,
+      1
+    ],
+    [
+      81,
+      136,
+      69,
+      8,
+      6
+    ],
+    [
+      118,
+      12,
+      733,
+      13,
+      17
+    ],
+    [
+      0,
+      15,
+      48,
+      203,
+      34
+    ],
+    [
+      3,
+      12,
+      68,
+      41,
+      177
+    ]
+  ]
+}

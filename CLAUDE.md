@@ -11,6 +11,8 @@ Complete Coverage Breakdown:
   | Phase 2.7: Advanced Classifiers   | Mydriatic status, NV activity, severity | 15%        |
   | Phases 3-4: Text Generation & API | Synonyms, recommendations, integration  | 98% 100% ✅ |
 
+Run python analyze_ovo_with_metrics.py to analyze all models.
+
 ## Project Overview
 This project builds a comprehensive medical-grade diabetic retinopathy analysis system using a multi-modal AI pipeline:
 - **MedSigLIP-448**: Image classification and severity grading
