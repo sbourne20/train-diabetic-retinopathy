@@ -24,8 +24,8 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.binary_accuracies = {}
-        self.class1_boost = 1.5  # Conservative boost for Class 1
-        self.temperature = 1.1   # Conservative temperature scaling
+        self.class1_threshold = 0.15  # Adaptive threshold for Class 1
+        self.temperature = 1.1        # Conservative temperature scaling
 
     def load_binary_accuracies(self, results_dir):
         """Load binary classifier validation accuracies."""
@@ -88,16 +88,22 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
         # Normalize by accumulated weights
         normalized_scores = class_scores / (confidence_weights + 1e-8)
 
-        # Conservative minority class adjustment in log space
-        log_scores = torch.log(normalized_scores + 1e-8)
+        # Class boundary adjustment based on confusion matrix analysis
+        # Class 1 is being confused with Class 0 and Class 2
+        # Apply targeted threshold adjustments
 
-        # Small additive boosts in log space to preserve distributions
-        log_scores[:, 1] += torch.log(torch.tensor(self.class1_boost))  # Class 1 (Mild NPDR)
-        log_scores[:, 3] += torch.log(torch.tensor(1.3))                # Class 3 (Severe NPDR)
-        log_scores[:, 4] += torch.log(torch.tensor(1.2))                # Class 4 (PDR)
+        # Reduce Class 0 dominance when Class 1 has reasonable confidence
+        class1_confidence = normalized_scores[:, 1]
+        class0_penalty = torch.where(class1_confidence > self.class1_threshold, 0.85, 1.0)
+        normalized_scores[:, 0] *= class0_penalty
 
-        # Convert back to probabilities with proper normalization
-        final_scores = torch.softmax(log_scores, dim=1)
+        # Boost Class 1 when it's competing with Class 2
+        class1_vs_class2 = normalized_scores[:, 1] / (normalized_scores[:, 2] + 1e-8)
+        class1_boost_adaptive = torch.where(class1_vs_class2 > 0.3, 1.3, 1.0)
+        normalized_scores[:, 1] *= class1_boost_adaptive
+
+        # Apply conservative temperature scaling
+        final_scores = torch.softmax(normalized_scores / self.temperature, dim=1)
 
         return {'logits': final_scores}
 
@@ -147,15 +153,15 @@ def evaluate_medical_grade_ensemble():
     ensemble = ensemble.to(device)
     ensemble.eval()
 
-    # Test conservative Class 1 boost factors
-    boost_factors = [1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0]
+    # Test adaptive threshold parameters
+    threshold_params = [0.10, 0.12, 0.15, 0.18, 0.20, 0.25]
     best_results = None
     best_accuracy = 0
 
-    print(f"\n🔧 Optimizing Class 1 boost factor...")
+    print(f"\n🔧 Optimizing Class 1 threshold parameters...")
 
-    for boost in boost_factors:
-        ensemble.class1_boost = boost
+    for threshold in threshold_params:
+        ensemble.class1_threshold = threshold
 
         all_predictions = []
         all_targets = []
@@ -172,7 +178,7 @@ def evaluate_medical_grade_ensemble():
                 all_targets.extend(targets.cpu().numpy())
 
         accuracy = accuracy_score(all_targets, all_predictions)
-        print(f"   Boost {boost}: {accuracy:.4f} ({accuracy*100:.2f}%)")
+        print(f"   Threshold {threshold}: {accuracy:.4f} ({accuracy*100:.2f}%)")
 
         if accuracy > best_accuracy:
             best_accuracy = accuracy
@@ -180,21 +186,21 @@ def evaluate_medical_grade_ensemble():
                 'accuracy': accuracy,
                 'predictions': all_predictions.copy(),
                 'targets': all_targets.copy(),
-                'boost_factor': boost
+                'threshold_param': threshold
             }
 
     # Final evaluation with best boost factor
     print(f"\n🎯 FINAL MEDICAL-GRADE EVALUATION:")
     print("=" * 60)
 
-    ensemble.class1_boost = best_results['boost_factor']
+    ensemble.class1_threshold = best_results['threshold_param']
 
     accuracy = best_results['accuracy']
     medical_grade = accuracy >= 0.90
 
     print(f"🏆 Best Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
     print(f"🏥 Medical Grade: {'✅ PASS' if medical_grade else '❌ FAIL'}")
-    print(f"🔧 Optimal Class 1 boost: {best_results['boost_factor']}")
+    print(f"🔧 Optimal Class 1 threshold: {best_results['threshold_param']}")
 
     # Detailed analysis
     report = classification_report(best_results['targets'], best_results['predictions'],
@@ -249,7 +255,7 @@ def evaluate_medical_grade_ensemble():
     final_results = {
         'final_accuracy': float(accuracy),
         'medical_grade_achieved': medical_grade,
-        'optimal_class1_boost': best_results['boost_factor'],
+        'optimal_class1_threshold': best_results['threshold_param'],
         'per_class_accuracies': [float(acc) for acc in class_accuracies],
         'improvement_from_original': float(improvement_from_start),
         'improvement_from_advanced': float(improvement_from_advanced),
