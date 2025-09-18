@@ -24,7 +24,8 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.binary_accuracies = {}
-        self.class1_boost = 2.0  # Boost factor for problematic Class 1
+        self.class1_boost = 4.0  # Aggressive boost for problematic Class 1
+        self.temperature = 1.2   # Temperature scaling
 
     def load_binary_accuracies(self, results_dir):
         """Load binary classifier validation accuracies."""
@@ -64,8 +65,7 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
                     binary_output = binary_output.unsqueeze(0)
 
                 # Apply temperature scaling for better calibration
-                temperature = 1.5  # Smooth out overconfident predictions
-                calibrated_output = torch.sigmoid(torch.logit(binary_output) / temperature)
+                calibrated_output = torch.sigmoid(torch.logit(binary_output) / self.temperature)
 
                 # Convert to class probabilities
                 prob_class_a = 1.0 - calibrated_output
@@ -88,8 +88,10 @@ class MedicalGradeOVOEnsemble(OVOEnsemble):
         # Normalize by accumulated weights
         normalized_scores = class_scores / (confidence_weights + 1e-8)
 
-        # Class 1 (Mild NPDR) boost - it's being underrepresented
-        normalized_scores[:, 1] *= self.class1_boost
+        # Aggressive minority class boosting
+        normalized_scores[:, 1] *= self.class1_boost     # Class 1 (Mild NPDR)
+        normalized_scores[:, 3] *= 1.8                   # Class 3 (Severe NPDR)
+        normalized_scores[:, 4] *= 1.6                   # Class 4 (PDR)
 
         # Final softmax for proper probability distribution
         final_scores = torch.softmax(normalized_scores, dim=1)
@@ -142,8 +144,8 @@ def evaluate_medical_grade_ensemble():
     ensemble = ensemble.to(device)
     ensemble.eval()
 
-    # Test different Class 1 boost factors
-    boost_factors = [1.0, 1.5, 2.0, 2.5, 3.0]
+    # Test aggressive Class 1 boost factors
+    boost_factors = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
     best_results = None
     best_accuracy = 0
 
