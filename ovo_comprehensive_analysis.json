@@ -1,0 +1,497 @@
+{
+  "mobilenet_v2": {
+    "0_1": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_0_1.pth",
+      "file_size_mb": 34.11709785461426,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 12,
+      "best_val_accuracy": 92.25729600952948,
+      "current_val_accuracy": 92.25729600952948,
+      "current_train_accuracy": 92.1234631147541,
+      "class_pair": [
+        0,
+        1
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 12,
+        "final_train_acc": 92.1234631147541,
+        "final_val_acc": 92.25729600952948,
+        "max_val_acc": 92.25729600952948,
+        "min_train_loss": 0.2113546550762458,
+        "min_val_loss": 0.2091564168887479
+      }
+    },
+    "0_2": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_0_2.pth",
+      "file_size_mb": 34.11776924133301,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 27,
+      "best_val_accuracy": 91.10915492957747,
+      "current_val_accuracy": 91.10915492957747,
+      "current_train_accuracy": 96.05113636363636,
+      "class_pair": [
+        0,
+        2
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 27,
+        "final_train_acc": 96.05113636363636,
+        "final_val_acc": 91.10915492957747,
+        "max_val_acc": 91.10915492957747,
+        "min_train_loss": 0.0995549966778719,
+        "min_val_loss": 0.235146784534057
+      }
+    },
+    "0_3": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_0_3.pth",
+      "file_size_mb": 34.11728096008301,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 16,
+      "best_val_accuracy": 99.64264443120905,
+      "current_val_accuracy": 99.64264443120905,
+      "current_train_accuracy": 99.66700819672131,
+      "class_pair": [
+        0,
+        3
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 16,
+        "final_train_acc": 99.66700819672131,
+        "final_val_acc": 99.64264443120905,
+        "max_val_acc": 99.64264443120905,
+        "min_train_loss": 0.016398450166948873,
+        "min_val_loss": 0.015848043944645594
+      }
+    },
+    "0_4": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_0_4.pth",
+      "file_size_mb": 34.11740303039551,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 18,
+      "best_val_accuracy": 99.16617033948779,
+      "current_val_accuracy": 99.16617033948779,
+      "current_train_accuracy": 99.37243852459017,
+      "class_pair": [
+        0,
+        4
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 18,
+        "final_train_acc": 99.37243852459017,
+        "final_val_acc": 99.16617033948779,
+        "max_val_acc": 99.16617033948779,
+        "min_train_loss": 0.026794849057132225,
+        "min_val_loss": 0.052368945109524896
+      }
+    },
+    "1_2": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_1_2.pth",
+      "file_size_mb": 34.11789131164551,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 30,
+      "best_val_accuracy": 84.55079764903442,
+      "current_val_accuracy": 84.55079764903442,
+      "current_train_accuracy": 89.93459302325581,
+      "class_pair": [
+        1,
+        2
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 30,
+        "final_train_acc": 89.93459302325581,
+        "final_val_acc": 84.55079764903442,
+        "max_val_acc": 84.55079764903442,
+        "min_train_loss": 0.22571457108092863,
+        "min_val_loss": 0.3353733390569687
+      }
+    },
+    "1_3": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_1_3.pth",
+      "file_size_mb": 34.11776924133301,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 27,
+      "best_val_accuracy": 90.3010033444816,
+      "current_val_accuracy": 90.3010033444816,
+      "current_train_accuracy": 96.43895348837209,
+      "class_pair": [
+        1,
+        3
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 27,
+        "final_train_acc": 96.43895348837209,
+        "final_val_acc": 90.3010033444816,
+        "max_val_acc": 90.3010033444816,
+        "min_train_loss": 0.09208429336201313,
+        "min_val_loss": 0.2696119412779808
+      }
+    },
+    "1_4": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_1_4.pth",
+      "file_size_mb": 34.11740303039551,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 19,
+      "best_val_accuracy": 91.1371237458194,
+      "current_val_accuracy": 91.1371237458194,
+      "current_train_accuracy": 94.98546511627907,
+      "class_pair": [
+        1,
+        4
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 19,
+        "final_train_acc": 94.98546511627907,
+        "final_val_acc": 91.1371237458194,
+        "max_val_acc": 91.1371237458194,
+        "min_train_loss": 0.12871066238297973,
+        "min_val_loss": 0.26562494337558745
+      }
+    },
+    "2_3": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_2_3.pth",
+      "file_size_mb": 34.11728096008301,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 16,
+      "best_val_accuracy": 95.04617968094038,
+      "current_val_accuracy": 95.04617968094038,
+      "current_train_accuracy": 95.27616279069767,
+      "class_pair": [
+        2,
+        3
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 16,
+        "final_train_acc": 95.27616279069767,
+        "final_val_acc": 95.04617968094038,
+        "max_val_acc": 95.04617968094038,
+        "min_train_loss": 0.12810234339951082,
+        "min_val_loss": 0.14212500620633364
+      }
+    },
+    "2_4": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_2_4.pth",
+      "file_size_mb": 34.11703681945801,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 10,
+      "best_val_accuracy": 93.28295549958018,
+      "current_val_accuracy": 93.28295549958018,
+      "current_train_accuracy": 92.64171511627907,
+      "class_pair": [
+        2,
+        4
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 10,
+        "final_train_acc": 92.64171511627907,
+        "final_val_acc": 93.28295549958018,
+        "max_val_acc": 93.28295549958018,
+        "min_train_loss": 0.20372671781237736,
+        "min_val_loss": 0.2473826751112938
+      }
+    },
+    "3_4": {
+      "model_path": "ovo_ensemble_results_v2/models/best_mobilenet_v2_3_4.pth",
+      "file_size_mb": 34.11776924133301,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 27,
+      "best_val_accuracy": 82.10702341137124,
+      "current_val_accuracy": 82.10702341137124,
+      "current_train_accuracy": 91.38808139534883,
+      "class_pair": [
+        3,
+        4
+      ],
+      "model_name": "mobilenet_v2",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 27,
+        "final_train_acc": 91.38808139534883,
+        "final_val_acc": 82.10702341137124,
+        "max_val_acc": 82.10702341137124,
+        "min_train_loss": 0.2198532705390176,
+        "min_val_loss": 0.48159424364566805
+      }
+    }
+  },
+  "inception_v3": {
+    "0_1": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_0_1.pth",
+      "file_size_mb": 275.38492584228516,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 24,
+      "best_val_accuracy": 92.07861822513401,
+      "current_val_accuracy": 92.07861822513401,
+      "current_train_accuracy": 98.6936475409836,
+      "class_pair": [
+        0,
+        1
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 24,
+        "final_train_acc": 98.6936475409836,
+        "final_val_acc": 92.07861822513401,
+        "max_val_acc": 92.07861822513401,
+        "min_train_loss": 0.0430329357556327,
+        "min_val_loss": 0.24185053559319517
+      }
+    },
+    "0_2": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_0_2.pth",
+      "file_size_mb": 275.3849868774414,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 26,
+      "best_val_accuracy": 89.12852112676056,
+      "current_val_accuracy": 89.12852112676056,
+      "current_train_accuracy": 98.7215909090909,
+      "class_pair": [
+        0,
+        2
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 26,
+        "final_train_acc": 98.7215909090909,
+        "final_val_acc": 89.12852112676056,
+        "max_val_acc": 89.12852112676056,
+        "min_train_loss": 0.03926979252842791,
+        "min_val_loss": 0.290822631575995
+      }
+    },
+    "0_3": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_0_3.pth",
+      "file_size_mb": 275.38443756103516,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 13,
+      "best_val_accuracy": 99.46396664681357,
+      "current_val_accuracy": 99.46396664681357,
+      "current_train_accuracy": 99.71823770491804,
+      "class_pair": [
+        0,
+        3
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 13,
+        "final_train_acc": 99.71823770491804,
+        "final_val_acc": 99.46396664681357,
+        "max_val_acc": 99.46396664681357,
+        "min_train_loss": 0.018709186426856265,
+        "min_val_loss": 0.02866191295470344
+      }
+    },
+    "0_4": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_0_4.pth",
+      "file_size_mb": 275.3844985961914,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 15,
+      "best_val_accuracy": 98.68969624776653,
+      "current_val_accuracy": 98.68969624776653,
+      "current_train_accuracy": 99.52612704918033,
+      "class_pair": [
+        0,
+        4
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 15,
+        "final_train_acc": 99.52612704918033,
+        "final_val_acc": 98.68969624776653,
+        "max_val_acc": 98.68969624776653,
+        "min_train_loss": 0.020299451690945835,
+        "min_val_loss": 0.06130156220336046
+      }
+    },
+    "1_2": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_1_2.pth",
+      "file_size_mb": 275.38468170166016,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 18,
+      "best_val_accuracy": 85.13853904282117,
+      "current_val_accuracy": 85.13853904282117,
+      "current_train_accuracy": 94.40406976744185,
+      "class_pair": [
+        1,
+        2
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 18,
+        "final_train_acc": 94.40406976744185,
+        "final_val_acc": 85.13853904282117,
+        "max_val_acc": 85.13853904282117,
+        "min_train_loss": 0.1538443512521511,
+        "min_val_loss": 0.36984836161136625
+      }
+    },
+    "1_3": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_1_3.pth",
+      "file_size_mb": 275.38504791259766,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 27,
+      "best_val_accuracy": 90.96989966555184,
+      "current_val_accuracy": 90.96989966555184,
+      "current_train_accuracy": 98.4375,
+      "class_pair": [
+        1,
+        3
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 27,
+        "final_train_acc": 98.4375,
+        "final_val_acc": 90.96989966555184,
+        "max_val_acc": 90.96989966555184,
+        "min_train_loss": 0.044181501731103245,
+        "min_val_loss": 0.2714138597249985
+      }
+    },
+    "1_4": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_1_4.pth",
+      "file_size_mb": 275.3844985961914,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 15,
+      "best_val_accuracy": 90.46822742474916,
+      "current_val_accuracy": 90.46822742474916,
+      "current_train_accuracy": 97.4563953488372,
+      "class_pair": [
+        1,
+        4
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 15,
+        "final_train_acc": 97.4563953488372,
+        "final_val_acc": 90.46822742474916,
+        "max_val_acc": 90.46822742474916,
+        "min_train_loss": 0.07363788727237734,
+        "min_val_loss": 0.30033219456672666
+      }
+    },
+    "2_3": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_2_3.pth",
+      "file_size_mb": 275.3847427368164,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 20,
+      "best_val_accuracy": 95.13014273719564,
+      "current_val_accuracy": 95.13014273719564,
+      "current_train_accuracy": 98.78270348837209,
+      "class_pair": [
+        2,
+        3
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 20,
+        "final_train_acc": 98.78270348837209,
+        "final_val_acc": 95.13014273719564,
+        "max_val_acc": 95.13014273719564,
+        "min_train_loss": 0.04497965947768196,
+        "min_val_loss": 0.15837384071201085
+      }
+    },
+    "2_4": {
+      "model_path": "ovo_ensemble_results_v2/models/best_inception_v3_2_4.pth",
+      "file_size_mb": 275.3843765258789,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 12,
+      "best_val_accuracy": 92.19143576826197,
+      "current_val_accuracy": 92.19143576826197,
+      "current_train_accuracy": 96.71148255813954,
+      "class_pair": [
+        2,
+        4
+      ],
+      "model_name": "inception_v3",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 12,
+        "final_train_acc": 96.71148255813954,
+        "final_val_acc": 92.19143576826197,
+        "max_val_acc": 92.19143576826197,
+        "min_train_loss": 0.11003681432542413,
+        "min_val_loss": 0.27824859842658045
+      }
+    },
+    "3_4": {
+      "status": "missing"
+    }
+  },
+  "densenet121": {
+    "0_1": {
+      "status": "missing"
+    },
+    "0_2": {
+      "status": "missing"
+    },
+    "0_3": {
+      "status": "missing"
+    },
+    "0_4": {
+      "status": "missing"
+    },
+    "1_2": {
+      "status": "missing"
+    },
+    "1_3": {
+      "status": "missing"
+    },
+    "1_4": {
+      "status": "missing"
+    },
+    "2_3": {
+      "status": "missing"
+    },
+    "2_4": {
+      "status": "missing"
+    },
+    "3_4": {
+      "status": "missing"
+    }
+  }
+}

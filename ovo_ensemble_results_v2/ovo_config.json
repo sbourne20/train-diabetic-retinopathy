@@ -3,7 +3,7 @@
     "dataset_path": "./dataset6",
     "num_classes": 5,
     "img_size": 299,
-    "batch_size": 8,
+    "batch_size": 6,
     "enable_clahe": false,
     "clahe_clip_limit": 3.0,
     "clahe_tile_grid_size": [
@@ -14,15 +14,14 @@
   "model": {
     "base_models": [
       "mobilenet_v2",
-      "inception_v3",
-      "densenet121"
+      "inception_v3"
     ],
-    "freeze_weights": false,
-    "dropout": 0.3,
+    "freeze_weights": true,
+    "dropout": 0.5,
     "num_classes": 5
   },
   "training": {
-    "epochs": 30,
+    "epochs": 80,
     "learning_rate": 0.0001,
     "weight_decay": 0.0001,
     "patience": 15,
@@ -37,7 +36,7 @@
     "device": "cuda",
     "seed": 42,
     "output_dir": "./ovo_ensemble_results_v2",
-    "experiment_name": "improved_ovo_ensemble",
+    "experiment_name": "partial_ensemble_eval",
     "target_accuracy": 0.9696,
     "use_wandb": false
   }
