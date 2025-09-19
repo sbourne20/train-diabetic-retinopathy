@@ -46,6 +46,15 @@ from itertools import combinations
 import cv2
 from tqdm import tqdm
 
+# Essential wandb import for medical-grade tracking
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+    print("✅ wandb available for experiment tracking")
+except ImportError:
+    WANDB_AVAILABLE = False
+    print("❌ Warning: wandb not available. Please install: pip install wandb")
+
 # Load environment variables
 try:
     from dotenv import load_dotenv
@@ -435,6 +444,20 @@ def enhanced_train_binary_classifier(model, train_loader, val_loader, config, cl
             logger.info(f"   🛑 Training stopped early at epoch {epoch+1}")
             break
 
+        # Log to wandb for medical-grade tracking
+        if WANDB_AVAILABLE:
+            wandb.log({
+                f"{model_name}_{class_pair[0]}_{class_pair[1]}/train_acc": train_acc,
+                f"{model_name}_{class_pair[0]}_{class_pair[1]}/val_acc": val_acc,
+                f"{model_name}_{class_pair[0]}_{class_pair[1]}/overfitting_gap": overfitting_gap,
+                f"{model_name}_{class_pair[0]}_{class_pair[1]}/learning_rate": optimizer.param_groups[0]['lr'],
+                f"{model_name}_{class_pair[0]}_{class_pair[1]}/train_loss": avg_train_loss,
+                f"{model_name}_{class_pair[0]}_{class_pair[1]}/val_loss": avg_val_loss,
+                f"{model_name}_{class_pair[0]}_{class_pair[1]}/medical_grade_target": 90.0,
+                f"{model_name}_{class_pair[0]}_{class_pair[1]}/medical_grade_achieved": val_acc >= 90.0,
+                "epoch": epoch + 1
+            })
+
         # Save checkpoint if best
         if val_acc == early_stopping.best_val_accuracy:
             model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{class_pair[0]}_{class_pair[1]}.pth"
@@ -457,6 +480,21 @@ def enhanced_train_binary_classifier(model, train_loader, val_loader, config, cl
     logger.info(f"✅ Enhanced training completed for {model_name}_{class_pair}")
     logger.info(f"   📊 Final metrics: Best Val Acc: {final_metrics['best_val_accuracy']:.2f}%")
     logger.info(f"   📈 Overfitting gap: {final_metrics['overfitting_gap']:.1f}%")
+
+    # Log final model summary to wandb
+    if WANDB_AVAILABLE:
+        medical_grade_achieved = final_metrics['best_val_accuracy'] >= 90.0
+        wandb.log({
+            f"{model_name}_{class_pair[0]}_{class_pair[1]}/final_val_accuracy": final_metrics['best_val_accuracy'],
+            f"{model_name}_{class_pair[0]}_{class_pair[1]}/final_overfitting_gap": final_metrics['overfitting_gap'],
+            f"{model_name}_{class_pair[0]}_{class_pair[1]}/medical_grade_achieved_final": medical_grade_achieved,
+            f"{model_name}_{class_pair[0]}_{class_pair[1]}/training_completed": True
+        })
+
+        if medical_grade_achieved:
+            logger.info(f"   🏆 MEDICAL GRADE ACHIEVED: {final_metrics['best_val_accuracy']:.2f}% ≥ 90%")
+        else:
+            logger.warning(f"   ⚠️ Below medical grade: {final_metrics['best_val_accuracy']:.2f}% < 90%")
 
     return early_stopping.best_val_accuracy
 
@@ -559,6 +597,26 @@ def main():
         device = args.device
 
     logger.info(f"🖥️ Using device: {device}")
+
+    # Initialize wandb for medical-grade experiment tracking
+    if WANDB_AVAILABLE:
+        wandb.init(
+            project="ovo_diabetic_retinopathy_medical_grade",
+            name=f"{args.experiment_name}",
+            config={
+                "learning_rate": args.learning_rate,
+                "weight_decay": args.weight_decay,
+                "enhanced_dropout": args.enhanced_dropout,
+                "overfitting_threshold": args.overfitting_threshold,
+                "batch_size": args.batch_size,
+                "epochs": args.epochs,
+                "base_models": args.base_models,
+                "medical_grade_target": "90%+",
+                "gradient_clipping": args.gradient_clipping
+            },
+            tags=["medical-grade", "ovo-ensemble", "overfitting-prevention"]
+        )
+        logger.info("✅ wandb initialized for medical-grade tracking")
 
     # Create output directory
     output_dir = Path(args.output_dir)

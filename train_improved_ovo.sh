@@ -10,13 +10,13 @@ echo "==========================================="
 # Create output directory
 mkdir -p ./ovo_ensemble_results_v3
 
-echo "📊 Training improved OVO ensemble with BALANCED overfitting prevention:"
+echo "🏥 Training MEDICAL-GRADE OVO ensemble (90%+ accuracy target):"
 echo "  - Memory optimization enabled (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True)"
+echo "  - wandb experiment tracking for medical-grade validation"
+echo "  - Higher learning rate (2e-3) for better convergence"
+echo "  - Reduced regularization for higher accuracy"
 echo "  - Progress bars for each epoch (visual tracking)"
-echo "  - Balanced overfitting prevention (15% critical stop)"
-echo "  - Dynamic dropout adjustment"
-echo "  - Gradient clipping for stability"
-echo "  - Enhanced learning rate scheduling"
+echo "  - Overfitting prevention (15% critical stop)"
 echo "  - Automatic checkpoint resuming"
 
 # Train improved OVO ensemble with ENHANCED overfitting prevention
@@ -29,9 +29,9 @@ python ensemble_local_trainer_enhanced.py \
     --experiment_name improved_ovo_ensemble \
     --epochs 30 \
     --batch_size 4 \
-    --learning_rate 1e-4 \
-    --weight_decay 5e-3 \
-    --enhanced_dropout 0.6 \
+    --learning_rate 2e-3 \
+    --weight_decay 1e-4 \
+    --enhanced_dropout 0.3 \
     --gradient_clipping 1.0 \
     --overfitting_threshold 0.12 \
     --early_stopping_patience 7 \
@@ -47,9 +47,10 @@ echo ""
 echo "✅ Improved OVO training with BALANCED overfitting prevention completed!"
 echo "📁 Results saved to: ./ovo_ensemble_results_v3"
 echo ""
-echo "🔍 Key improvements:"
-echo "  ✅ Progress bars for each epoch"
-echo "  ✅ Balanced overfitting prevention (15% critical stop)"
-echo "  ✅ Dynamic dropout adjustment"
-echo "  ✅ Enhanced regularization"
-echo "  ✅ Better validation accuracy expected: 75-85%"
+echo "🔍 MEDICAL-GRADE improvements:"
+echo "  🏥 90%+ accuracy requirement (medical-grade standard)"
+echo "  📊 wandb tracking for all metrics and medical compliance"
+echo "  🚀 Higher learning rate (2e-3) for optimal convergence"
+echo "  📉 Reduced dropout (0.3) for higher learning capacity"
+echo "  ⚡ Lower weight decay (1e-4) for better performance"
+echo "  🛡️ Overfitting prevention maintains quality"
