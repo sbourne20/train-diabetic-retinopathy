@@ -1,0 +1,612 @@
+{
+  "individual_results": [
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "0_1",
+      "test_accuracy": 0.8744794765020821,
+      "training_accuracy": 92.25729600952948,
+      "test_samples": 1681,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_1": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.6829201579093933,
+        "std_confidence": 0.26327165961265564,
+        "low_confidence_pct": 12.55205234979179
+      },
+      "probability_stats": {
+        "mean_probability": 0.2740005850791931,
+        "std_probability": 0.28783199191093445
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "0_2",
+      "test_accuracy": 0.8227792436235708,
+      "training_accuracy": 91.10915492957747,
+      "test_samples": 2274,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_2": 893
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8498786091804504,
+        "std_confidence": 0.2498861849308014,
+        "low_confidence_pct": 7.167985927880387
+      },
+      "probability_stats": {
+        "mean_probability": 0.5125200152397156,
+        "std_probability": 0.44274985790252686
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "0_3",
+      "test_accuracy": 0.9827483640690066,
+      "training_accuracy": 99.64264443120905,
+      "test_samples": 1681,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9600972533226013,
+        "std_confidence": 0.08853426575660706,
+        "low_confidence_pct": 0.594883997620464
+      },
+      "probability_stats": {
+        "mean_probability": 0.19159851968288422,
+        "std_probability": 0.3705331087112427
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "0_4",
+      "test_accuracy": 0.9845422116527943,
+      "training_accuracy": 99.16617033948779,
+      "test_samples": 1682,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9636338353157043,
+        "std_confidence": 0.08367135375738144,
+        "low_confidence_pct": 0.5945303210463734
+      },
+      "probability_stats": {
+        "mean_probability": 0.19017986953258514,
+        "std_probability": 0.3713613450527191
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "1_2",
+      "test_accuracy": 0.80720871751886,
+      "training_accuracy": 84.55079764903442,
+      "test_samples": 1193,
+      "class_distribution": {
+        "class_1": 300,
+        "class_2": 893
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.7715329527854919,
+        "std_confidence": 0.2723042964935303,
+        "low_confidence_pct": 9.97485331098072
+      },
+      "probability_stats": {
+        "mean_probability": 0.6539503931999207,
+        "std_probability": 0.379015177488327
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "1_3",
+      "test_accuracy": 0.8666666666666667,
+      "training_accuracy": 90.3010033444816,
+      "test_samples": 600,
+      "class_distribution": {
+        "class_1": 300,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8806745409965515,
+        "std_confidence": 0.23233923316001892,
+        "low_confidence_pct": 6.0
+      },
+      "probability_stats": {
+        "mean_probability": 0.42091771960258484,
+        "std_probability": 0.4484844207763672
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "1_4",
+      "test_accuracy": 0.9251247920133111,
+      "training_accuracy": 91.1371237458194,
+      "test_samples": 601,
+      "class_distribution": {
+        "class_1": 300,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9138661026954651,
+        "std_confidence": 0.194472074508667,
+        "low_confidence_pct": 3.3277870216306153
+      },
+      "probability_stats": {
+        "mean_probability": 0.49564167857170105,
+        "std_probability": 0.4671441614627838
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "2_3",
+      "test_accuracy": 0.856663872590109,
+      "training_accuracy": 95.04617968094038,
+      "test_samples": 1193,
+      "class_distribution": {
+        "class_2": 893,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8665018677711487,
+        "std_confidence": 0.22244404256343842,
+        "low_confidence_pct": 4.610226320201174
+      },
+      "probability_stats": {
+        "mean_probability": 0.3273580074310303,
+        "std_probability": 0.4126396179199219
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "2_4",
+      "test_accuracy": 0.8835845896147404,
+      "training_accuracy": 93.28295549958018,
+      "test_samples": 1194,
+      "class_distribution": {
+        "class_2": 893,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8276638984680176,
+        "std_confidence": 0.23112064599990845,
+        "low_confidence_pct": 5.8626465661641545
+      },
+      "probability_stats": {
+        "mean_probability": 0.28170672059059143,
+        "std_probability": 0.3700798749923706
+      }
+    },
+    {
+      "model_name": "mobilenet_v2",
+      "class_pair": "3_4",
+      "test_accuracy": 0.7204658901830283,
+      "training_accuracy": 82.10702341137124,
+      "test_samples": 601,
+      "class_distribution": {
+        "class_3": 300,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8013787865638733,
+        "std_confidence": 0.2664124369621277,
+        "low_confidence_pct": 8.985024958402663
+      },
+      "probability_stats": {
+        "mean_probability": 0.6509988307952881,
+        "std_probability": 0.3943288326263428
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "0_1",
+      "test_accuracy": 0.8340273646638905,
+      "training_accuracy": 92.07861822513401,
+      "test_samples": 1681,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_1": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9617095589637756,
+        "std_confidence": 0.042944278568029404,
+        "low_confidence_pct": 0.1784651992861392
+      },
+      "probability_stats": {
+        "mean_probability": 0.03059106320142746,
+        "std_probability": 0.10647830367088318
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "0_2",
+      "test_accuracy": 0.7849604221635884,
+      "training_accuracy": 89.12852112676056,
+      "test_samples": 2274,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_2": 893
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9229705333709717,
+        "std_confidence": 0.1895136535167694,
+        "low_confidence_pct": 3.562005277044855
+      },
+      "probability_stats": {
+        "mean_probability": 0.21732491254806519,
+        "std_probability": 0.37688499689102173
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "0_3",
+      "test_accuracy": 0.9286139202855443,
+      "training_accuracy": 99.46396664681357,
+      "test_samples": 1681,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9641561508178711,
+        "std_confidence": 0.08287137746810913,
+        "low_confidence_pct": 0.7138607971445567
+      },
+      "probability_stats": {
+        "mean_probability": 0.12097854912281036,
+        "std_probability": 0.30076390504837036
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "0_4",
+      "test_accuracy": 0.9732461355529132,
+      "training_accuracy": 98.68969624776653,
+      "test_samples": 1682,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9769183397293091,
+        "std_confidence": 0.06619840860366821,
+        "low_confidence_pct": 0.23781212841854932
+      },
+      "probability_stats": {
+        "mean_probability": 0.17674721777439117,
+        "std_probability": 0.36768949031829834
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "1_2",
+      "test_accuracy": 0.7971500419111484,
+      "training_accuracy": 85.13853904282117,
+      "test_samples": 1193,
+      "class_distribution": {
+        "class_1": 300,
+        "class_2": 893
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8611906170845032,
+        "std_confidence": 0.21744854748249054,
+        "low_confidence_pct": 4.694048616932104
+      },
+      "probability_stats": {
+        "mean_probability": 0.8182233572006226,
+        "std_probability": 0.3097856640815735
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "1_3",
+      "test_accuracy": 0.8266666666666667,
+      "training_accuracy": 90.96989966555184,
+      "test_samples": 600,
+      "class_distribution": {
+        "class_1": 300,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9178662300109863,
+        "std_confidence": 0.1890464872121811,
+        "low_confidence_pct": 3.166666666666667
+      },
+      "probability_stats": {
+        "mean_probability": 0.46322205662727356,
+        "std_probability": 0.46712055802345276
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "1_4",
+      "test_accuracy": 0.8718801996672213,
+      "training_accuracy": 90.46822742474916,
+      "test_samples": 601,
+      "class_distribution": {
+        "class_1": 300,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.898544430732727,
+        "std_confidence": 0.22374968230724335,
+        "low_confidence_pct": 5.823627287853577
+      },
+      "probability_stats": {
+        "mean_probability": 0.4797171354293823,
+        "std_probability": 0.4625473916530609
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "2_3",
+      "test_accuracy": 0.8206202849958089,
+      "training_accuracy": 95.13014273719564,
+      "test_samples": 1193,
+      "class_distribution": {
+        "class_2": 893,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9518680572509766,
+        "std_confidence": 0.13200773298740387,
+        "low_confidence_pct": 1.173512154233026
+      },
+      "probability_stats": {
+        "mean_probability": 0.10038594901561737,
+        "std_probability": 0.2667926549911499
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "2_4",
+      "test_accuracy": 0.8500837520938024,
+      "training_accuracy": 92.19143576826197,
+      "test_samples": 1194,
+      "class_distribution": {
+        "class_2": 893,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9321625232696533,
+        "std_confidence": 0.1391361802816391,
+        "low_confidence_pct": 1.8425460636515913
+      },
+      "probability_stats": {
+        "mean_probability": 0.15385602414608002,
+        "std_probability": 0.31977468729019165
+      }
+    },
+    {
+      "model_name": "inception_v3",
+      "class_pair": "3_4",
+      "test_accuracy": 0.7653910149750416,
+      "training_accuracy": 81.27090301003345,
+      "test_samples": 601,
+      "class_distribution": {
+        "class_3": 300,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8508631587028503,
+        "std_confidence": 0.2492743581533432,
+        "low_confidence_pct": 7.154742096505824
+      },
+      "probability_stats": {
+        "mean_probability": 0.39604079723358154,
+        "std_probability": 0.4309512674808502
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "0_1",
+      "test_accuracy": 0.8869720404521119,
+      "training_accuracy": 91.95949970220369,
+      "test_samples": 1681,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_1": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.7798057794570923,
+        "std_confidence": 0.2235620766878128,
+        "low_confidence_pct": 6.424747174301011
+      },
+      "probability_stats": {
+        "mean_probability": 0.22151687741279602,
+        "std_probability": 0.29490071535110474
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "0_2",
+      "test_accuracy": 0.8790677220756377,
+      "training_accuracy": 91.32922535211267,
+      "test_samples": 2274,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_2": 893
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9249443411827087,
+        "std_confidence": 0.18353649973869324,
+        "low_confidence_pct": 3.034300791556728
+      },
+      "probability_stats": {
+        "mean_probability": 0.31417277455329895,
+        "std_probability": 0.43332451581954956
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "0_3",
+      "test_accuracy": 0.9827483640690066,
+      "training_accuracy": 99.76176295413937,
+      "test_samples": 1681,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9913100004196167,
+        "std_confidence": 0.03924434259533882,
+        "low_confidence_pct": 0.1784651992861392
+      },
+      "probability_stats": {
+        "mean_probability": 0.16687969863414764,
+        "std_probability": 0.36754560470581055
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "0_4",
+      "test_accuracy": 0.9881093935790726,
+      "training_accuracy": 99.2852888624181,
+      "test_samples": 1682,
+      "class_distribution": {
+        "class_0": 1381,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9784655570983887,
+        "std_confidence": 0.06586489081382751,
+        "low_confidence_pct": 0.356718192627824
+      },
+      "probability_stats": {
+        "mean_probability": 0.18290670216083527,
+        "std_probability": 0.37401217222213745
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "1_2",
+      "test_accuracy": 0.8482816429170159,
+      "training_accuracy": 85.22250209907641,
+      "test_samples": 1193,
+      "class_distribution": {
+        "class_1": 300,
+        "class_2": 893
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8456230163574219,
+        "std_confidence": 0.2149343341588974,
+        "low_confidence_pct": 5.029337803855825
+      },
+      "probability_stats": {
+        "mean_probability": 0.8062790036201477,
+        "std_probability": 0.31066370010375977
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "1_3",
+      "test_accuracy": 0.8766666666666667,
+      "training_accuracy": 91.30434782608695,
+      "test_samples": 600,
+      "class_distribution": {
+        "class_1": 300,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9095566868782043,
+        "std_confidence": 0.19820691645145416,
+        "low_confidence_pct": 4.0
+      },
+      "probability_stats": {
+        "mean_probability": 0.43183422088623047,
+        "std_probability": 0.46043267846107483
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "1_4",
+      "test_accuracy": 0.8968386023294509,
+      "training_accuracy": 92.3076923076923,
+      "test_samples": 601,
+      "class_distribution": {
+        "class_1": 300,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9257255792617798,
+        "std_confidence": 0.18975816667079926,
+        "low_confidence_pct": 3.3277870216306153
+      },
+      "probability_stats": {
+        "mean_probability": 0.5416186451911926,
+        "std_probability": 0.4706505239009857
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "2_3",
+      "test_accuracy": 0.892707460184409,
+      "training_accuracy": 95.29806884970613,
+      "test_samples": 1193,
+      "class_distribution": {
+        "class_2": 893,
+        "class_3": 300
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.9352800250053406,
+        "std_confidence": 0.1502251923084259,
+        "low_confidence_pct": 2.0117351215423303
+      },
+      "probability_stats": {
+        "mean_probability": 0.16884350776672363,
+        "std_probability": 0.33862146735191345
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "2_4",
+      "test_accuracy": 0.8819095477386935,
+      "training_accuracy": 94.96221662468514,
+      "test_samples": 1194,
+      "class_distribution": {
+        "class_2": 893,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8918367028236389,
+        "std_confidence": 0.1886904537677765,
+        "low_confidence_pct": 3.433835845896147
+      },
+      "probability_stats": {
+        "mean_probability": 0.3157876133918762,
+        "std_probability": 0.4169052243232727
+      }
+    },
+    {
+      "model_name": "densenet121",
+      "class_pair": "3_4",
+      "test_accuracy": 0.7936772046589018,
+      "training_accuracy": 84.44816053511705,
+      "test_samples": 601,
+      "class_distribution": {
+        "class_3": 300,
+        "class_4": 301
+      },
+      "confidence_stats": {
+        "mean_confidence": 0.8408022522926331,
+        "std_confidence": 0.2530917823314667,
+        "low_confidence_pct": 7.321131447587355
+      },
+      "probability_stats": {
+        "mean_probability": 0.5791172981262207,
+        "std_probability": 0.4318465292453766
+      }
+    }
+  ],
+  "summary_stats": {
+    "avg_test_accuracy": 0.8701294090693585,
+    "std_test_accuracy": 0.0673636621717507,
+    "min_test_accuracy": 0.7204658901830283,
+    "max_test_accuracy": 0.9881093935790726,
+    "expected_avg_accuracy": 0.9197000000000001,
+    "performance_gap": 0.049570590930641534
+  }
+}
