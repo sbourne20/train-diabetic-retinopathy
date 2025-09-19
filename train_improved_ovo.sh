@@ -8,7 +8,7 @@ echo "🚀 Starting Improved OVO Ensemble Training"
 echo "==========================================="
 
 # Create output directory
-mkdir -p ./ovo_ensemble_results_v2
+mkdir -p ./ovo_ensemble_results_v3
 
 echo "📊 Training improved OVO ensemble with:"
 echo "  - Memory optimization enabled (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True)"
@@ -42,4 +42,4 @@ python ensemble_local_trainer.py \
 
 echo ""
 echo "✅ Improved OVO training completed!"
-echo "📁 Results saved to: ./ovo_ensemble_results_v2"
+echo "📁 Results saved to: ./ovo_ensemble_results_v3"
