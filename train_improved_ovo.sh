@@ -14,11 +14,11 @@ echo "🏥 Training RESEARCH-PAPER OVO ensemble (97% F1-score target for (0,2)):
 echo "  - Memory optimization enabled (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True)"
 echo "  - wandb experiment tracking for medical-grade validation"
 echo "  - RESEARCH PAPER CONFIG (224x224) with proven parameters"
-echo "  - Research paper hyperparameters: batch_size=32, Adam lr=5e-4 (adjusted)"
+echo "  - Research paper hyperparameters: batch_size=32, Adam lr=2e-4 (anti-overfitting)"
 echo "  - Research paper preprocessing: 45° rotation, flipping, shear, zoom"
-echo "  - Lightweight transfer learning: single-node sigmoid classifiers"
+echo "  - Modified transfer learning: small intermediate layers + strong regularization"
 echo "  - ImageNet pretrained weights + frozen base CNNs (as per research)"
-echo "  - PROVEN learning rate (5e-4) with gentler LR reduction"
+echo "  - PROVEN learning rate (2e-4) with gentler LR reduction"
 echo "  - Research-proven batch size (32) for stable gradients"
 echo "  - Extended epochs (50) for complete convergence"
 echo "  - Progress bars for each epoch (visual tracking)"
@@ -35,8 +35,8 @@ python ensemble_local_trainer_enhanced.py \
     --experiment_name research_paper_ovo_ensemble \
     --epochs 50 \
     --batch_size 32 \
-    --learning_rate 5e-4 \
-    --weight_decay 1e-4 \
+    --learning_rate 2e-4 \
+    --weight_decay 5e-4 \
     --enhanced_dropout 0.5 \
     --gradient_clipping 1.0 \
     --overfitting_threshold 0.12 \
