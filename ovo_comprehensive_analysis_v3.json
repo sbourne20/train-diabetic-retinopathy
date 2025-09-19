@@ -1,7 +1,7 @@
 {
   "version": "v3",
   "models_directory": "ovo_ensemble_results_v3/models",
-  "total_models_found": 1,
+  "total_models_found": 2,
   "analysis_timestamp": "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy",
   "results": {
     "mobilenet_v2": {
@@ -30,7 +30,28 @@
         }
       },
       "0_2": {
-        "status": "missing"
+        "model_path": "ovo_ensemble_results_v3/models/best_mobilenet_v2_0_2.pth",
+        "file_size_mb": 17.77391242980957,
+        "status": "loaded",
+        "format": "comprehensive",
+        "epoch": 2,
+        "best_val_accuracy": 79.0,
+        "current_val_accuracy": 79.0,
+        "current_train_accuracy": 92.91666666666667,
+        "class_pair": [
+          0,
+          2
+        ],
+        "model_name": "mobilenet_v2",
+        "has_training_history": true,
+        "training_summary": {
+          "total_epochs": 2,
+          "final_train_acc": 92.91666666666667,
+          "final_val_acc": 79.0,
+          "max_val_acc": 79.0,
+          "min_train_loss": 0.17455196811964638,
+          "min_val_loss": 0.7249831506609916
+        }
       },
       "0_3": {
         "status": "missing"

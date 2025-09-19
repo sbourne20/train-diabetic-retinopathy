@@ -10,12 +10,13 @@ echo "==========================================="
 # Create output directory
 mkdir -p ./ovo_ensemble_results_v3
 
-echo "🏥 Training RESEARCH-PROVEN OVO ensemble (97%+ accuracy target):"
+echo "🏥 Training HIGH-RESOLUTION OVO ensemble (85%+ accuracy target for (0,2)):"
 echo "  - Memory optimization enabled (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True)"
 echo "  - wandb experiment tracking for medical-grade validation"
-echo "  - PROVEN learning rate (1e-3) from 92.00% research paper"
-echo "  - Research-validated image size (224x224) for optimal performance"
-echo "  - Proven batch size (32) for better gradient estimates"
+echo "  - HIGH RESOLUTION (512x512) for subtle feature detection"
+echo "  - Optimized for microaneurysm and fine lesion detection"
+echo "  - PROVEN learning rate (1e-3) with gentler LR reduction"
+echo "  - Adjusted batch size (8) for high-resolution memory management"
 echo "  - Extended epochs (50) for complete convergence"
 echo "  - Progress bars for each epoch (visual tracking)"
 echo "  - Overfitting prevention (20% critical stop - RELAXED for difficult pairs)"
@@ -26,11 +27,11 @@ python ensemble_local_trainer_enhanced.py \
     --mode train \
     --dataset_path ./dataset7b \
     --output_dir ./ovo_ensemble_results_v3 \
-    --img_size 224 \
+    --img_size 512 \
     --base_models mobilenet_v2 inception_v3 densenet121 \
-    --experiment_name research_proven_ovo_ensemble \
+    --experiment_name high_resolution_ovo_ensemble \
     --epochs 50 \
-    --batch_size 32 \
+    --batch_size 8 \
     --learning_rate 1e-3 \
     --weight_decay 1e-4 \
     --enhanced_dropout 0.3 \
