@@ -193,34 +193,22 @@ def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
 
     if model_name == 'mobilenet':
         # Original MobileNet (as per research paper - 96.27% accuracy)
+        # Use MobileNetV2 as closest available to original MobileNet
         from torchvision import models
-        try:
-            backbone = models.mobilenet_v3_small(pretrained=True)  # Use v3_small as closest to original
-        except:
-            backbone = models.mobilenet_v2(pretrained=True)  # Fallback
+        backbone = models.mobilenet_v2(pretrained=True)
 
         if freeze_weights:
             for param in backbone.parameters():
                 param.requires_grad = False
 
-        # Replace classifier with enhanced version
-        if hasattr(backbone, 'classifier') and len(backbone.classifier) > 1:
-            in_features = backbone.classifier[-1].in_features
-        else:
-            in_features = backbone.classifier[0].in_features
+        # MobileNetV2 classifier structure: [Dropout, Linear]
+        in_features = backbone.classifier[1].in_features
 
+        # Research paper: Replace final layer with single-node sigmoid (lightweight transfer learning)
         backbone.classifier = nn.Sequential(
-            nn.Dropout(dropout),           # Input dropout
-            nn.Linear(in_features, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),          # Batch normalization
-            DynamicDropout(dropout * 0.8), # Dynamic dropout
-            nn.Linear(512, 256),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(256),
-            DynamicDropout(dropout * 0.6), # Reducing dropout in deeper layers
-            nn.Linear(256, 1),
-            nn.Sigmoid()
+            nn.Dropout(dropout * 0.5),  # Light dropout for research paper approach
+            nn.Linear(in_features, 1),   # Single node as per research paper
+            nn.Sigmoid()                 # Sigmoid activation as per research paper
         )
 
     elif model_name == 'mobilenet_v2':
@@ -231,21 +219,13 @@ def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
             for param in backbone.parameters():
                 param.requires_grad = False
 
-        # Replace classifier with enhanced version
+        # Research paper: Replace final layer with single-node sigmoid (lightweight transfer learning)
         in_features = backbone.classifier[1].in_features
 
         backbone.classifier = nn.Sequential(
-            nn.Dropout(dropout),           # Input dropout
-            nn.Linear(in_features, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),          # Batch normalization
-            DynamicDropout(dropout * 0.8), # Dynamic dropout
-            nn.Linear(512, 256),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(256),
-            DynamicDropout(dropout * 0.6), # Reducing dropout in deeper layers
-            nn.Linear(256, 1),
-            nn.Sigmoid()
+            nn.Dropout(dropout * 0.5),  # Light dropout for research paper approach
+            nn.Linear(in_features, 1),   # Single node as per research paper
+            nn.Sigmoid()                 # Sigmoid activation as per research paper
         )
 
     elif model_name == 'inception_v3':
@@ -256,22 +236,12 @@ def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
             for param in backbone.parameters():
                 param.requires_grad = False
 
+        # Research paper: Replace final layer with single-node sigmoid (lightweight transfer learning)
         in_features = backbone.fc.in_features
         backbone.fc = nn.Sequential(
-            nn.Dropout(dropout),
-            nn.Linear(in_features, 1024),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(1024),
-            DynamicDropout(dropout * 0.8),
-            nn.Linear(1024, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),
-            DynamicDropout(dropout * 0.6),
-            nn.Linear(512, 256),
-            nn.ReLU(inplace=True),
-            DynamicDropout(dropout * 0.4),
-            nn.Linear(256, 1),
-            nn.Sigmoid()
+            nn.Dropout(dropout * 0.5),  # Light dropout for research paper approach
+            nn.Linear(in_features, 1),   # Single node as per research paper
+            nn.Sigmoid()                 # Sigmoid activation as per research paper
         )
 
     elif model_name == 'densenet121':
@@ -282,19 +252,12 @@ def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
             for param in backbone.parameters():
                 param.requires_grad = False
 
+        # Research paper: Replace final layer with single-node sigmoid (lightweight transfer learning)
         in_features = backbone.classifier.in_features
         backbone.classifier = nn.Sequential(
-            nn.Dropout(dropout),
-            nn.Linear(in_features, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),
-            DynamicDropout(dropout * 0.8),
-            nn.Linear(512, 256),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(256),
-            DynamicDropout(dropout * 0.6),
-            nn.Linear(256, 1),
-            nn.Sigmoid()
+            nn.Dropout(dropout * 0.5),  # Light dropout for research paper approach
+            nn.Linear(in_features, 1),   # Single node as per research paper
+            nn.Sigmoid()                 # Sigmoid activation as per research paper
         )
 
     elif model_name == 'resnet50':
@@ -306,23 +269,12 @@ def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
             for param in backbone.parameters():
                 param.requires_grad = False
 
-        # Replace final fully connected layer with enhanced version
+        # Research paper: Replace final layer with single-node sigmoid (lightweight transfer learning)
         in_features = backbone.fc.in_features
         backbone.fc = nn.Sequential(
-            nn.Dropout(dropout),
-            nn.Linear(in_features, 1024),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(1024),
-            DynamicDropout(dropout * 0.8),
-            nn.Linear(1024, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),
-            DynamicDropout(dropout * 0.6),
-            nn.Linear(512, 256),
-            nn.ReLU(inplace=True),
-            DynamicDropout(dropout * 0.4),
-            nn.Linear(256, 1),
-            nn.Sigmoid()
+            nn.Dropout(dropout * 0.5),  # Light dropout for research paper approach
+            nn.Linear(in_features, 1),   # Single node as per research paper
+            nn.Sigmoid()                 # Sigmoid activation as per research paper
         )
 
     else:
