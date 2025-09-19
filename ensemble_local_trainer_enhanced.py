@@ -311,12 +311,12 @@ def enhanced_train_binary_classifier(model, train_loader, val_loader, config, cl
          'weight_decay': config['training']['weight_decay']}
     ])
 
-    # Advanced learning rate scheduler
+    # Advanced learning rate scheduler with GENTLER reduction
     if config.get('advanced_scheduler', False):
-        scheduler = AdvancedLRScheduler(optimizer, mode='max', factor=0.5, patience=2, min_lr=1e-7)
+        scheduler = AdvancedLRScheduler(optimizer, mode='max', factor=0.9, patience=5, min_lr=1e-6)
     else:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='max', factor=0.5, patience=3, min_lr=1e-7, verbose=True
+            optimizer, mode='max', factor=0.9, patience=5, min_lr=1e-6, verbose=True
         )
 
     # Enhanced early stopping
