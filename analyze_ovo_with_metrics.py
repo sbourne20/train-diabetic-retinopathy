@@ -77,7 +77,7 @@ def analyze_checkpoint_with_metrics(model_path):
         }
 
 def generate_training_report(results):
-    """Generate comprehensive training report."""
+    """Generate comprehensive training report with overfitting detection."""
     print("\n" + "=" * 80)
     print("📊 COMPREHENSIVE TRAINING ANALYSIS REPORT")
     print("=" * 80)
@@ -93,6 +93,7 @@ def generate_training_report(results):
         model_accuracies = []
         total_models = 0
         trained_models = 0
+        overfitting_count = 0
 
         for pair in class_pairs:
             pair_key = f"{pair[0]}_{pair[1]}"
@@ -102,21 +103,53 @@ def generate_training_report(results):
 
                 if analysis['status'] == 'loaded' and analysis.get('format') == 'comprehensive':
                     trained_models += 1
-                    best_acc = analysis.get('best_val_accuracy', 0.0)
-                    model_accuracies.append(best_acc)
 
-                    # Print individual model performance
+                    # Get accuracies
+                    val_acc = analysis.get('best_val_accuracy', 0.0)
                     train_acc = analysis.get('current_train_accuracy', 0.0)
-                    val_acc = analysis.get('current_val_accuracy', 0.0)
                     epoch = analysis.get('epoch', 'unknown')
 
-                    status_icon = "✅" if best_acc > 80.0 else "⚠️" if best_acc > 70.0 else "❌"
-                    print(f"  {status_icon} Classes {pair[0]}-{pair[1]}: {best_acc:5.1f}% (Train: {train_acc:5.1f}%, Epoch: {epoch})")
+                    model_accuracies.append(val_acc)
+
+                    # Calculate overfitting gap
+                    overfitting_gap = train_acc - val_acc
+
+                    # Determine status icon based on performance and overfitting
+                    if val_acc > 85.0:
+                        if overfitting_gap <= 10.0:
+                            status_icon = "✅"  # Excellent
+                        elif overfitting_gap <= 20.0:
+                            status_icon = "⚠️"  # Good but overfitting
+                            overfitting_count += 1
+                        else:
+                            status_icon = "🔴"  # Severe overfitting
+                            overfitting_count += 1
+                    elif val_acc > 75.0:
+                        if overfitting_gap <= 15.0:
+                            status_icon = "⚠️"  # Moderate
+                        else:
+                            status_icon = "🔴"  # Poor + overfitting
+                            overfitting_count += 1
+                    else:
+                        status_icon = "❌"  # Poor performance
+                        if overfitting_gap > 15.0:
+                            overfitting_count += 1
+
+                    # Add overfitting indicator to output
+                    overfitting_indicator = ""
+                    if overfitting_gap > 25.0:
+                        overfitting_indicator = " 🚨 SEVERE OVERFITTING"
+                    elif overfitting_gap > 15.0:
+                        overfitting_indicator = " ⚠️ OVERFITTING"
+                    elif overfitting_gap > 10.0:
+                        overfitting_indicator = " 📈 MILD OVERFITTING"
+
+                    print(f"  {status_icon} Classes {pair[0]}-{pair[1]}: {val_acc:5.1f}% (Train: {train_acc:5.1f}%, Epoch: {epoch}){overfitting_indicator}")
 
                 else:
                     print(f"  ❌ Classes {pair[0]}-{pair[1]}: No training data")
 
-        # Model summary
+        # Model summary with overfitting analysis
         if model_accuracies:
             avg_acc = sum(model_accuracies) / len(model_accuracies)
             min_acc = min(model_accuracies)
@@ -126,13 +159,19 @@ def generate_training_report(results):
             print(f"     Average Accuracy: {avg_acc:5.1f}%")
             print(f"     Range: {min_acc:5.1f}% - {max_acc:5.1f}%")
 
-            # Quality assessment
-            if avg_acc > 85:
+            # Overfitting analysis
+            if overfitting_count > 0:
+                print(f"     🚨 Overfitting detected in {overfitting_count}/{trained_models} models")
+            else:
+                print(f"     ✅ No significant overfitting detected")
+
+            # Quality assessment with overfitting consideration
+            if avg_acc > 90 and overfitting_count <= trained_models * 0.2:
                 print(f"     🏆 EXCELLENT - Medical grade quality")
-            elif avg_acc > 80:
+            elif avg_acc > 85 and overfitting_count <= trained_models * 0.3:
                 print(f"     ✅ GOOD - Production ready")
-            elif avg_acc > 75:
-                print(f"     ⚠️ MODERATE - Needs improvement")
+            elif avg_acc > 80 or overfitting_count > trained_models * 0.5:
+                print(f"     ⚠️ MODERATE - Needs improvement (accuracy or overfitting)")
             else:
                 print(f"     ❌ POOR - Requires retraining")
         else:
@@ -142,16 +181,35 @@ def generate_training_report(results):
 
 def main():
     """Main analysis function."""
-    models_dir = Path('./ovo_ensemble_results_v2/models')
+    # Check for v4 (fixed), then v3, v2, v1
+    models_dir = Path('./ovo_ensemble_results_v4/models')
+    version = "v4"
+
+    if not models_dir.exists():
+        models_dir = Path('./ovo_ensemble_results_v3/models')
+        version = "v3"
+
+    if not models_dir.exists():
+        models_dir = Path('./ovo_ensemble_results_v2/models')
+        version = "v2"
 
     if not models_dir.exists():
         models_dir = Path('./ovo_ensemble_results/models')
+        version = "v1"
 
     if not models_dir.exists():
-        print(f"❌ No models directory found")
+        print(f"❌ No models directory found. Checked:")
+        print(f"   - ./ovo_ensemble_results_v4/models (ENHANCED)")
+        print(f"   - ./ovo_ensemble_results_v3/models")
+        print(f"   - ./ovo_ensemble_results_v2/models")
+        print(f"   - ./ovo_ensemble_results/models")
         return
 
     print(f"🔍 Analyzing models in: {models_dir}")
+    if version == "v4":
+        print(f"🛡️ Using V4 ENHANCED results with overfitting prevention")
+    else:
+        print(f"📦 Using {version} dataset results")
 
     # Get all binary classifier models
     binary_models = []
@@ -160,6 +218,15 @@ def main():
             binary_models.append(model_file)
 
     print(f"📋 Found {len(binary_models)} binary classifiers")
+
+    # Show which models exist
+    if binary_models:
+        print("📄 Available models:")
+        for model in sorted(binary_models):
+            size_mb = model.stat().st_size / (1024 * 1024)
+            print(f"   - {model.name} ({size_mb:.1f} MB)")
+    else:
+        print("⚠️  No binary classifier models found in directory")
 
     # Analyze each model
     results = {}
@@ -182,12 +249,41 @@ def main():
     # Generate comprehensive report
     generate_training_report(results)
 
-    # Save detailed results
-    output_file = 'ovo_comprehensive_analysis.json'
+    # Save detailed results with version info
+    output_file = f'ovo_comprehensive_analysis_{version}.json'
+    analysis_results = {
+        'version': version,
+        'models_directory': str(models_dir),
+        'total_models_found': len(binary_models),
+        'analysis_timestamp': str(Path().resolve()),
+        'results': results
+    }
+
     with open(output_file, 'w') as f:
-        json.dump(results, f, indent=2, default=str)
+        json.dump(analysis_results, f, indent=2, default=str)
 
     print(f"\n💾 Detailed analysis saved: {output_file}")
+
+    # Summary of findings
+    total_trained = sum(1 for base_model in results.values()
+                       for pair_result in base_model.values()
+                       if pair_result.get('status') == 'loaded' and
+                          pair_result.get('format') == 'comprehensive')
+    total_expected = len(base_models) * len(class_pairs)
+
+    print(f"\n📊 FINAL SUMMARY:")
+    print(f"   Models trained: {total_trained}/{total_expected}")
+    print(f"   Training progress: {total_trained/total_expected*100:.1f}%")
+
+    if total_trained < total_expected:
+        print(f"   🔄 Training appears to be in progress for {version.upper()}")
+        print(f"   💡 Run this script again after more models are trained")
+
+    if version == "v3":
+        print(f"\n⚠️ V3 ISSUES DETECTED:")
+        print(f"   🚨 Severe overfitting in multiple models")
+        print(f"   ❌ No overfitting prevention was applied")
+        print(f"   💡 Use train_improved_ovo_fixed.sh for V4 with proper overfitting prevention")
 
 if __name__ == "__main__":
     main()
