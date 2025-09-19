@@ -29,7 +29,7 @@ python ensemble_local_trainer_enhanced.py \
     --dataset_path ./dataset7b \
     --output_dir ./ovo_ensemble_results_v3 \
     --img_size 224 \
-    --base_models mobilenet resnet50 densenet121 \
+    --base_models mobilenet inception_v3 densenet121 \
     --experiment_name research_paper_ovo_ensemble \
     --epochs 50 \
     --batch_size 32 \

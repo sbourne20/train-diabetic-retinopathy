@@ -148,7 +148,7 @@ Example Usage:
     # Model selection
     parser.add_argument('--base_models', nargs='+',
                        default=['mobilenet_v2'],
-                       choices=['mobilenet_v2', 'inception_v3', 'densenet121'],
+                       choices=['mobilenet', 'mobilenet_v2', 'resnet50', 'inception_v3', 'densenet121'],
                        help='Base models to use for OVO ensemble')
     parser.add_argument('--freeze_weights', type=str, default='true',
                        choices=['true', 'false'],
