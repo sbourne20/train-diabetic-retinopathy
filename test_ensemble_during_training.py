@@ -22,9 +22,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import from the training script
+# Import from the enhanced training script
 sys.path.append('.')
-from ensemble_local_trainer import BinaryClassifier, OVOEnsemble
+from ensemble_local_trainer_enhanced import EnhancedOVOBinaryClassifier
 
 def load_available_models(models_dir, base_models=['mobilenet_v2'], num_classes=5):
     """Load currently available trained models"""
@@ -46,11 +46,13 @@ def load_available_models(models_dir, base_models=['mobilenet_v2'], num_classes=
 
             if model_path.exists():
                 try:
-                    # Create model with same architecture as training
-                    binary_model = BinaryClassifier(
+                    # Create model with same architecture as enhanced training
+                    binary_model = EnhancedOVOBinaryClassifier(
                         model_name=model_name,
-                        freeze_weights=False,  # Match training config
-                        dropout=0.3
+                        freeze_weights=True,  # Match enhanced training config
+                        enhanced_dropout=0.3,
+                        dynamic_dropout=True,
+                        batch_norm=True
                     )
 
                     # Load checkpoint

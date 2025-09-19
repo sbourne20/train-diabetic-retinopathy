@@ -16,7 +16,7 @@ echo "  - wandb experiment tracking for medical-grade validation"
 echo "  - Higher learning rate (2e-3) for better convergence"
 echo "  - Reduced regularization for higher accuracy"
 echo "  - Progress bars for each epoch (visual tracking)"
-echo "  - Overfitting prevention (15% critical stop)"
+echo "  - Overfitting prevention (20% critical stop - RELAXED for difficult pairs)"
 echo "  - Automatic checkpoint resuming"
 
 # Train improved OVO ensemble with ENHANCED overfitting prevention
@@ -33,8 +33,8 @@ python ensemble_local_trainer_enhanced.py \
     --weight_decay 1e-4 \
     --enhanced_dropout 0.3 \
     --gradient_clipping 1.0 \
-    --overfitting_threshold 0.12 \
-    --early_stopping_patience 10 \
+    --overfitting_threshold 0.20 \
+    --early_stopping_patience 15 \
     --validation_loss_patience 4 \
     --dynamic_dropout \
     --batch_norm \

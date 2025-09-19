@@ -14,8 +14,8 @@ from pathlib import Path
 def analyze_checkpoint_with_metrics(model_path):
     """Comprehensive analysis of checkpoint with training metrics."""
     try:
-        # Load checkpoint
-        checkpoint = torch.load(model_path, map_location='cpu')
+        # Load checkpoint with weights_only=False for compatibility
+        checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
 
         # Basic file info
         file_size = os.path.getsize(model_path)
