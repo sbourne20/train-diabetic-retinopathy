@@ -30,13 +30,15 @@ python ensemble_local_trainer.py \
     --epochs 30 \
     --batch_size 4 \
     --learning_rate 1e-4 \
-    --weight_decay 1e-4 \
+    --weight_decay 1e-3 \
     --freeze_weights false \
-    --ovo_dropout 0.3 \
+    --ovo_dropout 0.6 \
     --enable_class_weights \
     --class_weight_severe 8.0 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
+    --patience 5 \
+    --early_stopping_patience 3 \
     --resume \
     --seed 42
 
