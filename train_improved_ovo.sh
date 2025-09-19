@@ -24,7 +24,7 @@ echo "  - PROVEN learning rate (5e-4) with gentler LR reduction"
 echo "  - Research-proven batch size (32) for stable gradients"
 echo "  - Extended epochs (50) for complete convergence"
 echo "  - Progress bars for each epoch (visual tracking)"
-echo "  - Overfitting prevention (12% critical stop - BALANCED for lightweight models)"
+echo "  - Overfitting prevention (15% critical stop - RELAXED to match working config)"
 echo "  - Automatic checkpoint resuming"
 
 # Train improved OVO ensemble with ENHANCED overfitting prevention
@@ -39,9 +39,9 @@ python ensemble_local_trainer_enhanced.py \
     --batch_size 32 \
     --learning_rate 5e-4 \
     --weight_decay 1e-4 \
-    --enhanced_dropout 0.5 \
+    --enhanced_dropout 0.3 \
     --gradient_clipping 1.0 \
-    --overfitting_threshold 0.12 \
+    --overfitting_threshold 0.15 \
     --early_stopping_patience 15 \
     --validation_loss_patience 4 \
     --dynamic_dropout \
