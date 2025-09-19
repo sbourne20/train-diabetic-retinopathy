@@ -33,6 +33,8 @@ python ensemble_local_trainer.py \
     --weight_decay 1e-4 \
     --freeze_weights false \
     --ovo_dropout 0.3 \
+    --enable_class_weights \
+    --class_weight_severe 8.0 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --resume \

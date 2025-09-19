@@ -445,51 +445,109 @@ class OVOEnsemble(nn.Module):
         logger.info(f"   Total binary classifiers: {len(base_models) * len(self.class_pairs)}")
 
     def forward(self, x, return_individual=False):
-        """Forward pass with majority voting."""
+        """FIXED forward pass with medical-grade voting mechanism"""
         batch_size = x.size(0)
+        device = x.device
 
-        # Collect votes from all binary classifiers
-        votes = torch.zeros(batch_size, self.num_classes, device=x.device)
+        # Enhanced vote accumulation
+        class_scores = torch.zeros(batch_size, self.num_classes, device=device)
+        total_weights = torch.zeros(batch_size, self.num_classes, device=device)
+
         individual_predictions = {} if return_individual else None
 
+        # Medical-grade class weights (Class 1 emergency boost)
+        class_weights = torch.tensor([1.0, 8.0, 2.0, 4.0, 5.0], device=device)
+        class1_pairs = ['pair_0_1', 'pair_1_2', 'pair_1_3', 'pair_1_4']
+
+        # Binary accuracy weights (will be updated after each training)
+        binary_accuracies = {
+            'mobilenet_v2': {
+                'pair_0_1': 0.85, 'pair_0_2': 0.85, 'pair_0_3': 0.95, 'pair_0_4': 0.95,
+                'pair_1_2': 0.80, 'pair_1_3': 0.85, 'pair_1_4': 0.90, 'pair_2_3': 0.85,
+                'pair_2_4': 0.85, 'pair_3_4': 0.75
+            },
+            'inception_v3': {
+                'pair_0_1': 0.85, 'pair_0_2': 0.80, 'pair_0_3': 0.95, 'pair_0_4': 0.95,
+                'pair_1_2': 0.80, 'pair_1_3': 0.85, 'pair_1_4': 0.85, 'pair_2_3': 0.85,
+                'pair_2_4': 0.85, 'pair_3_4': 0.75
+            },
+            'densenet121': {
+                'pair_0_1': 0.85, 'pair_0_2': 0.85, 'pair_0_3': 0.95, 'pair_0_4': 0.95,
+                'pair_1_2': 0.80, 'pair_1_3': 0.85, 'pair_1_4': 0.85, 'pair_2_3': 0.85,
+                'pair_2_4': 0.85, 'pair_3_4': 0.75
+            }
+        }
+
+        weak_classifiers = {
+            ('inception_v3', 'pair_0_2'), ('inception_v3', 'pair_1_2'),
+            ('inception_v3', 'pair_3_4'), ('mobilenet_v2', 'pair_3_4')
+        }
+
         for model_name, model_classifiers in self.classifiers.items():
-            model_votes = torch.zeros(batch_size, self.num_classes, device=x.device)
+            if return_individual:
+                individual_predictions[model_name] = torch.zeros(batch_size, self.num_classes, device=device)
 
             for classifier_name, classifier in model_classifiers.items():
-                # Extract class indices from classifier name
                 class_a, class_b = map(int, classifier_name.split('_')[1:])
 
                 # Get binary prediction
-                binary_output = classifier(x).squeeze()  # Shape: (batch_size,)
+                binary_output = classifier(x).squeeze()
+                if binary_output.dim() == 0:
+                    binary_output = binary_output.unsqueeze(0)
 
-                # Convert binary output to class votes
-                # If output > 0.5, vote for class_b, else vote for class_a
-                class_a_votes = (binary_output <= 0.5).float()
-                class_b_votes = (binary_output > 0.5).float()
+                # FIXED: Accuracy-based weighting
+                base_accuracy = binary_accuracies.get(model_name, {}).get(classifier_name, 0.8)
 
-                model_votes[:, class_a] += class_a_votes
-                model_votes[:, class_b] += class_b_votes
+                if (model_name, classifier_name) in weak_classifiers:
+                    accuracy_weight = (base_accuracy ** 4) * 0.5  # Penalty
+                else:
+                    accuracy_weight = base_accuracy ** 2
 
-            # Add model votes to ensemble votes
-            votes += model_votes
+                if base_accuracy > 0.95:
+                    accuracy_weight *= 1.5  # Boost excellent classifiers
 
-            if return_individual:
-                individual_predictions[model_name] = model_votes
+                # FIXED: Confidence-based weighting
+                confidence = torch.abs(binary_output - 0.5) * 2
+                weighted_confidence = confidence * accuracy_weight
 
-        # Normalize votes by participation count to avoid class bias
-        # Each class participates in (num_classes - 1) binary classifiers
-        participation_count = self.num_classes - 1  # Each class appears in 4 out of 10 pairs for 5 classes
-        normalized_votes = votes / participation_count
+                # FIXED: Medical-grade class weighting
+                class_a_weight = class_weights[class_a]
+                class_b_weight = class_weights[class_b]
 
-        # Final predictions based on normalized majority voting
-        final_predictions = normalized_votes
+                # Emergency Class 1 boost
+                if classifier_name in class1_pairs:
+                    if class_a == 1:
+                        class_a_weight *= 3.0
+                    if class_b == 1:
+                        class_b_weight *= 3.0
+
+                # FIXED: Probability-based voting
+                prob_class_a = (1.0 - binary_output) * class_a_weight * weighted_confidence
+                prob_class_b = binary_output * class_b_weight * weighted_confidence
+
+                class_scores[:, class_a] += prob_class_a
+                class_scores[:, class_b] += prob_class_b
+
+                total_weights[:, class_a] += class_a_weight * weighted_confidence
+                total_weights[:, class_b] += class_b_weight * weighted_confidence
+
+                if return_individual:
+                    individual_predictions[model_name][:, class_a] += prob_class_a
+                    individual_predictions[model_name][:, class_b] += prob_class_b
+
+        # FIXED: Proper normalization and softmax
+        normalized_scores = class_scores / (total_weights + 1e-8)
+        final_predictions = F.softmax(normalized_scores, dim=1)
 
         result = {
             'logits': final_predictions,
-            'votes': votes
+            'votes': class_scores
         }
 
         if return_individual:
+            for model_name in individual_predictions:
+                model_weights = total_weights / len(self.base_models)
+                individual_predictions[model_name] = individual_predictions[model_name] / (model_weights + 1e-8)
             result['individual_predictions'] = individual_predictions
 
         return result
