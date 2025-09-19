@@ -13,7 +13,7 @@ mkdir -p ./ovo_ensemble_results_v3
 echo "🏥 Training MEDICAL-GRADE OVO ensemble (90%+ accuracy target):"
 echo "  - Memory optimization enabled (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True)"
 echo "  - wandb experiment tracking for medical-grade validation"
-echo "  - Higher learning rate (2e-3) for better convergence"
+echo "  - Higher learning rate (1e-2) for better convergence to 85%+ validation"
 echo "  - Reduced regularization for higher accuracy"
 echo "  - Progress bars for each epoch (visual tracking)"
 echo "  - Overfitting prevention (20% critical stop - RELAXED for difficult pairs)"
@@ -29,7 +29,7 @@ python ensemble_local_trainer_enhanced.py \
     --experiment_name improved_ovo_ensemble \
     --epochs 30 \
     --batch_size 4 \
-    --learning_rate 5e-3 \
+    --learning_rate 1e-2 \
     --weight_decay 1e-4 \
     --enhanced_dropout 0.3 \
     --gradient_clipping 1.0 \
