@@ -29,12 +29,12 @@ python ensemble_local_trainer_enhanced.py \
     --experiment_name improved_ovo_ensemble \
     --epochs 30 \
     --batch_size 4 \
-    --learning_rate 2e-3 \
+    --learning_rate 5e-3 \
     --weight_decay 1e-4 \
     --enhanced_dropout 0.3 \
     --gradient_clipping 1.0 \
     --overfitting_threshold 0.12 \
-    --early_stopping_patience 7 \
+    --early_stopping_patience 10 \
     --validation_loss_patience 4 \
     --dynamic_dropout \
     --batch_norm \

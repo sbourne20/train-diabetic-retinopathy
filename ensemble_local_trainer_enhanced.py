@@ -303,10 +303,10 @@ def enhanced_train_binary_classifier(model, train_loader, val_loader, config, cl
             else:
                 classifier_params.append(param)
 
-    # Enhanced optimizer with higher weight decay
+    # Enhanced optimizer optimized for MEDICAL GRADE (90%+)
     optimizer = torch.optim.AdamW([
-        {'params': backbone_params, 'lr': config['training']['learning_rate'] * 0.1,
-         'weight_decay': config['training']['weight_decay'] * 2},
+        {'params': backbone_params, 'lr': config['training']['learning_rate'] * 0.5,  # Less aggressive reduction for medical grade
+         'weight_decay': config['training']['weight_decay']},
         {'params': classifier_params, 'lr': config['training']['learning_rate'],
          'weight_decay': config['training']['weight_decay']}
     ])
@@ -355,7 +355,8 @@ def enhanced_train_binary_classifier(model, train_loader, val_loader, config, cl
         train_correct = 0
         train_total = 0
 
-        for batch_idx, (data, target) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}/{config['training']['epochs']}", leave=False)):
+        train_bar = tqdm(train_loader, desc=f"🏥 {model_name} {class_pair} - Epoch {epoch+1}/{config['training']['epochs']}", leave=True, ncols=100)
+        for batch_idx, (data, target) in enumerate(train_bar):
             data, target = data.to(device), target.to(device)
 
             optimizer.zero_grad()
