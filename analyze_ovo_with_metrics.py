@@ -114,34 +114,34 @@ def generate_training_report(results):
                     # Calculate overfitting gap
                     overfitting_gap = train_acc - val_acc
 
-                    # Determine status icon based on performance and overfitting
+                    # Determine status icon based on performance and overfitting (MEDICAL GRADE STANDARDS)
                     if val_acc > 85.0:
-                        if overfitting_gap <= 10.0:
-                            status_icon = "✅"  # Excellent
-                        elif overfitting_gap <= 20.0:
-                            status_icon = "⚠️"  # Good but overfitting
+                        if overfitting_gap <= 5.0:
+                            status_icon = "✅"  # Excellent - Medical grade
+                        elif overfitting_gap <= 8.0:
+                            status_icon = "⚠️"  # Good but approaching critical
                             overfitting_count += 1
                         else:
-                            status_icon = "🔴"  # Severe overfitting
+                            status_icon = "🔴"  # Critical overfitting
                             overfitting_count += 1
                     elif val_acc > 75.0:
-                        if overfitting_gap <= 15.0:
+                        if overfitting_gap <= 6.0:
                             status_icon = "⚠️"  # Moderate
                         else:
                             status_icon = "🔴"  # Poor + overfitting
                             overfitting_count += 1
                     else:
                         status_icon = "❌"  # Poor performance
-                        if overfitting_gap > 15.0:
+                        if overfitting_gap > 6.0:
                             overfitting_count += 1
 
-                    # Add overfitting indicator to output
+                    # Add overfitting indicator to output (MEDICAL GRADE THRESHOLDS)
                     overfitting_indicator = ""
-                    if overfitting_gap > 25.0:
-                        overfitting_indicator = " 🚨 SEVERE OVERFITTING"
-                    elif overfitting_gap > 15.0:
+                    if overfitting_gap >= 8.0:
+                        overfitting_indicator = " 🚨 CRITICAL OVERFITTING (≥8%)"
+                    elif overfitting_gap > 6.0:
                         overfitting_indicator = " ⚠️ OVERFITTING"
-                    elif overfitting_gap > 10.0:
+                    elif overfitting_gap > 4.0:
                         overfitting_indicator = " 📈 MILD OVERFITTING"
 
                     print(f"  {status_icon} Classes {pair[0]}-{pair[1]}: {val_acc:5.1f}% (Train: {train_acc:5.1f}%, Epoch: {epoch}){overfitting_indicator}")

@@ -121,8 +121,8 @@ Example Usage:
                        help='Enhanced dropout rate for better overfitting prevention')
     parser.add_argument('--gradient_clipping', type=float, default=1.0,
                        help='Gradient clipping threshold (0 to disable)')
-    parser.add_argument('--overfitting_threshold', type=float, default=0.15,
-                       help='Train-val accuracy gap threshold for overfitting detection (0.15 = 15%)')
+    parser.add_argument('--overfitting_threshold', type=float, default=0.08,
+                       help='Train-val accuracy gap threshold for overfitting detection (0.08 = 8%)')
     parser.add_argument('--early_stopping_patience', type=int, default=5,
                        help='Early stopping patience (epochs without improvement)')
     parser.add_argument('--validation_loss_patience', type=int, default=3,
@@ -423,8 +423,10 @@ def enhanced_train_binary_classifier(model, train_loader, val_loader, config, cl
                    f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, "
                    f"Gap: {overfitting_gap:.1f}%, LR: {optimizer.param_groups[0]['lr']:.2e}")
 
-        if overfitting_gap > 15.0:
+        if overfitting_gap > 6.0:
             logger.warning(f"   ⚠️ Overfitting detected: {overfitting_gap:.1f}% train-val gap")
+        if overfitting_gap >= 8.0:
+            logger.error(f"   🚨 CRITICAL overfitting: {overfitting_gap:.1f}% gap ≥8%")
 
         # Early stopping check
         should_stop = early_stopping(val_acc, avg_val_loss, train_acc, model)

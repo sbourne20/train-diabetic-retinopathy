@@ -26,7 +26,7 @@ class AdvancedEarlyStopping:
                  patience: int = 7,
                  min_delta: float = 0.001,
                  restore_best_weights: bool = True,
-                 overfitting_threshold: float = 0.15,  # 15% train-val gap
+                 overfitting_threshold: float = 0.08,  # 8% train-val gap
                  validation_loss_patience: int = 5):
 
         self.patience = patience
@@ -74,12 +74,12 @@ class AdvancedEarlyStopping:
 
             if overfitting_gap > self.overfitting_threshold * 100:  # Convert to percentage
                 if not self.overfitting_detected:
-                    logger.warning(f"🚨 SEVERE OVERFITTING DETECTED! Train-Val gap: {overfitting_gap:.1f}%")
+                    logger.warning(f"🚨 OVERFITTING DETECTED! Train-Val gap: {overfitting_gap:.1f}%")
                     self.overfitting_detected = True
 
-                # If overfitting is severe (>25% gap), stop immediately
-                if overfitting_gap > 25.0:
-                    logger.error(f"❌ CRITICAL OVERFITTING: {overfitting_gap:.1f}% gap. Stopping training.")
+                # If overfitting is critical (≥8% gap), stop immediately for medical-grade requirements
+                if overfitting_gap >= 8.0:
+                    logger.error(f"❌ CRITICAL OVERFITTING: {overfitting_gap:.1f}% gap ≥8%. Stopping training for medical-grade quality.")
                     return True
 
         # Check validation accuracy improvement
@@ -148,11 +148,11 @@ class DynamicDropout(nn.Module):
 
     def adjust_dropout(self, overfitting_gap: float):
         """Adjust dropout rate based on overfitting gap."""
-        if overfitting_gap > 20.0:  # Severe overfitting
+        if overfitting_gap > 6.0:  # Approaching critical overfitting
             self.current_dropout = min(self.max_dropout, self.current_dropout + 0.1)
-        elif overfitting_gap > 10.0:  # Moderate overfitting
+        elif overfitting_gap > 4.0:  # Moderate overfitting
             self.current_dropout = min(self.max_dropout, self.current_dropout + 0.05)
-        elif overfitting_gap < 5.0:  # Good generalization
+        elif overfitting_gap < 2.0:  # Excellent generalization
             self.current_dropout = max(self.initial_dropout, self.current_dropout - 0.02)
 
         self.dropout.p = self.current_dropout
@@ -179,13 +179,13 @@ class AdvancedLRScheduler:
         # Standard scheduler step
         self.scheduler.step(val_metric)
 
-        # Additional LR reduction if severe overfitting
-        if overfitting_gap > 20.0:
+        # Additional LR reduction if approaching critical overfitting
+        if overfitting_gap > 6.0:
             for param_group in self.optimizer.param_groups:
                 old_lr = param_group['lr']
                 param_group['lr'] *= self.overfitting_factor
                 new_lr = param_group['lr']
-                logger.warning(f"🔻 Overfitting detected. Reduced LR: {old_lr:.2e} → {new_lr:.2e}")
+                logger.warning(f"🔻 Overfitting detected ({overfitting_gap:.1f}%). Reduced LR: {old_lr:.2e} → {new_lr:.2e}")
 
 def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
                                      freeze_weights: bool = True) -> nn.Module:

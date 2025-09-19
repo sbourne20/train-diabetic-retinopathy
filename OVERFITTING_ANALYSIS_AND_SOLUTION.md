@@ -70,7 +70,7 @@ if overfitting_gap > 20.0:
 |---------|----------|---------------|
 | **Script** | `ensemble_local_trainer.py` | `ensemble_local_trainer_enhanced.py` |
 | **Early Stopping** | Basic patience | Advanced with validation loss |
-| **Overfitting Detection** | None | 15%/25% thresholds |
+| **Overfitting Detection** | None | 6%/8% thresholds (MEDICAL GRADE) |
 | **Dropout** | Fixed 0.6 | Dynamic 0.7→0.8 |
 | **Weight Decay** | 1e-3 | **1e-2** (10x stronger) |
 | **Gradient Clipping** | None | ✅ Threshold 1.0 |
@@ -89,7 +89,7 @@ if overfitting_gap > 20.0:
 
 ### **Step 2: Monitor Training**
 The enhanced script will:
-- ✅ **Stop training immediately** if overfitting >25%
+- ✅ **Stop training immediately** if overfitting ≥8% (MEDICAL GRADE)
 - ✅ **Adjust dropout dynamically** based on train-val gap
 - ✅ **Train all 3 models**: MobileNet-v2, Inception-v3, DenseNet121
 - ✅ **Generate proper logs** in `/logs` and `/results`
@@ -105,8 +105,8 @@ python analyze_ovo_with_metrics.py
 ## 📊 **Expected V4 Improvements**
 
 ### **Overfitting Prevention**
-- **Train-Val Gap**: Should stay **<15%** for most models
-- **Critical Overfitting**: **Eliminated** (>25% gaps)
+- **Train-Val Gap**: Should stay **<6%** for medical-grade models
+- **Critical Overfitting**: **Eliminated** (≥8% gaps automatically stopped)
 - **Model Quality**: **>85%** average accuracy target
 
 ### **Complete Training**
@@ -126,7 +126,7 @@ python analyze_ovo_with_metrics.py
 1. **V3 Failed** due to using the wrong (old) training script
 2. **Overfitting Prevention** was never applied in V3
 3. **V4 Solution** uses proper enhanced trainer with comprehensive overfitting prevention
-4. **Critical Feature**: Automatic training termination at 25% overfitting gap
+4. **Critical Feature**: Automatic training termination at ≥8% overfitting gap (MEDICAL GRADE)
 5. **Expected Result**: Medical-grade performance with minimal overfitting
 
 **Next Action**: Run `./train_improved_ovo_fixed.sh` for proper V4 training with enhanced overfitting prevention.

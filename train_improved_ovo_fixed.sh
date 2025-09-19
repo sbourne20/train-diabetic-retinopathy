@@ -17,8 +17,8 @@ echo "🛡️ ENHANCED overfitting prevention features enabled:"
 echo "  ✅ Advanced early stopping with validation loss monitoring"
 echo "  ✅ Dynamic dropout adjustment (0.7 → 0.8 when overfitting detected)"
 echo "  ✅ Gradient clipping (threshold: 1.0)"
-echo "  ✅ Overfitting detection threshold: 15% train-val gap"
-echo "  ✅ CRITICAL overfitting stop: >25% train-val gap"
+echo "  ✅ Overfitting detection threshold: 8% train-val gap"
+echo "  ✅ CRITICAL overfitting stop: ≥8% train-val gap (MEDICAL GRADE)"
 echo "  ✅ Enhanced learning rate scheduling"
 echo "  ✅ Higher weight decay (1e-2) for better regularization"
 echo "  ✅ All 3 base models: MobileNet-v2, Inception-v3, DenseNet121"
@@ -38,7 +38,7 @@ python ensemble_local_trainer_enhanced.py \
     --weight_decay 1e-2 \
     --enhanced_dropout 0.7 \
     --gradient_clipping 1.0 \
-    --overfitting_threshold 0.15 \
+    --overfitting_threshold 0.08 \
     --early_stopping_patience 5 \
     --validation_loss_patience 3 \
     --dynamic_dropout \
@@ -56,7 +56,7 @@ echo "🔍 To analyze results:"
 echo "python analyze_ovo_with_metrics.py"
 echo ""
 echo "📊 Key fixes implemented:"
-echo "  🛡️ SEVERE overfitting detection (>25% gap = immediate stop)"
+echo "  🛡️ CRITICAL overfitting detection (≥8% gap = immediate stop) - MEDICAL GRADE"
 echo "  🛡️ Dynamic dropout adjustment based on train-val gap"
 echo "  🛡️ Advanced early stopping with validation loss monitoring"
 echo "  🛡️ All 3 base models will train (MobileNet, Inception, DenseNet)"
