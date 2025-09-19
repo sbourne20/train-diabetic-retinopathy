@@ -205,22 +205,18 @@ def get_enhanced_transforms(img_size, is_training=True):
 
     if is_training:
         transform = transforms.Compose([
-            CLAHETransform(clip_limit=2.0),  # Medical-grade contrast enhancement
             transforms.Resize((img_size, img_size)),
-            transforms.RandomRotation(45),   # Research paper: 45° rotation
-            transforms.RandomHorizontalFlip(p=0.5),  # Research paper: flipping
-            transforms.RandomAffine(degrees=0, shear=10),  # Research paper: shear
-            transforms.RandomAffine(degrees=0, scale=(0.9, 1.1)),  # Research paper: zoom
+            transforms.RandomRotation(15),   # Conservative rotation for medical images
+            transforms.RandomHorizontalFlip(p=0.5),
             transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Research paper: normalization
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # ImageNet normalization
         ])
     else:
         transform = transforms.Compose([
-            CLAHETransform(clip_limit=2.0),
             transforms.Resize((img_size, img_size)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # ImageNet normalization
         ])
 
     return transform

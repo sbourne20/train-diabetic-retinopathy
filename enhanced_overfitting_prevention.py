@@ -384,7 +384,7 @@ def enhanced_training_step(model, train_loader, val_loader, config, class_pair, 
             optimizer.step()
 
             train_loss += loss.item()
-            predicted = (output > 0.5).float()
+            predicted = (output > 0.5).float()  # Standard threshold
             train_correct += (predicted == binary_target).sum().item()
             train_total += binary_target.size(0)
 
@@ -407,7 +407,7 @@ def enhanced_training_step(model, train_loader, val_loader, config, class_pair, 
                 loss = criterion(output, binary_target)
                 val_loss += loss.item()
 
-                predicted = (output > 0.5).float()
+                predicted = (output > 0.5).float()  # Standard threshold
                 val_correct += (predicted == binary_target).sum().item()
                 val_total += binary_target.size(0)
 
