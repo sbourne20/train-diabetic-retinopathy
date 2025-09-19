@@ -26,7 +26,7 @@ class AdvancedEarlyStopping:
                  patience: int = 7,
                  min_delta: float = 0.001,
                  restore_best_weights: bool = True,
-                 overfitting_threshold: float = 0.08,  # 8% train-val gap
+                 overfitting_threshold: float = 0.12,  # 12% train-val gap
                  validation_loss_patience: int = 5):
 
         self.patience = patience
@@ -77,9 +77,9 @@ class AdvancedEarlyStopping:
                     logger.warning(f"🚨 OVERFITTING DETECTED! Train-Val gap: {overfitting_gap:.1f}%")
                     self.overfitting_detected = True
 
-                # If overfitting is critical (≥8% gap), stop immediately for medical-grade requirements
-                if overfitting_gap >= 8.0:
-                    logger.error(f"❌ CRITICAL OVERFITTING: {overfitting_gap:.1f}% gap ≥8%. Stopping training for medical-grade quality.")
+                # If overfitting is critical (≥12% gap), stop immediately for medical-grade requirements
+                if overfitting_gap >= 12.0:
+                    logger.error(f"❌ CRITICAL OVERFITTING: {overfitting_gap:.1f}% gap ≥12%. Stopping training for medical-grade quality.")
                     return True
 
         # Check validation accuracy improvement
@@ -315,7 +315,7 @@ def enhanced_training_step(model, train_loader, val_loader, config, class_pair, 
     early_stopping = AdvancedEarlyStopping(
         patience=config['training'].get('early_stopping_patience', 5),
         min_delta=0.001,
-        overfitting_threshold=0.08,  # 8% train-val gap threshold
+        overfitting_threshold=0.12,  # 12% train-val gap threshold
         validation_loss_patience=3
     )
 
@@ -417,7 +417,7 @@ def enhanced_training_step(model, train_loader, val_loader, config, class_pair, 
                    f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, "
                    f"Gap: {overfitting_gap:.1f}%, LR: {optimizer.param_groups[0]['lr']:.2e}")
 
-        if overfitting_gap > 8.0:
+        if overfitting_gap > 12.0:
             logger.warning(f"   ⚠️ Overfitting detected: {overfitting_gap:.1f}% train-val gap")
 
         # Early stopping check

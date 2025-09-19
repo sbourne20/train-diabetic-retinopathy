@@ -546,6 +546,17 @@ def train_enhanced_ovo_ensemble(config, train_dataset, val_dataset, test_dataset
             # Check if model already exists and resume is enabled
             model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{class_pair[0]}_{class_pair[1]}.pth"
 
+            # Also check for mobilenet_v2 checkpoints when training mobilenet (backward compatibility)
+            if model_name == 'mobilenet':
+                alt_model_path = Path(config['system']['output_dir']) / "models" / f"best_mobilenet_v2_{class_pair[0]}_{class_pair[1]}.pth"
+                if config.get('resume', False) and alt_model_path.exists():
+                    logger.info(f"   📂 Found compatible checkpoint: {alt_model_path}")
+                    checkpoint = torch.load(alt_model_path, map_location='cpu')
+                    best_acc = checkpoint.get('best_val_accuracy', 0.0)
+                    logger.info(f"   📊 Previous best accuracy: {best_acc:.2f}% (from mobilenet_v2)")
+                    results[model_name][f"{class_pair[0]}_{class_pair[1]}"] = best_acc
+                    continue
+
             if config.get('resume', False) and model_path.exists():
                 logger.info(f"   📂 Resuming from existing checkpoint: {model_path}")
                 checkpoint = torch.load(model_path, map_location='cpu')
