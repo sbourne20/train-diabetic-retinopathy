@@ -26,7 +26,7 @@ class AdvancedEarlyStopping:
                  patience: int = 7,
                  min_delta: float = 0.001,
                  restore_best_weights: bool = True,
-                 overfitting_threshold: float = 0.12,  # 12% train-val gap
+                 overfitting_threshold: float = 0.08,  # 8% train-val gap
                  validation_loss_patience: int = 5):
 
         self.patience = patience
@@ -77,9 +77,9 @@ class AdvancedEarlyStopping:
                     logger.warning(f"🚨 OVERFITTING DETECTED! Train-Val gap: {overfitting_gap:.1f}%")
                     self.overfitting_detected = True
 
-                # If overfitting is critical (≥15% gap), stop immediately for medical-grade requirements
-                if overfitting_gap >= 15.0:
-                    logger.error(f"❌ CRITICAL OVERFITTING: {overfitting_gap:.1f}% gap ≥15%. Stopping training for medical-grade quality.")
+                # If overfitting is critical (≥8% gap), stop immediately for medical-grade requirements
+                if overfitting_gap >= 8.0:
+                    logger.error(f"❌ CRITICAL OVERFITTING: {overfitting_gap:.1f}% gap ≥8%. Stopping training for medical-grade quality.")
                     return True
 
         # Check validation accuracy improvement
@@ -148,9 +148,9 @@ class DynamicDropout(nn.Module):
 
     def adjust_dropout(self, overfitting_gap: float):
         """Adjust dropout rate based on overfitting gap."""
-        if overfitting_gap > 12.0:  # Approaching critical overfitting
+        if overfitting_gap > 6.0:  # Approaching critical overfitting (adjusted for 8% limit)
             self.current_dropout = min(self.max_dropout, self.current_dropout + 0.1)
-        elif overfitting_gap > 8.0:  # Moderate overfitting
+        elif overfitting_gap > 4.0:  # Moderate overfitting (adjusted for 8% limit)
             self.current_dropout = min(self.max_dropout, self.current_dropout + 0.05)
         elif overfitting_gap < 5.0:  # Good generalization
             self.current_dropout = max(self.initial_dropout, self.current_dropout - 0.02)
@@ -191,7 +191,39 @@ def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
                                      freeze_weights: bool = True) -> nn.Module:
     """Create model with enhanced dropout layers for better overfitting prevention."""
 
-    if model_name == 'mobilenet_v2':
+    if model_name == 'mobilenet':
+        # Original MobileNet (as per research paper - 96.27% accuracy)
+        from torchvision import models
+        try:
+            backbone = models.mobilenet_v3_small(pretrained=True)  # Use v3_small as closest to original
+        except:
+            backbone = models.mobilenet_v2(pretrained=True)  # Fallback
+
+        if freeze_weights:
+            for param in backbone.parameters():
+                param.requires_grad = False
+
+        # Replace classifier with enhanced version
+        if hasattr(backbone, 'classifier') and len(backbone.classifier) > 1:
+            in_features = backbone.classifier[-1].in_features
+        else:
+            in_features = backbone.classifier[0].in_features
+
+        backbone.classifier = nn.Sequential(
+            nn.Dropout(dropout),           # Input dropout
+            nn.Linear(in_features, 512),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(512),          # Batch normalization
+            DynamicDropout(dropout * 0.8), # Dynamic dropout
+            nn.Linear(512, 256),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(256),
+            DynamicDropout(dropout * 0.6), # Reducing dropout in deeper layers
+            nn.Linear(256, 1),
+            nn.Sigmoid()
+        )
+
+    elif model_name == 'mobilenet_v2':
         from torchvision import models
         backbone = models.mobilenet_v2(pretrained=True)
 
@@ -265,6 +297,37 @@ def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
             nn.Sigmoid()
         )
 
+    elif model_name == 'resnet50':
+        # ResNet50 (as per research paper - 94.95% accuracy)
+        from torchvision import models
+        backbone = models.resnet50(pretrained=True)
+
+        if freeze_weights:
+            for param in backbone.parameters():
+                param.requires_grad = False
+
+        # Replace final fully connected layer with enhanced version
+        in_features = backbone.fc.in_features
+        backbone.fc = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(in_features, 1024),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(1024),
+            DynamicDropout(dropout * 0.8),
+            nn.Linear(1024, 512),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(512),
+            DynamicDropout(dropout * 0.6),
+            nn.Linear(512, 256),
+            nn.ReLU(inplace=True),
+            DynamicDropout(dropout * 0.4),
+            nn.Linear(256, 1),
+            nn.Sigmoid()
+        )
+
+    else:
+        raise ValueError(f"Unsupported model: {model_name}. Supported models: mobilenet, mobilenet_v2, resnet50, inception_v3, densenet121")
+
     return backbone
 
 def enhanced_training_step(model, train_loader, val_loader, config, class_pair, model_name):
@@ -300,7 +363,7 @@ def enhanced_training_step(model, train_loader, val_loader, config, class_pair, 
     early_stopping = AdvancedEarlyStopping(
         patience=config['training'].get('early_stopping_patience', 5),
         min_delta=0.001,
-        overfitting_threshold=0.15,  # 15% train-val gap threshold
+        overfitting_threshold=0.08,  # 8% train-val gap threshold
         validation_loss_patience=3
     )
 
@@ -402,7 +465,7 @@ def enhanced_training_step(model, train_loader, val_loader, config, class_pair, 
                    f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, "
                    f"Gap: {overfitting_gap:.1f}%, LR: {optimizer.param_groups[0]['lr']:.2e}")
 
-        if overfitting_gap > 15.0:
+        if overfitting_gap > 8.0:
             logger.warning(f"   ⚠️ Overfitting detected: {overfitting_gap:.1f}% train-val gap")
 
         # Early stopping check
