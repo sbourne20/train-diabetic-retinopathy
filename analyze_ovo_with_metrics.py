@@ -181,9 +181,13 @@ def generate_training_report(results):
 
 def main():
     """Main analysis function."""
-    # Check for v4 (fixed), then v3, v2, v1
-    models_dir = Path('./ovo_ensemble_results_v4/models')
-    version = "v4"
+    # Check for balanced (newest), then v4, v3, v2, v1
+    models_dir = Path('./ovo_ensemble_results_balanced/models')
+    version = "balanced"
+
+    if not models_dir.exists():
+        models_dir = Path('./ovo_ensemble_results_v4/models')
+        version = "v4"
 
     if not models_dir.exists():
         models_dir = Path('./ovo_ensemble_results_v3/models')
@@ -199,6 +203,7 @@ def main():
 
     if not models_dir.exists():
         print(f"❌ No models directory found. Checked:")
+        print(f"   - ./ovo_ensemble_results_balanced/models (BALANCED)")
         print(f"   - ./ovo_ensemble_results_v4/models (ENHANCED)")
         print(f"   - ./ovo_ensemble_results_v3/models")
         print(f"   - ./ovo_ensemble_results_v2/models")
@@ -206,7 +211,9 @@ def main():
         return
 
     print(f"🔍 Analyzing models in: {models_dir}")
-    if version == "v4":
+    if version == "balanced":
+        print(f"⚖️ Using BALANCED results with optimized overfitting prevention")
+    elif version == "v4":
         print(f"🛡️ Using V4 ENHANCED results with overfitting prevention")
     else:
         print(f"📦 Using {version} dataset results")

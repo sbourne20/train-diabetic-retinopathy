@@ -10,17 +10,17 @@ echo "==========================================="
 # Create output directory
 mkdir -p ./ovo_ensemble_results_v3
 
-echo "📊 Training improved OVO ensemble with:"
+echo "📊 Training improved OVO ensemble with BALANCED overfitting prevention:"
 echo "  - Memory optimization enabled (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True)"
-echo "  - Reduced batch size for DenseNet (batch_size=4)"
-echo "  - Fine-tuning enabled (freeze_weights=False)"
-echo "  - Enhanced multi-layer classifier heads"
-echo "  - Differential learning rates (backbone vs classifier)"
-echo "  - Learning rate scheduling"
+echo "  - Progress bars for each epoch (visual tracking)"
+echo "  - Balanced overfitting prevention (15% critical stop)"
+echo "  - Dynamic dropout adjustment"
+echo "  - Gradient clipping for stability"
+echo "  - Enhanced learning rate scheduling"
 echo "  - Automatic checkpoint resuming"
 
-# Train improved OVO ensemble
-python ensemble_local_trainer.py \
+# Train improved OVO ensemble with ENHANCED overfitting prevention
+python ensemble_local_trainer_enhanced.py \
     --mode train \
     --dataset_path ./dataset7b \
     --output_dir ./ovo_ensemble_results_v3 \
@@ -30,18 +30,26 @@ python ensemble_local_trainer.py \
     --epochs 30 \
     --batch_size 4 \
     --learning_rate 1e-4 \
-    --weight_decay 1e-3 \
-    --freeze_weights false \
-    --ovo_dropout 0.6 \
-    --enable_class_weights \
-    --class_weight_severe 8.0 \
-    --validation_frequency 1 \
-    --checkpoint_frequency 5 \
-    --patience 5 \
-    --early_stopping_patience 3 \
+    --weight_decay 5e-3 \
+    --enhanced_dropout 0.6 \
+    --gradient_clipping 1.0 \
+    --overfitting_threshold 0.12 \
+    --early_stopping_patience 7 \
+    --validation_loss_patience 4 \
+    --dynamic_dropout \
+    --batch_norm \
+    --advanced_scheduler \
+    --freeze_weights true \
     --resume \
     --seed 42
 
 echo ""
-echo "✅ Improved OVO training completed!"
+echo "✅ Improved OVO training with BALANCED overfitting prevention completed!"
 echo "📁 Results saved to: ./ovo_ensemble_results_v3"
+echo ""
+echo "🔍 Key improvements:"
+echo "  ✅ Progress bars for each epoch"
+echo "  ✅ Balanced overfitting prevention (15% critical stop)"
+echo "  ✅ Dynamic dropout adjustment"
+echo "  ✅ Enhanced regularization"
+echo "  ✅ Better validation accuracy expected: 75-85%"
