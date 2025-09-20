@@ -292,22 +292,44 @@ class MedSigLIPClassifier(nn.Module):
     def forward(self, x):
         """Forward pass with optional gradient checkpointing."""
         if self.enable_checkpointing and self.training:
-            features = checkpoint(self.backbone, x)
+            outputs = checkpoint(self.backbone, x, use_reentrant=False)
         else:
             outputs = self.backbone(x)
-            if hasattr(outputs, 'last_hidden_state'):
-                features = outputs.last_hidden_state[:, 0]  # CLS token
-            elif hasattr(outputs, 'pooler_output'):
+
+        # Handle different output formats from transformers
+        if hasattr(outputs, 'last_hidden_state'):
+            features = outputs.last_hidden_state[:, 0]  # CLS token
+        elif hasattr(outputs, 'pooler_output'):
+            features = outputs.pooler_output
+        elif hasattr(outputs, 'logits'):
+            features = outputs.logits
+        elif isinstance(outputs, torch.Tensor):
+            features = outputs
+        else:
+            # Handle BaseModelOutputWithPooling and similar objects
+            if hasattr(outputs, 'pooler_output') and outputs.pooler_output is not None:
                 features = outputs.pooler_output
+            elif hasattr(outputs, 'last_hidden_state'):
+                features = outputs.last_hidden_state[:, 0]  # Take CLS token
             else:
-                features = outputs
+                # Last resort: try to get the first tensor-like attribute
+                for attr_name in dir(outputs):
+                    attr = getattr(outputs, attr_name)
+                    if isinstance(attr, torch.Tensor) and len(attr.shape) >= 2:
+                        if len(attr.shape) == 3:  # [batch, seq_len, hidden]
+                            features = attr[:, 0]  # Take first token
+                        else:
+                            features = attr
+                        break
+                else:
+                    raise RuntimeError(f"Cannot extract features from {type(outputs)}")
 
-        # Handle different output formats
-        if isinstance(features, tuple):
-            features = features[0]
-
-        if len(features.shape) > 2:
-            features = F.adaptive_avg_pool1d(features.transpose(1, 2), 1).squeeze(-1)
+        # Handle different tensor shapes
+        if isinstance(features, torch.Tensor):
+            if len(features.shape) > 2:
+                features = F.adaptive_avg_pool1d(features.transpose(1, 2), 1).squeeze(-1)
+        else:
+            raise RuntimeError(f"Features must be tensor, got {type(features)}")
 
         return self.classifier(features)
 
@@ -551,7 +573,7 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
 
             # Mixed precision forward pass
             if config['mixed_precision']:
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast('cuda'):
                     outputs = model(images)
                     loss = criterion(outputs, labels)
 
@@ -592,7 +614,7 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
                 images, labels = images.to(device), labels.to(device)
 
                 if config['mixed_precision']:
-                    with torch.cuda.amp.autocast():
+                    with torch.amp.autocast('cuda'):
                         outputs = model(images)
                         loss = criterion(outputs, labels)
                 else:
@@ -810,7 +832,7 @@ def evaluate_super_ensemble(ensemble, test_loader, config):
 
             # Get ensemble predictions
             if config['mixed_precision']:
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast('cuda'):
                     ensemble_logits, individual_outputs = ensemble(images, return_individual=True)
             else:
                 ensemble_logits, individual_outputs = ensemble(images, return_individual=True)
