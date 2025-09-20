@@ -27,28 +27,17 @@ echo "  - Progress bars for each epoch (visual tracking)"
 echo "  - Overfitting prevention (15% critical stop - RELAXED to match working config)"
 echo "  - Automatic checkpoint resuming"
 
-# Train improved OVO ensemble with ENHANCED overfitting prevention
-python ensemble_local_trainer_enhanced.py \
+# Train improved OVO ensemble with ORIGINAL working trainer
+python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset7b \
     --output_dir ./ovo_ensemble_results_v3 \
     --img_size 224 \
     --base_models mobilenet_v2 inception_v3 densenet121 \
-    --experiment_name research_paper_ovo_ensemble \
     --epochs 50 \
     --batch_size 32 \
     --learning_rate 5e-4 \
     --weight_decay 1e-4 \
-    --enhanced_dropout 0.3 \
-    --gradient_clipping 1.0 \
-    --overfitting_threshold 0.15 \
-    --early_stopping_patience 15 \
-    --validation_loss_patience 4 \
-    --dynamic_dropout \
-    --batch_norm \
-    --advanced_scheduler \
-    --freeze_weights true \
-    --resume \
     --seed 42
 
 echo ""

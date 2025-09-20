@@ -230,7 +230,7 @@ def create_enhanced_model_with_dropout(model_name: str, dropout: float = 0.6,
 
     elif model_name == 'inception_v3':
         from torchvision import models
-        backbone = models.inception_v3(pretrained=True, aux_logits=False)
+        backbone = models.inception_v3(pretrained=True)
 
         if freeze_weights:
             for param in backbone.parameters():
