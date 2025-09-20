@@ -86,6 +86,18 @@ python -c "import cv2; print('✅ OpenCV available')" 2>/dev/null || {
     pip install opencv-python
 }
 
+# Check for wandb (resource monitoring)
+python -c "import wandb; print('✅ Wandb available for monitoring')" 2>/dev/null || {
+    echo "❌ Wandb not found. Installing..."
+    pip install wandb
+}
+
+# Check for psutil (system monitoring)
+python -c "import psutil; print('✅ Psutil available for system monitoring')" 2>/dev/null || {
+    echo "❌ Psutil not found. Installing..."
+    pip install psutil
+}
+
 echo ""
 echo "🚀 Starting Super-Ensemble Training..."
 echo "⚙️ Features enabled:"
@@ -99,6 +111,7 @@ echo "   - Gradient checkpointing"
 echo "   - Advanced overfitting prevention"
 echo "   - CLAHE preprocessing"
 echo "   - Focal loss + class weights"
+echo "   - Wandb monitoring & resource tracking"
 echo ""
 
 # Create output directory
@@ -112,14 +125,14 @@ python super_ensemble_direct_trainer.py \
     --models medsiglip_448 efficientnet_b3 efficientnet_b4 efficientnet_b5 \
     --epochs 40 \
     --batch_size 8 \
-    --learning_rate 5e-6 \
+    --learning_rate 1e-5 \
     --weight_decay 1e-4 \
     --dropout 0.3 \
     --warmup_epochs 5 \
     --early_stopping_patience 15 \
     --reduce_lr_patience 8 \
     --min_lr 1e-8 \
-    --medsiglip_lr_multiplier 0.1 \
+    --medsiglip_lr_multiplier 5.0 \
     --efficientnet_lr_multiplier 1.0 \
     --enable_memory_optimization \
     --gradient_checkpointing \
@@ -133,7 +146,10 @@ python super_ensemble_direct_trainer.py \
     --label_smoothing 0.1 \
     --num_classes 5 \
     --device cuda \
-    --seed 42
+    --seed 42 \
+    --enable_wandb \
+    --wandb_project "diabetic-retinopathy-super-ensemble" \
+    --wandb_entity "$USER"
 
 # Check training success
 if [ $? -eq 0 ]; then

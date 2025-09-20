@@ -47,6 +47,15 @@ except ImportError:
     print("❌ Error: python-dotenv not found. Installing...")
     print("Run: pip install python-dotenv")
 
+# Try to import wandb for monitoring
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+    print("✅ Wandb available for monitoring")
+except ImportError:
+    WANDB_AVAILABLE = False
+    print("⚠️ Warning: wandb not available. Install with: pip install wandb")
+
 # Essential imports
 import torchvision.transforms as transforms
 from torchvision import models
@@ -131,6 +140,16 @@ Example Usage:
                        help='Reduce LR on plateau patience')
     parser.add_argument('--min_lr', type=float, default=1e-8,
                        help='Minimum learning rate')
+
+    # Wandb monitoring
+    parser.add_argument('--enable_wandb', action='store_true', default=True,
+                       help='Enable Wandb monitoring and logging')
+    parser.add_argument('--wandb_project', default='diabetic-retinopathy-super-ensemble',
+                       help='Wandb project name')
+    parser.add_argument('--wandb_entity', default=None,
+                       help='Wandb entity (team/username)')
+    parser.add_argument('--no_wandb', action='store_true',
+                       help='Disable wandb monitoring')
 
     # Model-specific learning rates
     parser.add_argument('--medsiglip_lr_multiplier', type=float, default=0.1,
@@ -234,24 +253,17 @@ class MedSigLIPClassifier(nn.Module):
         if not TRANSFORMERS_AVAILABLE:
             raise ImportError("transformers not available. Install with: pip install transformers")
 
-        # Load MedSigLIP model (this is a placeholder - replace with actual model)
-        # For now, using a vision transformer as proxy
+        # Load MedSigLIP model - NO fallbacks, error if not found
         try:
-            # Try to load actual MedSigLIP if available
+            # Try to load actual MedSigLIP-448 model
             self.backbone = AutoModel.from_pretrained("microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224")
-            logger.info("✅ Loaded BiomedCLIP as MedSigLIP proxy")
-        except:
-            # Fallback to standard vision transformer
-            try:
-                self.backbone = AutoModel.from_pretrained("google/vit-base-patch16-224")
-                logger.info("⚠️ Using ViT-Base as MedSigLIP fallback")
-            except:
-                # Final fallback to timm model
-                if TIMM_AVAILABLE:
-                    self.backbone = timm.create_model('vit_base_patch16_224', pretrained=True)
-                    logger.info("⚠️ Using TIMM ViT-Base as final fallback")
-                else:
-                    raise ImportError("No vision transformer available")
+            logger.info("✅ Loaded BiomedCLIP as MedSigLIP-448")
+        except Exception as e:
+            error_msg = f"❌ Failed to load MedSigLIP model: {e}"
+            logger.error(error_msg)
+            logger.error("💡 Install required model or check internet connection")
+            logger.error("💡 Alternative: Use EfficientNet-only training with --models efficientnet_b3 efficientnet_b4 efficientnet_b5")
+            raise ImportError(f"MedSigLIP model loading failed: {e}. No fallbacks enabled.")
 
         # Get feature dimension
         if hasattr(self.backbone, 'config'):
@@ -497,11 +509,95 @@ def calculate_class_weights(dataset, num_classes=5):
     logger.info(f"📊 Class weights: {class_weights.tolist()}")
     return class_weights
 
+def log_system_info():
+    """Log system information for monitoring."""
+    import psutil
+
+    system_info = {
+        'cpu_count': psutil.cpu_count(),
+        'cpu_percent': psutil.cpu_percent(),
+        'memory_total_gb': psutil.virtual_memory().total / (1024**3),
+        'memory_available_gb': psutil.virtual_memory().available / (1024**3),
+        'memory_percent': psutil.virtual_memory().percent,
+    }
+
+    if torch.cuda.is_available():
+        system_info.update({
+            'gpu_name': torch.cuda.get_device_name(0),
+            'gpu_memory_total_gb': torch.cuda.get_device_properties(0).total_memory / (1024**3),
+            'gpu_memory_allocated_gb': torch.cuda.memory_allocated() / (1024**3),
+            'gpu_memory_reserved_gb': torch.cuda.memory_reserved() / (1024**3),
+        })
+
+    return system_info
+
+def setup_wandb(config, model_name=None):
+    """Setup wandb monitoring."""
+    if not config.get('enable_wandb') or not WANDB_AVAILABLE or config.get('no_wandb'):
+        return None
+
+    try:
+        # Create run name
+        if model_name:
+            run_name = f"{config['experiment_name']}_{model_name}"
+        else:
+            run_name = config['experiment_name']
+
+        # Initialize wandb
+        wandb.init(
+            project=config['wandb_project'],
+            entity=config.get('wandb_entity'),
+            name=run_name,
+            config=config,
+            tags=['super-ensemble', 'diabetic-retinopathy', 'medical-ai'],
+            notes=f"Super-ensemble training with {len(config['models'])} models"
+        )
+
+        # Log system information
+        system_info = log_system_info()
+        wandb.log({"system_info": system_info})
+
+        logger.info(f"✅ Wandb initialized: {wandb.run.url}")
+        return wandb.run
+
+    except Exception as e:
+        logger.warning(f"⚠️ Wandb initialization failed: {e}")
+        return None
+
+def log_resource_usage(prefix=""):
+    """Log current resource usage."""
+    if not WANDB_AVAILABLE:
+        return
+
+    try:
+        import psutil
+
+        metrics = {
+            f"{prefix}cpu_percent": psutil.cpu_percent(),
+            f"{prefix}memory_percent": psutil.virtual_memory().percent,
+            f"{prefix}memory_used_gb": (psutil.virtual_memory().total - psutil.virtual_memory().available) / (1024**3),
+        }
+
+        if torch.cuda.is_available():
+            metrics.update({
+                f"{prefix}gpu_memory_allocated_gb": torch.cuda.memory_allocated() / (1024**3),
+                f"{prefix}gpu_memory_reserved_gb": torch.cuda.memory_reserved() / (1024**3),
+                f"{prefix}gpu_memory_percent": (torch.cuda.memory_allocated() / torch.cuda.get_device_properties(0).total_memory) * 100,
+            })
+
+        wandb.log(metrics)
+
+    except Exception as e:
+        logger.warning(f"⚠️ Resource logging failed: {e}")
+
 def train_single_model(model, train_loader, val_loader, config, model_name):
-    """Train a single model with memory optimization."""
+    """Train a single model with memory optimization and wandb monitoring."""
 
     device = torch.device(config['device'])
     model = model.to(device)
+
+    # Setup wandb for this model
+    wandb_run = setup_wandb(config, model_name)
 
     # Enable memory optimization
     if config['enable_memory_optimization']:
@@ -510,7 +606,7 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
             torch.backends.cudnn.allow_tf32 = True
 
     # Setup mixed precision training
-    scaler = torch.cuda.amp.GradScaler() if config['mixed_precision'] else None
+    scaler = torch.amp.GradScaler('cuda') if config['mixed_precision'] else None
 
     # Setup loss function
     if config['enable_focal_loss']:
@@ -596,10 +692,14 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
             train_total += labels.size(0)
             train_correct += (predicted == labels).sum().item()
 
-            # Memory cleanup
+            # Memory cleanup and resource logging
             if batch_idx % 50 == 0:
                 torch.cuda.empty_cache()
                 gc.collect()
+
+                # Log resource usage every 50 batches
+                if wandb_run:
+                    log_resource_usage(f"{model_name}_train_")
 
         train_acc = 100.0 * train_correct / train_total
 
@@ -637,6 +737,23 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
 
         # Calculate overfitting metric
         overfitting_gap = train_acc - val_acc
+
+        # Log metrics to wandb
+        if wandb_run:
+            wandb_metrics = {
+                f"{model_name}_epoch": epoch + 1,
+                f"{model_name}_train_accuracy": train_acc,
+                f"{model_name}_val_accuracy": val_acc,
+                f"{model_name}_train_loss": train_loss / len(train_loader),
+                f"{model_name}_val_loss": val_loss / len(val_loader),
+                f"{model_name}_learning_rate": scheduler.get_last_lr()[0],
+                f"{model_name}_overfitting_gap": overfitting_gap,
+                f"{model_name}_best_val_accuracy": best_val_acc,
+            }
+            wandb.log(wandb_metrics)
+
+            # Log resource usage after epoch
+            log_resource_usage(f"{model_name}_epoch_end_")
 
         # Check for improvement
         if val_acc > best_val_acc:
@@ -684,6 +801,15 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
             break
 
     logger.info(f"✅ {model_name}: Best Val Acc = {best_val_acc:.2f}%")
+
+    # Finish wandb run for this model
+    if wandb_run:
+        wandb.log({
+            f"{model_name}_final_best_accuracy": best_val_acc,
+            f"{model_name}_total_epochs": len(train_history['train_accuracies'])
+        })
+        wandb.finish()
+
     return best_val_acc, train_history
 
 def train_super_ensemble(config):
@@ -912,7 +1038,12 @@ def main():
         'output_dir': args.output_dir,
         'experiment_name': args.experiment_name,
         'device': args.device,
-        'seed': args.seed
+        'seed': args.seed,
+        # Wandb configuration
+        'enable_wandb': args.enable_wandb and not args.no_wandb,
+        'wandb_project': args.wandb_project,
+        'wandb_entity': args.wandb_entity,
+        'no_wandb': args.no_wandb
     }
 
     # Create output directories
