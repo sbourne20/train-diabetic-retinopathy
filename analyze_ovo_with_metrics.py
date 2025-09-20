@@ -9,7 +9,26 @@ import sys
 import json
 import torch
 import matplotlib.pyplot as plt
+import argparse
 from pathlib import Path
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Analyze OVO ensemble training results with comprehensive metrics',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python analyze_ovo_with_metrics.py
+  python analyze_ovo_with_metrics.py --dataset_path ./ovo_ensemble_results_v2
+  python analyze_ovo_with_metrics.py --dataset_path ./ovo_aptos_mobilenet_results
+        """
+    )
+
+    parser.add_argument('--dataset_path', type=str, default=None,
+                       help='Path to specific results directory (e.g., ./ovo_ensemble_results_v2)')
+
+    return parser.parse_args()
 
 def analyze_checkpoint_with_metrics(model_path):
     """Comprehensive analysis of checkpoint with training metrics."""
@@ -181,40 +200,60 @@ def generate_training_report(results):
 
 def main():
     """Main analysis function."""
-    # Check for balanced (newest), then v4, v3, v2, v1
-    models_dir = Path('./ovo_ensemble_results_balanced/models')
-    version = "balanced"
+    args = parse_args()
 
-    if not models_dir.exists():
-        models_dir = Path('./ovo_ensemble_results_v4/models')
-        version = "v4"
+    if args.dataset_path:
+        # User specified a specific dataset path
+        base_dir = Path(args.dataset_path)
+        models_dir = base_dir / "models"
+        version = f"custom ({base_dir.name})"
 
-    if not models_dir.exists():
-        models_dir = Path('./ovo_ensemble_results_v3/models')
-        version = "v3"
+        if not base_dir.exists():
+            print(f"❌ Specified dataset path does not exist: {base_dir}")
+            return
 
-    if not models_dir.exists():
-        models_dir = Path('./ovo_ensemble_results_v2/models')
-        version = "v2"
+        if not models_dir.exists():
+            print(f"❌ Models directory not found in: {models_dir}")
+            print(f"💡 Expected structure: {base_dir}/models/*.pth")
+            return
+    else:
+        # Auto-detect (existing behavior)
+        models_dir = Path('./ovo_ensemble_results_balanced/models')
+        version = "balanced"
 
-    if not models_dir.exists():
-        models_dir = Path('./ovo_ensemble_results/models')
-        version = "v1"
+        if not models_dir.exists():
+            models_dir = Path('./ovo_ensemble_results_v4/models')
+            version = "v4"
 
-    if not models_dir.exists():
-        print(f"❌ No models directory found. Checked:")
-        print(f"   - ./ovo_ensemble_results_balanced/models (BALANCED)")
-        print(f"   - ./ovo_ensemble_results_v4/models (ENHANCED)")
-        print(f"   - ./ovo_ensemble_results_v3/models")
-        print(f"   - ./ovo_ensemble_results_v2/models")
-        print(f"   - ./ovo_ensemble_results/models")
-        return
+        if not models_dir.exists():
+            models_dir = Path('./ovo_ensemble_results_v3/models')
+            version = "v3"
+
+        if not models_dir.exists():
+            models_dir = Path('./ovo_ensemble_results_v2/models')
+            version = "v2"
+
+        if not models_dir.exists():
+            models_dir = Path('./ovo_ensemble_results/models')
+            version = "v1"
+
+        if not models_dir.exists():
+            print(f"❌ No models directory found. Checked:")
+            print(f"   - ./ovo_ensemble_results_balanced/models (BALANCED)")
+            print(f"   - ./ovo_ensemble_results_v4/models (ENHANCED)")
+            print(f"   - ./ovo_ensemble_results_v3/models")
+            print(f"   - ./ovo_ensemble_results_v2/models")
+            print(f"   - ./ovo_ensemble_results/models")
+            print(f"💡 Or specify custom path with: --dataset_path ./your_results_dir")
+            return
 
     print(f"🔍 Analyzing models in: {models_dir}")
     if version == "balanced":
         print(f"⚖️ Using BALANCED results with optimized overfitting prevention")
     elif version == "v4":
         print(f"🛡️ Using V4 ENHANCED results with overfitting prevention")
+    elif "custom" in version:
+        print(f"📁 Using {version} results")
     else:
         print(f"📦 Using {version} dataset results")
 
@@ -257,7 +296,12 @@ def main():
     generate_training_report(results)
 
     # Save detailed results with version info
-    output_file = f'ovo_comprehensive_analysis_{version}.json'
+    if "custom" in version:
+        # Extract directory name for custom paths
+        dir_name = Path(args.dataset_path).name if args.dataset_path else "custom"
+        output_file = f'ovo_comprehensive_analysis_{dir_name}.json'
+    else:
+        output_file = f'ovo_comprehensive_analysis_{version}.json'
     analysis_results = {
         'version': version,
         'models_directory': str(models_dir),

@@ -141,7 +141,7 @@ Example Usage:
     
     # Enhanced preprocessing for OVO
     parser.add_argument('--enable_clahe', action='store_true', default=False,
-                       help='Enable CLAHE preprocessing (+3-5% accuracy)')
+                       help='Enable CLAHE preprocessing (+3-5%% accuracy)')
     parser.add_argument('--clahe_clip_limit', type=float, default=3.0,
                        help='CLAHE clip limit (higher for binary tasks)')
     parser.add_argument('--clahe_tile_grid_size', nargs=2, type=int, default=[8, 8],
@@ -159,9 +159,9 @@ Example Usage:
     parser.add_argument('--rotation_range', type=float, default=15.0,
                        help='Rotation range in degrees (±15° preserves anatomy)')
     parser.add_argument('--brightness_range', type=float, default=0.1,
-                       help='Brightness variation range (±10%)')
+                       help='Brightness variation range (±10%%)')
     parser.add_argument('--contrast_range', type=float, default=0.1,
-                       help='Contrast variation range (±10%)')
+                       help='Contrast variation range (±10%%)')
     
     # Loss configuration (PRESERVED)
     parser.add_argument('--enable_focal_loss', action='store_true',
@@ -231,7 +231,7 @@ Example Usage:
     parser.add_argument('--enable_medical_validation', action='store_true', default=True,
                        help='Enable medical-grade validation')
     parser.add_argument('--target_accuracy', type=float, default=0.9696,
-                       help='Target ensemble accuracy (96.96% from research)')
+                       help='Target ensemble accuracy (96.96%% from research)')
     
     return parser.parse_args()
 
