@@ -148,7 +148,7 @@ python super_ensemble_direct_trainer.py \
     --device cuda \
     --seed 42 \
     --enable_wandb \
-    --wandb_project "diabetic-retinopathy-super-ensemble" \
+    --wandb_project "dr-ensemble" \
     --wandb_entity "iwanbudihalim"
 
 # Check training success
