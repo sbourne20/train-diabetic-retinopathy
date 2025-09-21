@@ -284,9 +284,35 @@ class MedSigLIPClassifier(nn.Module):
             logger.error("💡 Alternative: Use EfficientNet-only training with --models efficientnet_b3 efficientnet_b4 efficientnet_b5")
             raise ImportError(f"MedSigLIP-448 model loading failed: {e}. No fallbacks enabled.")
 
-        # Get feature dimension
+        # Get feature dimension - handle different config types
         if hasattr(self.backbone, 'config'):
-            hidden_size = self.backbone.config.hidden_size
+            config = self.backbone.config
+            # Try different attribute names based on model type
+            if hasattr(config, 'hidden_size'):
+                hidden_size = config.hidden_size
+            elif hasattr(config, 'vision_config') and hasattr(config.vision_config, 'hidden_size'):
+                hidden_size = config.vision_config.hidden_size
+            elif hasattr(config, 'd_model'):
+                hidden_size = config.d_model
+            elif hasattr(config, 'embed_dim'):
+                hidden_size = config.embed_dim
+            else:
+                # Inspect available attributes
+                available_attrs = [attr for attr in dir(config) if not attr.startswith('_')]
+                logger.info(f"🔍 Available config attributes: {available_attrs}")
+                # For SigLIP models, try common dimension attributes
+                if 'vision_config' in available_attrs:
+                    vision_config = getattr(config, 'vision_config')
+                    vision_attrs = [attr for attr in dir(vision_config) if not attr.startswith('_')]
+                    logger.info(f"🔍 Vision config attributes: {vision_attrs}")
+                    if hasattr(vision_config, 'hidden_size'):
+                        hidden_size = vision_config.hidden_size
+                    elif hasattr(vision_config, 'embed_dim'):
+                        hidden_size = vision_config.embed_dim
+                    else:
+                        hidden_size = 768  # Default
+                else:
+                    hidden_size = 768  # Default ViT size
         else:
             hidden_size = 768  # Standard ViT hidden size
 
@@ -1064,6 +1090,17 @@ def main():
         'wandb_entity': args.wandb_entity,
         'no_wandb': args.no_wandb
     }
+
+    # Auto-detect device if CUDA not available
+    if config['device'] == 'cuda' and not torch.cuda.is_available():
+        if torch.backends.mps.is_available():
+            config['device'] = 'mps'
+            logger.info("🔧 Auto-detected MPS device for training")
+        else:
+            config['device'] = 'cpu'
+            logger.info("🔧 Auto-detected CPU device for training")
+
+    logger.info(f"🎮 Using device: {config['device']}")
 
     # Create output directories
     output_path = Path(config['output_dir'])
