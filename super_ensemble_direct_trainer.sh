@@ -149,7 +149,7 @@ python super_ensemble_direct_trainer.py \
     --seed 42 \
     --enable_wandb \
     --wandb_project "dr-ensemble" \
-    --wandb_entity "iwanbudihalim"
+    --wandb_entity "iwanbudihalim-curalis"
 
 # Check training success
 if [ $? -eq 0 ]; then
