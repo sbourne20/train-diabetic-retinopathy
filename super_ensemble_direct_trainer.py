@@ -255,15 +255,34 @@ class MedSigLIPClassifier(nn.Module):
 
         # Load MedSigLIP model - NO fallbacks, error if not found
         try:
-            # Try to load actual MedSigLIP-448 model
-            self.backbone = AutoModel.from_pretrained("microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224")
-            logger.info("✅ Loaded BiomedCLIP as MedSigLIP-448")
+            # Get Hugging Face token from environment
+            hf_token = os.getenv('HUGGINGFACE_TOKEN')
+
+            if hf_token:
+                logger.info("🔑 Using Hugging Face token from .env")
+                # Load actual MedSigLIP-448 model from Google with token
+                self.backbone = AutoModel.from_pretrained(
+                    "google/medsiglip-448",
+                    token=hf_token,
+                    trust_remote_code=True
+                )
+            else:
+                logger.warning("⚠️ No HUGGINGFACE_TOKEN found in .env, trying without authentication")
+                # Load without token
+                self.backbone = AutoModel.from_pretrained(
+                    "google/medsiglip-448",
+                    trust_remote_code=True
+                )
+
+            logger.info("✅ Loaded MedSigLIP-448 from Google")
         except Exception as e:
-            error_msg = f"❌ Failed to load MedSigLIP model: {e}"
+            error_msg = f"❌ Failed to load MedSigLIP-448 model: {e}"
             logger.error(error_msg)
-            logger.error("💡 Install required model or check internet connection")
+            logger.error("💡 Check internet connection or model availability")
+            logger.error("💡 Model URL: https://huggingface.co/google/medsiglip-448")
+            logger.error("💡 Ensure HUGGINGFACE_TOKEN is set in .env file")
             logger.error("💡 Alternative: Use EfficientNet-only training with --models efficientnet_b3 efficientnet_b4 efficientnet_b5")
-            raise ImportError(f"MedSigLIP model loading failed: {e}. No fallbacks enabled.")
+            raise ImportError(f"MedSigLIP-448 model loading failed: {e}. No fallbacks enabled.")
 
         # Get feature dimension
         if hasattr(self.backbone, 'config'):
