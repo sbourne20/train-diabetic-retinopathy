@@ -597,21 +597,22 @@ def setup_wandb(config, model_name=None):
         else:
             run_name = config['experiment_name']
 
-        # Initialize wandb
+        # Create a new wandb run for this specific model
         wandb.init(
             project=config['wandb_project'],
             entity=config.get('wandb_entity'),
             name=run_name,
             config=config,
-            tags=['super-ensemble', 'diabetic-retinopathy', 'medical-ai'],
-            notes=f"Super-ensemble training with {len(config['models'])} models"
+            tags=['super-ensemble', 'diabetic-retinopathy', 'medical-ai', model_name],
+            notes=f"Training {model_name} in super-ensemble",
+            reinit=True
         )
 
         # Log system information
         system_info = log_system_info()
         wandb.log({"system_info": system_info})
 
-        logger.info(f"✅ Wandb initialized: {wandb.run.url}")
+        logger.info(f"✅ Wandb run for {model_name}: {wandb.run.url}")
         return wandb.run
 
     except Exception as e:
@@ -906,6 +907,22 @@ def train_super_ensemble(config):
         logger.info(f"🎮 GPU: {torch.cuda.get_device_name(0)} ({gpu_memory:.1f}GB)")
         if gpu_memory < 15:
             logger.warning("⚠️ GPU memory < 16GB - consider reducing batch size")
+
+    # Initialize wandb early for immediate feedback
+    if config['enable_wandb']:
+        try:
+            wandb.init(
+                project=config['wandb_project'],
+                entity=config['wandb_entity'],
+                name=f"super_ensemble_{config['experiment_name']}",
+                config=config,
+                reinit=True
+            )
+            logger.info("✅ Wandb initialized successfully")
+        except Exception as e:
+            logger.warning(f"⚠️ Wandb initialization failed: {e}")
+            logger.info("📊 Continuing training without wandb monitoring")
+            config['enable_wandb'] = False
 
     # Prepare data with model-specific image sizes
     dataset_path = Path(config['dataset_path'])
