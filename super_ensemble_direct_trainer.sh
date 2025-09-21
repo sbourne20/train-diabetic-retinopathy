@@ -125,12 +125,12 @@ python super_ensemble_direct_trainer.py \
     --models medsiglip_448 efficientnet_b3 efficientnet_b4 efficientnet_b5 \
     --epochs 40 \
     --batch_size 8 \
-    --learning_rate 1e-5 \
-    --weight_decay 1e-4 \
-    --dropout 0.3 \
-    --warmup_epochs 5 \
-    --early_stopping_patience 15 \
-    --reduce_lr_patience 8 \
+    --learning_rate 5e-6 \
+    --weight_decay 5e-4 \
+    --dropout 0.5 \
+    --warmup_epochs 3 \
+    --early_stopping_patience 5 \
+    --reduce_lr_patience 3 \
     --min_lr 1e-8 \
     --medsiglip_lr_multiplier 5.0 \
     --efficientnet_lr_multiplier 1.0 \
@@ -138,12 +138,12 @@ python super_ensemble_direct_trainer.py \
     --gradient_checkpointing \
     --mixed_precision \
     --enable_clahe \
-    --augmentation_strength 0.2 \
+    --augmentation_strength 0.4 \
     --enable_focal_loss \
     --focal_alpha 0.25 \
     --focal_gamma 2.0 \
     --enable_class_weights \
-    --label_smoothing 0.1 \
+    --label_smoothing 0.2 \
     --num_classes 5 \
     --device cuda \
     --seed 42 \
