@@ -261,11 +261,13 @@ class MedSigLIPClassifier(nn.Module):
             if hf_token:
                 logger.info("🔑 Using Hugging Face token from .env")
                 # Load actual MedSigLIP-448 model from Google with token
-                self.backbone = AutoModel.from_pretrained(
+                full_model = AutoModel.from_pretrained(
                     "google/medsiglip-448",
                     token=hf_token,
                     trust_remote_code=True
                 )
+                # Extract only the vision component
+                self.backbone = full_model.vision_model
             else:
                 logger.warning("⚠️ No HUGGINGFACE_TOKEN found in .env, trying without authentication")
                 # Load without token
@@ -333,6 +335,9 @@ class MedSigLIPClassifier(nn.Module):
         # Freeze early layers for stability
         self._freeze_early_layers()
 
+        # Mark that this model requires 448x448 input
+        self.requires_448 = True
+
     def _freeze_early_layers(self):
         """Freeze early layers to prevent overfitting."""
         if hasattr(self.backbone, 'embeddings'):
@@ -349,8 +354,12 @@ class MedSigLIPClassifier(nn.Module):
     def forward(self, x):
         """Forward pass with optional gradient checkpointing."""
         if self.enable_checkpointing and self.training:
-            outputs = checkpoint(self.backbone, x, use_reentrant=False)
+            # For SigLIP vision model, create a wrapper function for checkpoint
+            def forward_fn(pixel_values):
+                return self.backbone(pixel_values)
+            outputs = checkpoint(forward_fn, x, use_reentrant=False)
         else:
+            # For SigLIP vision model, use direct call
             outputs = self.backbone(x)
 
         # Handle different output formats from transformers
@@ -712,10 +721,22 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
 
             optimizer.zero_grad()
 
+            # Resize images for model-specific requirements
+            model_images = images
+            if hasattr(model, 'requires_448') and model.requires_448:
+                # MedSigLIP needs 448x448, keep original size
+                pass
+            elif hasattr(model, 'requires_224') or 'efficientnet' in model_name.lower():
+                # EfficientNet needs 224x224, resize from 448
+                if images.size(-1) != 224:
+                    model_images = torch.nn.functional.interpolate(
+                        images, size=(224, 224), mode='bilinear', align_corners=False
+                    )
+
             # Mixed precision forward pass
             if config['mixed_precision']:
                 with torch.amp.autocast('cuda'):
-                    outputs = model(images)
+                    outputs = model(model_images)
                     loss = criterion(outputs, labels)
 
                 scaler.scale(loss).backward()
@@ -724,7 +745,7 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                outputs = model(images)
+                outputs = model(model_images)
                 loss = criterion(outputs, labels)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -758,12 +779,24 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
             for images, labels in val_loader:
                 images, labels = images.to(device), labels.to(device)
 
+                # Resize images for model-specific requirements
+                model_images = images
+                if hasattr(model, 'requires_448') and model.requires_448:
+                    # MedSigLIP needs 448x448, keep original size
+                    pass
+                elif hasattr(model, 'requires_224') or 'efficientnet' in model_name.lower():
+                    # EfficientNet needs 224x224, resize from 448
+                    if images.size(-1) != 224:
+                        model_images = torch.nn.functional.interpolate(
+                            images, size=(224, 224), mode='bilinear', align_corners=False
+                        )
+
                 if config['mixed_precision']:
                     with torch.amp.autocast('cuda'):
-                        outputs = model(images)
+                        outputs = model(model_images)
                         loss = criterion(outputs, labels)
                 else:
-                    outputs = model(images)
+                    outputs = model(model_images)
                     loss = criterion(outputs, labels)
 
                 val_loss += loss.item()
@@ -874,13 +907,21 @@ def train_super_ensemble(config):
         if gpu_memory < 15:
             logger.warning("⚠️ GPU memory < 16GB - consider reducing batch size")
 
-    # Prepare data
+    # Prepare data with model-specific image sizes
     dataset_path = Path(config['dataset_path'])
+
+    # Determine maximum image size needed for models
+    max_img_size = 224  # Default
+    if any('medsiglip' in model for model in config['models']):
+        max_img_size = 448  # MedSigLIP requires 448x448
+
     train_transform, val_transform = create_transforms(
-        img_size=224,  # Base size, models will resize internally
+        img_size=max_img_size,  # Use max size needed by any model
         enable_clahe=config['enable_clahe'],
         augmentation_strength=config['augmentation_strength']
     )
+
+    logger.info(f"🖼️ Using image size: {max_img_size}x{max_img_size} (for MedSigLIP-448 compatibility)")
 
     # Load datasets
     train_dataset = ImageFolder(dataset_path / "train", transform=train_transform)
@@ -899,23 +940,23 @@ def train_super_ensemble(config):
         train_dataset,
         batch_size=config['batch_size'],
         shuffle=True,
-        num_workers=2,  # Reduced for memory
+        num_workers=0,  # Disable multiprocessing to avoid pickle issues
         pin_memory=True,
-        persistent_workers=True
+        persistent_workers=False
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=config['batch_size'],
         shuffle=False,
-        num_workers=2,
+        num_workers=0,
         pin_memory=True,
-        persistent_workers=True
+        persistent_workers=False
     )
     test_loader = DataLoader(
         test_dataset,
         batch_size=config['batch_size'],
         shuffle=False,
-        num_workers=2,
+        num_workers=0,
         pin_memory=True
     )
 
