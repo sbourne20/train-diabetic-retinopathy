@@ -149,7 +149,7 @@ python super_ensemble_direct_trainer.py \
     --seed 42 \
     --enable_wandb \
     --wandb_project "diabetic-retinopathy-super-ensemble" \
-    --wandb_entity "$USER"
+    --wandb_entity "iwanbudihalim"
 
 # Check training success
 if [ $? -eq 0 ]; then
