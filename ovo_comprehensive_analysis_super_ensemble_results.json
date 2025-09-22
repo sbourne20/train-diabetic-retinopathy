@@ -1,0 +1,29 @@
+{
+  "version": "custom (super_ensemble_results)",
+  "models_directory": "super_ensemble_results/models",
+  "total_models_found": 1,
+  "analysis_timestamp": "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy",
+  "results": {
+    "medsiglip_448": {
+      "model_path": "super_ensemble_results/models/best_medsiglip_448.pth",
+      "file_size_mb": 4782.9544677734375,
+      "status": "loaded",
+      "format": "comprehensive",
+      "epoch": 29,
+      "best_val_accuracy": 78.54212685389713,
+      "current_val_accuracy": 78.54212685389713,
+      "current_train_accuracy": 83.00574130361365,
+      "class_pair": "unknown",
+      "model_name": "medsiglip_448",
+      "has_training_history": true,
+      "training_summary": {
+        "total_epochs": 29,
+        "final_train_acc": 83.00574130361365,
+        "final_val_acc": 78.54212685389713,
+        "max_val_acc": 78.54212685389713,
+        "min_train_loss": 0.056504194951074845,
+        "min_val_loss": 0.07146879114770396
+      }
+    }
+  }
+}

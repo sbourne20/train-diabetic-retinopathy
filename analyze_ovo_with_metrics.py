@@ -101,8 +101,75 @@ def generate_training_report(results):
     print("📊 COMPREHENSIVE TRAINING ANALYSIS REPORT")
     print("=" * 80)
 
-    # Summary statistics
-    base_models = ['mobilenet_v2', 'inception_v3', 'densenet121']
+    # Check if this is ensemble models (MedSigLIP, EfficientNet) or OVO binary classifiers
+    ensemble_models = ['medsiglip_448', 'efficientnet_b3', 'efficientnet_b4', 'efficientnet_b5']
+    ovo_models = ['mobilenet_v2', 'inception_v3', 'densenet121']
+
+    # Determine which type of models we have
+    has_ensemble = any(model in results for model in ensemble_models)
+    has_ovo = any(model in results for model in ovo_models)
+
+    if has_ensemble:
+        # Report ensemble models
+        print("🏆 SUPER ENSEMBLE MODELS ANALYSIS")
+        print("-" * 60)
+
+        for model_name in ensemble_models:
+            if model_name in results and results[model_name]:
+                analysis = results[model_name]
+
+                if analysis['status'] == 'loaded' and analysis.get('format') == 'comprehensive':
+                    val_acc = analysis.get('best_val_accuracy', 0.0)
+                    train_acc = analysis.get('current_train_accuracy', 0.0)
+                    epoch = analysis.get('epoch', 'unknown')
+
+                    # Calculate overfitting gap
+                    overfitting_gap = train_acc - val_acc
+
+                    # Medical-grade assessment for ensemble models
+                    if val_acc > 90.0:
+                        if overfitting_gap <= 5.0:
+                            status_icon = "🏆"  # Medical grade
+                        else:
+                            status_icon = "⚠️"  # Good but overfitting
+                    elif val_acc > 80.0:
+                        if overfitting_gap <= 6.0:
+                            status_icon = "✅"  # Good
+                        else:
+                            status_icon = "⚠️"  # Moderate with overfitting
+                    elif val_acc > 70.0:
+                        status_icon = "📈"  # Promising
+                    else:
+                        status_icon = "❌"  # Needs improvement
+
+                    # Overfitting indicator
+                    overfitting_indicator = ""
+                    if overfitting_gap >= 8.0:
+                        overfitting_indicator = " 🚨 CRITICAL OVERFITTING (≥8%)"
+                    elif overfitting_gap > 6.0:
+                        overfitting_indicator = " ⚠️ OVERFITTING"
+                    elif overfitting_gap > 4.0:
+                        overfitting_indicator = " 📈 MILD OVERFITTING"
+
+                    print(f"  {status_icon} {model_name.upper()}: {val_acc:5.1f}% (Train: {train_acc:5.1f}%, Epoch: {epoch}){overfitting_indicator}")
+
+                    # Medical grade assessment
+                    if val_acc >= 90.0:
+                        print(f"     🏥 MEDICAL GRADE: Production ready")
+                    elif val_acc >= 80.0:
+                        print(f"     📈 RESEARCH QUALITY: Promising results")
+                    elif val_acc >= 70.0:
+                        print(f"     🔄 DEVELOPING: Continue training")
+                    else:
+                        print(f"     🛠️ NEEDS WORK: Requires improvement")
+
+                else:
+                    print(f"  ❌ {model_name.upper()}: No training data or failed to load")
+
+        return results  # Early return for ensemble models
+
+    # Original OVO analysis for binary classifiers
+    base_models = ovo_models
     class_pairs = [(0,1), (0,2), (0,3), (0,4), (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)]
 
     for base_model in base_models:
@@ -276,21 +343,35 @@ def main():
 
     # Analyze each model
     results = {}
-    base_models = ['mobilenet_v2', 'inception_v3', 'densenet121']
-    class_pairs = [(0,1), (0,2), (0,3), (0,4), (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)]
 
-    for base_model in base_models:
-        results[base_model] = {}
+    # Check for ensemble models (super ensemble approach)
+    ensemble_models = ['medsiglip_448', 'efficientnet_b3', 'efficientnet_b4', 'efficientnet_b5']
+    found_ensemble = False
 
-        for pair in class_pairs:
-            model_name = f"best_{base_model}_{pair[0]}_{pair[1]}.pth"
-            model_path = models_dir / model_name
+    for model_name in ensemble_models:
+        model_path = models_dir / f"best_{model_name}.pth"
+        if model_path.exists():
+            analysis = analyze_checkpoint_with_metrics(model_path)
+            results[model_name] = analysis
+            found_ensemble = True
 
-            if model_path.exists():
-                analysis = analyze_checkpoint_with_metrics(model_path)
-                results[base_model][f"{pair[0]}_{pair[1]}"] = analysis
-            else:
-                results[base_model][f"{pair[0]}_{pair[1]}"] = {'status': 'missing'}
+    # If no ensemble models found, check for OVO binary classifiers
+    if not found_ensemble:
+        base_models = ['mobilenet_v2', 'inception_v3', 'densenet121']
+        class_pairs = [(0,1), (0,2), (0,3), (0,4), (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)]
+
+        for base_model in base_models:
+            results[base_model] = {}
+
+            for pair in class_pairs:
+                model_name = f"best_{base_model}_{pair[0]}_{pair[1]}.pth"
+                model_path = models_dir / model_name
+
+                if model_path.exists():
+                    analysis = analyze_checkpoint_with_metrics(model_path)
+                    results[base_model][f"{pair[0]}_{pair[1]}"] = analysis
+                else:
+                    results[base_model][f"{pair[0]}_{pair[1]}"] = {'status': 'missing'}
 
     # Generate comprehensive report
     generate_training_report(results)
@@ -316,19 +397,51 @@ def main():
     print(f"\n💾 Detailed analysis saved: {output_file}")
 
     # Summary of findings
-    total_trained = sum(1 for base_model in results.values()
-                       for pair_result in base_model.values()
-                       if pair_result.get('status') == 'loaded' and
-                          pair_result.get('format') == 'comprehensive')
-    total_expected = len(base_models) * len(class_pairs)
+    if found_ensemble:
+        # Count ensemble models
+        total_trained = sum(1 for model_result in results.values()
+                           if model_result.get('status') == 'loaded' and
+                              model_result.get('format') == 'comprehensive')
+        total_expected = len(ensemble_models)
 
-    print(f"\n📊 FINAL SUMMARY:")
-    print(f"   Models trained: {total_trained}/{total_expected}")
-    print(f"   Training progress: {total_trained/total_expected*100:.1f}%")
+        print(f"\n📊 FINAL SUMMARY (ENSEMBLE MODELS):")
+        print(f"   Models trained: {total_trained}/{total_expected}")
+        print(f"   Training progress: {total_trained/total_expected*100:.1f}%")
 
-    if total_trained < total_expected:
-        print(f"   🔄 Training appears to be in progress for {version.upper()}")
-        print(f"   💡 Run this script again after more models are trained")
+        if total_trained < total_expected:
+            print(f"   🔄 Super ensemble training in progress")
+            print(f"   💡 Currently training: {[m for m in ensemble_models if m in results and results[m].get('status') == 'loaded']}")
+
+        # Medical grade assessment
+        if total_trained > 0:
+            trained_accuracies = [results[m].get('best_val_accuracy', 0.0)
+                                for m in ensemble_models
+                                if m in results and results[m].get('status') == 'loaded']
+            if trained_accuracies:
+                avg_accuracy = sum(trained_accuracies) / len(trained_accuracies)
+                print(f"   📈 Average accuracy: {avg_accuracy:.1f}%")
+
+                if avg_accuracy >= 90.0:
+                    print(f"   🏆 MEDICAL GRADE: Ready for production")
+                elif avg_accuracy >= 80.0:
+                    print(f"   📈 RESEARCH QUALITY: Promising results")
+                else:
+                    print(f"   🔄 DEVELOPING: Continue training")
+    else:
+        # Original OVO counting
+        total_trained = sum(1 for base_model in results.values()
+                           for pair_result in base_model.values()
+                           if pair_result.get('status') == 'loaded' and
+                              pair_result.get('format') == 'comprehensive')
+        total_expected = len(['mobilenet_v2', 'inception_v3', 'densenet121']) * 10  # 10 class pairs
+
+        print(f"\n📊 FINAL SUMMARY (OVO BINARY CLASSIFIERS):")
+        print(f"   Models trained: {total_trained}/{total_expected}")
+        print(f"   Training progress: {total_trained/total_expected*100:.1f}%")
+
+        if total_trained < total_expected:
+            print(f"   🔄 Training appears to be in progress for {version.upper()}")
+            print(f"   💡 Run this script again after more models are trained")
 
     if version == "v3":
         print(f"\n⚠️ V3 ISSUES DETECTED:")

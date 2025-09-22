@@ -30,3 +30,5 @@ outputs/
 *.joblib
 *.zip
 ovo_ensemble_results_v2/models/*
+
+wandb/

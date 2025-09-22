@@ -9,7 +9,7 @@ echo "🎯 Target: 92-96% Medical-Grade Accuracy"
 echo "================================="
 
 # Configuration
-DATASET_PATH="./dataset6"
+DATASET_PATH="./dataset7b"
 OUTPUT_DIR="./super_ensemble_results"
 EXPERIMENT_NAME="medsiglip_efficientnet_super_ensemble_v1"
 
@@ -20,7 +20,7 @@ if [ ! -d "$DATASET_PATH" ]; then
     ls -la | grep dataset
     echo ""
     echo "Please update DATASET_PATH in this script or create symlink:"
-    echo "ln -s /path/to/your/dataset ./dataset6"
+    echo "ln -s /path/to/your/dataset ./dataset7b"
     exit 1
 fi
 
