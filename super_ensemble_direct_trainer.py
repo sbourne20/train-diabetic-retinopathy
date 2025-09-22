@@ -93,15 +93,15 @@ def parse_args():
         epilog="""
 Example Usage:
   # Medical-grade super-ensemble training
-  python super_ensemble_direct_trainer.py --dataset_path ./dataset7b --epochs 40 --enable_memory_optimization
+  python super_ensemble_direct_trainer.py --dataset_path ./augmented_resized_V2 --epochs 40 --enable_memory_optimization
 
   # Quick test (debug mode)
-  python super_ensemble_direct_trainer.py --dataset_path ./dataset7b --debug_mode --epochs 3
+  python super_ensemble_direct_trainer.py --dataset_path ./augmented_resized_V2 --debug_mode --epochs 3
         """
     )
 
     # Dataset configuration
-    parser.add_argument('--dataset_path', default='./dataset7b',
+    parser.add_argument('--dataset_path', default='./augmented_resized_V2',
                        help='Path to dataset directory (train/val/test structure)')
     parser.add_argument('--num_classes', type=int, default=5,
                        help='Number of classes (5 for diabetic retinopathy)')
