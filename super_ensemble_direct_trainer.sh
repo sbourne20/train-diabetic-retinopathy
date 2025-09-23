@@ -117,6 +117,116 @@ echo ""
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
 
+# Resume detection logic
+RESUME_ARGS=""
+FORCE_RESTART="false"
+
+# Check for existing checkpoints
+if [ -d "$OUTPUT_DIR/models" ]; then
+    CHECKPOINT_COUNT=$(find "$OUTPUT_DIR/models" -name "*.pth" 2>/dev/null | wc -l)
+
+    if [ "$CHECKPOINT_COUNT" -gt 0 ]; then
+        echo ""
+        echo "📁 EXISTING CHECKPOINTS DETECTED"
+        echo "=================================="
+        echo "Found $CHECKPOINT_COUNT checkpoint files in $OUTPUT_DIR/models/"
+        echo ""
+        echo "Available checkpoints:"
+
+        # List individual model checkpoints
+        for model in medsiglip_448 efficientnet_b3 efficientnet_b4 efficientnet_b5; do
+            checkpoint_file="$OUTPUT_DIR/models/best_${model}.pth"
+            if [ -f "$checkpoint_file" ]; then
+                # Try to extract epoch and accuracy info (requires Python)
+                checkpoint_info=$(python -c "
+import torch
+try:
+    checkpoint = torch.load('$checkpoint_file', map_location='cpu')
+    epoch = checkpoint.get('epoch', '?')
+    accuracy = checkpoint.get('best_val_accuracy', 0.0)
+    print(f'Epoch {epoch}, Best Acc: {accuracy:.2f}%')
+except:
+    print('Info unavailable')
+" 2>/dev/null || echo "Info unavailable")
+                echo "   ✅ $model: $checkpoint_info"
+            else
+                echo "   ❌ $model: Not found"
+            fi
+        done
+
+        # Check for ensemble checkpoint
+        if [ -f "$OUTPUT_DIR/models/super_ensemble_best.pth" ]; then
+            echo "   🎯 Super-ensemble: Available"
+        else
+            echo "   ❌ Super-ensemble: Not found"
+        fi
+
+        echo ""
+        echo "🔄 RESUME OPTIONS:"
+        echo "1) Auto-resume: Continue training from existing checkpoints"
+        echo "2) Force restart: Delete checkpoints and start fresh"
+        echo "3) Manual checkpoint: Specify checkpoint file path"
+        echo "4) Exit: Stop script execution"
+        echo ""
+
+        # Interactive prompt with timeout for automated environments
+        if [ -t 0 ]; then
+            # Interactive terminal
+            read -p "Choose option [1-4] (default: 1 - auto-resume): " choice
+        else
+            # Non-interactive (automated), default to auto-resume
+            choice="1"
+            echo "Non-interactive mode detected - defaulting to auto-resume"
+        fi
+
+        case "${choice:-1}" in
+            1)
+                echo "🔄 Selected: Auto-resume from existing checkpoints"
+                RESUME_ARGS="--auto_resume"
+                ;;
+            2)
+                echo "🗑️ Selected: Force restart - deleting existing checkpoints"
+                rm -rf "$OUTPUT_DIR/models/"*.pth
+                echo "   Deleted checkpoint files"
+                RESUME_ARGS="--force_restart"
+                FORCE_RESTART="true"
+                ;;
+            3)
+                read -p "Enter checkpoint file path: " checkpoint_path
+                if [ -f "$checkpoint_path" ]; then
+                    echo "📁 Selected: Resume from $checkpoint_path"
+                    RESUME_ARGS="--resume_from_checkpoint $checkpoint_path"
+                else
+                    echo "❌ Checkpoint file not found: $checkpoint_path"
+                    echo "   Falling back to auto-resume"
+                    RESUME_ARGS="--auto_resume"
+                fi
+                ;;
+            4)
+                echo "🛑 Exiting script"
+                exit 0
+                ;;
+            *)
+                echo "⚠️ Invalid choice, defaulting to auto-resume"
+                RESUME_ARGS="--auto_resume"
+                ;;
+        esac
+
+        echo ""
+        echo "▶️ Resume configuration: $RESUME_ARGS"
+        echo ""
+
+    else
+        echo ""
+        echo "🆕 No existing checkpoints found - starting fresh training"
+        echo ""
+    fi
+else
+    echo ""
+    echo "🆕 Output directory is empty - starting fresh training"
+    echo ""
+fi
+
 # Run super-ensemble training with V100 optimization
 python super_ensemble_direct_trainer.py \
     --dataset_path "$DATASET_PATH" \
@@ -149,12 +259,17 @@ python super_ensemble_direct_trainer.py \
     --seed 42 \
     --enable_wandb \
     --wandb_project "dr-ensemble" \
-    --wandb_entity "iwanbudihalim-curalis"
+    --wandb_entity "iwanbudihalim-curalis" \
+    $RESUME_ARGS
 
 # Check training success
 if [ $? -eq 0 ]; then
     echo ""
-    echo "✅ Super-ensemble training completed successfully!"
+    if [ "$FORCE_RESTART" = "true" ]; then
+        echo "✅ Super-ensemble training completed successfully (fresh start)!"
+    else
+        echo "✅ Super-ensemble training completed successfully!"
+    fi
     echo ""
     echo "📁 Results saved to: $OUTPUT_DIR"
     echo "📄 Check these files:"

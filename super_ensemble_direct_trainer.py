@@ -185,6 +185,14 @@ Example Usage:
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed')
 
+    # Resume functionality
+    parser.add_argument('--resume_from_checkpoint', type=str, default=None,
+                       help='Path to checkpoint file to resume training from')
+    parser.add_argument('--auto_resume', action='store_true', default=True,
+                       help='Automatically detect and resume from last checkpoint')
+    parser.add_argument('--force_restart', action='store_true',
+                       help='Force restart training, ignoring existing checkpoints')
+
     # Debug mode
     parser.add_argument('--debug_mode', action='store_true',
                        help='Enable debug mode (reduced epochs and models)')
@@ -661,11 +669,137 @@ def log_resource_usage(prefix=""):
     except Exception as e:
         logger.warning(f"⚠️ Resource logging failed: {e}")
 
+def find_latest_checkpoint(output_dir, model_name=None):
+    """Find the latest checkpoint for a specific model or general checkpoint."""
+    output_path = Path(output_dir)
+    models_dir = output_path / "models"
+
+    if not models_dir.exists():
+        return None
+
+    # Look for model-specific checkpoint
+    if model_name:
+        checkpoint_pattern = f"best_{model_name}.pth"
+        checkpoint_path = models_dir / checkpoint_pattern
+        if checkpoint_path.exists():
+            return checkpoint_path
+
+    # Look for general checkpoints (for ensemble)
+    checkpoint_patterns = ["super_ensemble_best.pth", "checkpoint_latest.pth", "checkpoint.pth"]
+    for pattern in checkpoint_patterns:
+        checkpoint_path = models_dir / pattern
+        if checkpoint_path.exists():
+            return checkpoint_path
+
+    return None
+
+def detect_existing_checkpoints(output_dir, models_list):
+    """Detect existing checkpoints for all models and return resume information."""
+    output_path = Path(output_dir)
+    models_dir = output_path / "models"
+
+    if not models_dir.exists():
+        return {}
+
+    checkpoints_found = {}
+
+    # Check for individual model checkpoints
+    for model_name in models_list:
+        checkpoint_path = find_latest_checkpoint(output_dir, model_name)
+        if checkpoint_path:
+            try:
+                checkpoint = torch.load(checkpoint_path, map_location='cpu')
+                checkpoints_found[model_name] = {
+                    'path': checkpoint_path,
+                    'epoch': checkpoint.get('epoch', 0),
+                    'best_val_accuracy': checkpoint.get('best_val_accuracy', 0.0),
+                    'model_name': checkpoint.get('model_name', model_name)
+                }
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to load checkpoint {checkpoint_path}: {e}")
+
+    # Check for ensemble checkpoint
+    ensemble_checkpoint = find_latest_checkpoint(output_dir)
+    if ensemble_checkpoint and 'ensemble' in str(ensemble_checkpoint):
+        checkpoints_found['ensemble'] = {
+            'path': ensemble_checkpoint,
+            'exists': True
+        }
+
+    return checkpoints_found
+
+def load_checkpoint_for_model(model, optimizer, scheduler, checkpoint_path):
+    """Load checkpoint and return resumed state."""
+    try:
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+
+        # Load model state
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            logger.warning(f"⚠️ No model_state_dict found in checkpoint, skipping model loading")
+
+        # Load optimizer state (with error handling)
+        if optimizer and 'optimizer_state_dict' in checkpoint:
+            try:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            except Exception as opt_e:
+                logger.warning(f"⚠️ Failed to load optimizer state: {opt_e}")
+                logger.info("📝 Continuing with fresh optimizer state")
+
+        # Load scheduler state (with error handling)
+        if scheduler and 'scheduler_state_dict' in checkpoint:
+            try:
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            except Exception as sch_e:
+                logger.warning(f"⚠️ Failed to load scheduler state: {sch_e}")
+                logger.info("📝 Continuing with fresh scheduler state")
+
+        # Extract resume information
+        resume_info = {
+            'start_epoch': checkpoint.get('epoch', 0),
+            'best_val_accuracy': checkpoint.get('best_val_accuracy', 0.0),
+            'train_history': checkpoint.get('train_history', {
+                'train_accuracies': [],
+                'val_accuracies': [],
+                'train_losses': [],
+                'val_losses': [],
+                'learning_rates': []
+            }),
+            'model_name': checkpoint.get('model_name', 'unknown')
+        }
+
+        logger.info(f"✅ Resumed from epoch {resume_info['start_epoch']}, best accuracy: {resume_info['best_val_accuracy']:.2f}%")
+        return resume_info
+
+    except Exception as e:
+        logger.error(f"❌ Failed to load checkpoint {checkpoint_path}: {e}")
+        raise
+
 def train_single_model(model, train_loader, val_loader, config, model_name):
     """Train a single model with memory optimization and wandb monitoring."""
 
     device = torch.device(config['device'])
     model = model.to(device)
+
+    # Check for resume checkpoint
+    resume_info = None
+    if not config.get('force_restart', False):
+        # Check for specific checkpoint path
+        if config.get('resume_from_checkpoint'):
+            checkpoint_path = Path(config['resume_from_checkpoint'])
+            if checkpoint_path.exists():
+                logger.info(f"🔄 Resuming from specified checkpoint: {checkpoint_path}")
+            else:
+                logger.warning(f"⚠️ Specified checkpoint not found: {checkpoint_path}")
+                checkpoint_path = None
+        # Auto-detect checkpoint
+        elif config.get('auto_resume', True):
+            checkpoint_path = find_latest_checkpoint(config['output_dir'], model_name)
+            if checkpoint_path:
+                logger.info(f"🔄 Auto-resuming from: {checkpoint_path}")
+        else:
+            checkpoint_path = None
 
     # Setup wandb for this model
     wandb_run = setup_wandb(config, model_name)
@@ -713,7 +847,8 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
 
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-    # Training tracking
+    # Resume from checkpoint if available
+    start_epoch = 0
     best_val_acc = 0.0
     patience_counter = 0
     train_history = {
@@ -724,9 +859,42 @@ def train_single_model(model, train_loader, val_loader, config, model_name):
         'learning_rates': []
     }
 
-    logger.info(f"🏁 Training {model_name} with LR: {lr:.2e}")
+    if checkpoint_path and checkpoint_path.exists():
+        try:
+            resume_info = load_checkpoint_for_model(model, optimizer, scheduler, checkpoint_path)
+            start_epoch = resume_info['start_epoch']
+            best_val_acc = resume_info['best_val_accuracy']
+            train_history = resume_info['train_history']
 
-    for epoch in range(config['epochs']):
+            # Calculate patience counter based on epochs since best
+            if len(train_history.get('val_accuracies', [])) > 0:
+                current_val_acc = train_history['val_accuracies'][-1]
+                if current_val_acc < best_val_acc:
+                    # Find how many epochs since we achieved best accuracy
+                    best_acc_epoch = -1
+                    for i, acc in enumerate(train_history['val_accuracies']):
+                        if acc >= best_val_acc - 0.001:  # Small tolerance for float comparison
+                            best_acc_epoch = i
+                    if best_acc_epoch >= 0:
+                        patience_counter = start_epoch - best_acc_epoch - 1
+                        patience_counter = max(0, patience_counter)
+
+            logger.info(f"🔄 Resuming {model_name} from epoch {start_epoch + 1}")
+            logger.info(f"📊 Previous best accuracy: {best_val_acc:.2f}%")
+            logger.info(f"⏱️ Patience counter: {patience_counter}/{config['early_stopping_patience']}")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to resume from checkpoint: {e}")
+            logger.info("🆕 Starting fresh training")
+            start_epoch = 0
+            best_val_acc = 0.0
+            patience_counter = 0
+    else:
+        logger.info(f"🆕 Starting fresh training for {model_name}")
+
+    logger.info(f"🏁 Training {model_name} with LR: {lr:.2e} (epochs {start_epoch + 1}-{config['epochs']})")
+
+    for epoch in range(start_epoch, config['epochs']):
         # Training phase
         model.train()
         train_loss = 0.0
@@ -915,6 +1083,25 @@ def train_super_ensemble(config):
     logger.info(f"🏥 MedSigLIP + EfficientNet B3/B4/B5")
     logger.info(f"💾 Memory optimization: {config['enable_memory_optimization']}")
     logger.info(f"🔧 Mixed precision: {config['mixed_precision']}")
+
+    # Check for existing checkpoints and resume capability
+    if not config.get('force_restart', False):
+        existing_checkpoints = detect_existing_checkpoints(config['output_dir'], config['models'])
+        if existing_checkpoints:
+            logger.info("📁 Existing checkpoints detected:")
+            for model_name, checkpoint_info in existing_checkpoints.items():
+                if model_name == 'ensemble':
+                    logger.info(f"   🎯 Ensemble: {checkpoint_info['path']}")
+                else:
+                    epoch = checkpoint_info.get('epoch', 0)
+                    accuracy = checkpoint_info.get('best_val_accuracy', 0.0)
+                    logger.info(f"   🤖 {model_name}: Epoch {epoch}, Acc {accuracy:.2f}%")
+
+            if config.get('auto_resume', True):
+                logger.info("🔄 Auto-resume enabled - will continue from existing checkpoints")
+        else:
+            logger.info("🆕 No existing checkpoints found - starting fresh training")
+
     logger.info("=" * 60)
 
     # Check GPU memory
@@ -1161,6 +1348,10 @@ def main():
         'experiment_name': args.experiment_name,
         'device': args.device,
         'seed': args.seed,
+        # Resume functionality
+        'resume_from_checkpoint': args.resume_from_checkpoint,
+        'auto_resume': args.auto_resume,
+        'force_restart': args.force_restart,
         # Wandb configuration
         'enable_wandb': args.enable_wandb and not args.no_wandb,
         'wandb_project': args.wandb_project,

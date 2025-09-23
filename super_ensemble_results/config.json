@@ -1,5 +1,5 @@
 {
-  "dataset_path": "./dataset6",
+  "dataset_path": "./augmented_resized_V2",
   "num_classes": 5,
   "models": [
     "medsiglip_448",
