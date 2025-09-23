@@ -236,6 +236,107 @@ Example Usage:
     return parser.parse_args()
 
 # ============================================================================
+# Multi-Class Classification Implementation
+# Based on research paper methodology (APTOS 2019 MobileNet 92% accuracy)
+# ============================================================================
+
+class FocalLoss(nn.Module):
+    """Focal Loss for addressing class imbalance in multi-class classification."""
+
+    def __init__(self, alpha=1.0, gamma=2.0, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        ce_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-ce_loss)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
+
+class MultiClassDRModel(nn.Module):
+    """Multi-class DR classifier for APTOS dataset (5 classes)."""
+
+    def __init__(self, model_name='mobilenet_v2', num_classes=5, freeze_weights=False, dropout=0.5):
+        super().__init__()
+        self.model_name = model_name
+        self.num_classes = num_classes
+
+        # Load pre-trained model
+        if model_name == 'mobilenet_v2':
+            self.backbone = models.mobilenet_v2(pretrained=True)
+            num_features = self.backbone.classifier[1].in_features
+            self.backbone.classifier = nn.Identity()
+        elif model_name == 'inception_v3':
+            self.backbone = models.inception_v3(pretrained=True)
+            num_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
+        elif model_name == 'densenet121':
+            self.backbone = models.densenet121(pretrained=True)
+            num_features = self.backbone.classifier.in_features
+            self.backbone.classifier = nn.Identity()
+        else:
+            raise ValueError(f"Unsupported model: {model_name}")
+
+        # Fine-tuning strategy (partial freezing for better accuracy)
+        if freeze_weights:
+            # Freeze early layers, fine-tune later layers
+            if model_name == 'mobilenet_v2':
+                for i, param in enumerate(self.backbone.parameters()):
+                    if i < 100:  # Freeze first 100 parameters
+                        param.requires_grad = False
+            elif model_name == 'densenet121':
+                for name, param in self.backbone.named_parameters():
+                    if 'denseblock1' in name or 'denseblock2' in name:
+                        param.requires_grad = False
+            elif model_name == 'inception_v3':
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3']):
+                        param.requires_grad = False
+
+        # Enhanced classifier head for medical accuracy
+        self.classifier = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(num_features, 512),
+            nn.ReLU(),
+            nn.BatchNorm1d(512),
+            nn.Dropout(dropout/2),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.BatchNorm1d(256),
+            nn.Dropout(dropout/2),
+            nn.Linear(256, num_classes)
+        )
+
+    def forward(self, x):
+        """Forward pass for multi-class classification."""
+        # Handle InceptionV3 input size requirements
+        if self.model_name == 'inception_v3' and x.size(-1) < 299:
+            x = F.interpolate(x, size=(299, 299), mode='bilinear', align_corners=False)
+
+        # Extract features
+        if self.model_name == 'inception_v3' and self.training:
+            features, aux_features = self.backbone(x)
+        else:
+            features = self.backbone(x)
+
+        if isinstance(features, tuple):
+            features = features[0]
+
+        # Global average pooling for feature maps
+        if len(features.shape) > 2:
+            features = F.adaptive_avg_pool2d(features, (1, 1)).view(features.size(0), -1)
+
+        return self.classifier(features)
+
+# ============================================================================
 # OVO (One-Versus-One) Ensemble Implementation
 # Based on research paper methodology
 # ============================================================================
@@ -645,6 +746,13 @@ def setup_ovo_experiment(args):
             'patience': args.patience,
             'enable_focal_loss': args.enable_focal_loss,
             'enable_class_weights': args.enable_class_weights,
+            'focal_loss_alpha': args.focal_loss_alpha,
+            'focal_loss_gamma': args.focal_loss_gamma,
+            'scheduler': args.scheduler,
+            'warmup_epochs': args.warmup_epochs,
+            'rotation_range': args.rotation_range,
+            'brightness_range': args.brightness_range,
+            'contrast_range': args.contrast_range,
             'resume': args.resume
         },
         'paths': {
@@ -679,13 +787,252 @@ def setup_ovo_experiment(args):
     
     return config
 
-def train_binary_classifier(model, train_loader, val_loader, config, class_pair, model_name):
-    """Train a single binary classifier."""
+def train_multiclass_dr_model(model, train_loader, val_loader, config, model_name):
+    """Train multi-class DR model for APTOS dataset."""
 
     device = torch.device(config['system']['device'])
     model = model.to(device)
 
-    # Enhanced loss and optimizer for binary classification
+    # Enhanced loss for multi-class classification
+    if config['training']['enable_focal_loss']:
+        criterion = FocalLoss(
+            alpha=config['training'].get('focal_loss_alpha', 2.0),
+            gamma=config['training'].get('focal_loss_gamma', 2.0)
+        )
+        logger.info("✅ Using Focal Loss for class imbalance")
+    else:
+        if config['training']['enable_class_weights']:
+            # APTOS class distribution weights (No DR, Mild, Moderate, Severe, PDR)
+            class_weights = torch.tensor([1.0, 3.0, 2.0, 5.0, 4.0])  # Based on APTOS distribution
+            criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
+            logger.info("✅ Using weighted CrossEntropyLoss with APTOS class weights")
+        else:
+            criterion = nn.CrossEntropyLoss()
+            logger.info("✅ Using standard CrossEntropyLoss")
+
+    # Enhanced optimizer with different learning rates
+    backbone_params = []
+    classifier_params = []
+
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            if 'backbone' in name:
+                backbone_params.append(param)
+            else:
+                classifier_params.append(param)
+
+    # Research-validated optimizer settings
+    optimizer = optim.Adam([
+        {'params': backbone_params, 'lr': config['training']['learning_rate'] * 0.1},  # Lower for pre-trained
+        {'params': classifier_params, 'lr': config['training']['learning_rate']}       # Full rate for classifier
+    ], weight_decay=config['training']['weight_decay'])
+
+    # Learning rate scheduler
+    if config['training'].get('scheduler', 'cosine') == 'cosine':
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=config['training']['epochs'], eta_min=1e-6
+        )
+    else:
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='max', factor=0.5, patience=5, verbose=True
+        )
+
+    # Training tracking
+    best_val_acc = 0.0
+    patience_counter = 0
+    train_history = {
+        'train_accuracies': [],
+        'val_accuracies': [],
+        'train_losses': [],
+        'val_losses': []
+    }
+
+    logger.info(f"🏁 Training {model_name} for 5-class DR classification")
+    logger.info(f"📊 Target accuracy: {config['system']['target_accuracy']:.2%}")
+
+    # Initialize wandb logging for this specific model if enabled
+    log_wandb = config['system'].get('use_wandb', False) and WANDB_AVAILABLE
+    if log_wandb:
+        # Log model architecture info
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        wandb.log({
+            "model/total_parameters": total_params,
+            "model/trainable_parameters": trainable_params,
+            "model/freeze_ratio": (total_params - trainable_params) / total_params,
+            "config/learning_rate": config['training']['learning_rate'],
+            "config/batch_size": config['data']['batch_size'],
+            "config/target_accuracy": config['system']['target_accuracy']
+        })
+        logger.info("📊 Wandb logging enabled for training metrics")
+
+    for epoch in range(config['training']['epochs']):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+
+        # Monitor GPU memory at start of epoch
+        if log_wandb and torch.cuda.is_available():
+            gpu_memory_allocated = torch.cuda.memory_allocated() / 1e9
+            gpu_memory_reserved = torch.cuda.memory_reserved() / 1e9
+            wandb.log({
+                f"system/gpu_memory_allocated_gb": gpu_memory_allocated,
+                f"system/gpu_memory_reserved_gb": gpu_memory_reserved,
+                f"epoch": epoch + 1
+            }, commit=False)
+
+        batch_losses = []
+        for batch_idx, (images, labels) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}")):
+            images = images.to(device)
+            labels = labels.long().to(device)
+
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+
+            # Gradient clipping for stability
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            batch_loss = loss.item()
+            train_loss += batch_loss
+            batch_losses.append(batch_loss)
+
+            _, predicted = torch.max(outputs.data, 1)
+            train_total += labels.size(0)
+            train_correct += (predicted == labels).sum().item()
+
+            # Log batch-level metrics occasionally
+            if log_wandb and batch_idx % 50 == 0:
+                wandb.log({
+                    "batch/train_loss": batch_loss,
+                    "batch/train_accuracy": (predicted == labels).float().mean().item(),
+                    "batch/learning_rate": optimizer.param_groups[0]['lr'],
+                    "batch/epoch": epoch + 1,
+                    "batch/step": epoch * len(train_loader) + batch_idx
+                }, commit=False)
+
+        train_acc = 100.0 * train_correct / train_total
+
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+
+        with torch.no_grad():
+            for images, labels in val_loader:
+                images = images.to(device)
+                labels = labels.long().to(device)
+
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                val_total += labels.size(0)
+                val_correct += (predicted == labels).sum().item()
+
+        val_acc = 100.0 * val_correct / val_total
+
+        # Record history
+        train_history['train_accuracies'].append(train_acc)
+        train_history['val_accuracies'].append(val_acc)
+        train_history['train_losses'].append(train_loss / len(train_loader))
+        train_history['val_losses'].append(val_loss / len(val_loader))
+
+        # Step scheduler
+        current_lr = optimizer.param_groups[0]['lr']
+        if config['training'].get('scheduler', 'cosine') == 'cosine':
+            scheduler.step()
+        else:
+            scheduler.step(val_acc)
+
+        new_lr = optimizer.param_groups[0]['lr']
+
+        # Log metrics to wandb
+        if log_wandb:
+            epoch_metrics = {
+                "epoch": epoch + 1,
+                "train/accuracy": train_acc / 100.0,
+                "train/loss": train_loss / len(train_loader),
+                "val/accuracy": val_acc / 100.0,
+                "val/loss": val_loss / len(val_loader),
+                "learning_rate": current_lr,
+                "train/samples": train_total,
+                "val/samples": val_total,
+                "best_val_accuracy": best_val_acc / 100.0 if val_acc > best_val_acc else best_val_acc / 100.0
+            }
+
+            # Add progress toward target
+            epoch_metrics["progress/target_achievement"] = (val_acc / 100.0) / config['system']['target_accuracy']
+            epoch_metrics["progress/medical_grade"] = min((val_acc / 100.0) / 0.90, 1.0)
+
+            wandb.log(epoch_metrics)
+
+        # Save best model
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            patience_counter = 0
+
+            model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_multiclass.pth"
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+
+            checkpoint = {
+                'epoch': epoch + 1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'best_val_accuracy': best_val_acc / 100.0,  # Convert to fraction
+                'current_val_accuracy': val_acc / 100.0,
+                'current_train_accuracy': train_acc / 100.0,
+                'train_history': train_history,
+                'model_name': model_name,
+                'config': config,
+                'val_accuracies': train_history['val_accuracies'],
+                'train_losses': train_history['train_losses'],
+                'val_losses': train_history['val_losses']
+            }
+            torch.save(checkpoint, model_path)
+            logger.info(f"🎯 New best {model_name}: {val_acc:.2f}% (Target: {config['system']['target_accuracy']:.1%})")
+
+            # Check if target achieved
+            if val_acc/100.0 >= config['system']['target_accuracy']:
+                logger.info(f"🏆 TARGET ACHIEVED! {val_acc:.2f}% >= {config['system']['target_accuracy']:.1%}")
+
+                # Log milestone achievement to wandb
+                if log_wandb:
+                    wandb.log({
+                        "milestone/target_achieved": True,
+                        "milestone/target_epoch": epoch + 1,
+                        "milestone/final_accuracy": val_acc / 100.0
+                    })
+        else:
+            patience_counter += 1
+
+        # Log progress
+        logger.info(f"   Epoch {epoch+1}/{config['training']['epochs']}: "
+                   f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, "
+                   f"LR: {optimizer.param_groups[0]['lr']:.1e}")
+
+        # Early stopping
+        if patience_counter >= config['training']['patience']:
+            logger.info(f"   Early stopping at epoch {epoch+1}")
+            break
+
+    logger.info(f"✅ {model_name} training completed: Best Val Acc = {best_val_acc:.2f}%")
+    return best_val_acc / 100.0  # Return as fraction
+
+def train_binary_classifier(model, train_loader, val_loader, config, class_pair, model_name):
+    """Train a single binary classifier (for OVO ensemble)."""
+
+    device = torch.device(config['system']['device'])
+    model = model.to(device)
+
+    # Binary classification loss
     criterion = nn.BCELoss()
 
     # Different learning rates for backbone vs classifier
@@ -1083,6 +1430,378 @@ def prepare_ovo_data(config):
 
     return train_dataset, val_dataset, test_dataset_final, test_loader, class_counts
 
+def train_aptos_multiclass(config):
+    """Train multi-class DR model for APTOS dataset to achieve >92% accuracy."""
+
+    logger.info("🚀 STARTING APTOS 2019 MULTI-CLASS DR TRAINING")
+    logger.info("=" * 60)
+    logger.info(f"📊 Dataset: APTOS 2019 (5-class DR classification)")
+    logger.info(f"🏗️ Model: {config['model']['base_models'][0]}")
+    logger.info(f"🎯 Target accuracy: {config['system']['target_accuracy']:.1%}")
+    logger.info("=" * 60)
+
+    # Check GPU
+    if torch.cuda.is_available():
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+        logger.info(f"🎮 GPU: {torch.cuda.get_device_name(0)} ({gpu_memory:.1f}GB)")
+
+    # Prepare data
+    train_dataset, val_dataset, test_dataset, test_loader, class_counts = prepare_ovo_data(config)
+
+    # Create transforms with research-validated augmentation
+    train_transform = transforms.Compose([
+        transforms.Resize((config['data']['img_size'], config['data']['img_size'])),
+        transforms.RandomRotation(config['training'].get('rotation_range', 15)),
+        transforms.RandomHorizontalFlip(0.3),  # Medical images - reduced flip
+        transforms.ColorJitter(
+            brightness=config['training'].get('brightness_range', 0.1),
+            contrast=config['training'].get('contrast_range', 0.1)
+        ),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    val_transform = transforms.Compose([
+        transforms.Resize((config['data']['img_size'], config['data']['img_size'])),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    # Apply transforms to datasets
+    train_dataset.transform = train_transform
+    val_dataset.transform = val_transform
+
+    # Create data loaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config['data']['batch_size'],
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True,
+        drop_last=True
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config['data']['batch_size'],
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True
+    )
+
+    # Create multi-class model
+    model_name = config['model']['base_models'][0]  # Use first model
+    model = MultiClassDRModel(
+        model_name=model_name,
+        num_classes=config['data']['num_classes'],
+        freeze_weights=config['model']['freeze_weights'],
+        dropout=config['model']['dropout']
+    )
+
+    logger.info(f"🏗️ Created {model_name} multi-class model")
+    logger.info(f"📊 Parameters: {sum(p.numel() for p in model.parameters()):,}")
+    logger.info(f"📊 Trainable: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
+
+    # Initialize wandb if enabled
+    if config['system']['use_wandb']:
+        # Enhanced wandb configuration with better organization
+        wandb_config = {
+            # Model configuration
+            "model_name": model_name,
+            "model_architecture": f"{model_name}_multiclass",
+            "num_classes": config['data']['num_classes'],
+            "img_size": config['data']['img_size'],
+            "dropout": config['model']['dropout'],
+            "freeze_weights": config['model']['freeze_weights'],
+
+            # Training configuration
+            "batch_size": config['data']['batch_size'],
+            "learning_rate": config['training']['learning_rate'],
+            "weight_decay": config['training']['weight_decay'],
+            "epochs": config['training']['epochs'],
+            "patience": config['training']['patience'],
+            "scheduler": config['training']['scheduler'],
+
+            # Loss configuration
+            "loss_function": "FocalLoss" if config['training']['enable_focal_loss'] else "CrossEntropyLoss",
+            "enable_class_weights": config['training']['enable_class_weights'],
+            "focal_loss_alpha": config['training'].get('focal_loss_alpha', 2.0),
+            "focal_loss_gamma": config['training'].get('focal_loss_gamma', 2.0),
+
+            # Augmentation configuration
+            "rotation_range": config['training'].get('rotation_range', 15),
+            "brightness_range": config['training'].get('brightness_range', 0.1),
+            "contrast_range": config['training'].get('contrast_range', 0.1),
+
+            # Target configuration
+            "target_accuracy": config['system']['target_accuracy'],
+            "medical_grade_threshold": 0.90,
+
+            # Dataset info
+            "dataset": "APTOS_2019",
+            "dataset_path": config['data']['dataset_path']
+        }
+
+        wandb.init(
+            project="aptos_dr_multiclass",
+            name=config['system']['experiment_name'],
+            config=wandb_config,
+            tags=["aptos2019", "diabetic_retinopathy", model_name, "multiclass"],
+            notes=f"APTOS 2019 training with {model_name} targeting {config['system']['target_accuracy']:.1%} accuracy"
+        )
+
+        # Define custom charts for better visualization
+        wandb.define_metric("epoch")
+        wandb.define_metric("train/*", step_metric="epoch")
+        wandb.define_metric("val/*", step_metric="epoch")
+        wandb.define_metric("progress/*", step_metric="epoch")
+        wandb.define_metric("batch/*", step_metric="batch/step")
+        wandb.define_metric("system/*", step_metric="epoch")
+
+        logger.info("📊 Wandb initialized with enhanced visualization configuration")
+
+    try:
+        # Train the model
+        best_accuracy = train_multiclass_dr_model(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            config=config,
+            model_name=model_name
+        )
+
+        # Evaluate on test set
+        logger.info("📋 Evaluating on test set...")
+        model.eval()
+        test_correct = 0
+        test_total = 0
+        all_predictions = []
+        all_targets = []
+
+        device = torch.device(config['system']['device'])
+        model = model.to(device)
+
+        with torch.no_grad():
+            for images, labels in tqdm(test_loader, desc="Testing"):
+                images = images.to(device)
+                labels = labels.long().to(device)
+
+                outputs = model(images)
+                _, predicted = torch.max(outputs.data, 1)
+
+                test_total += labels.size(0)
+                test_correct += (predicted == labels).sum().item()
+
+                all_predictions.extend(predicted.cpu().numpy())
+                all_targets.extend(labels.cpu().numpy())
+
+        test_accuracy = test_correct / test_total
+
+        # Generate detailed results
+        from sklearn.metrics import classification_report, confusion_matrix
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        conf_matrix = confusion_matrix(all_targets, all_predictions)
+        class_names = ['No DR', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'PDR']
+
+        results = {
+            'best_val_accuracy': best_accuracy,
+            'test_accuracy': test_accuracy,
+            'target_achieved': test_accuracy >= config['system']['target_accuracy'],
+            'medical_grade_pass': test_accuracy >= 0.90,
+            'classification_report': classification_report(
+                all_targets, all_predictions,
+                target_names=class_names
+            ),
+            'confusion_matrix': conf_matrix.tolist(),
+            'model_name': model_name,
+            'dataset_info': {'class_counts': class_counts}
+        }
+
+        # Enhanced wandb logging for final results
+        if config['system'].get('use_wandb', False) and WANDB_AVAILABLE:
+            # Log final metrics
+            final_metrics = {
+                "final/best_val_accuracy": best_accuracy,
+                "final/test_accuracy": test_accuracy,
+                "final/target_achieved": results['target_achieved'],
+                "final/medical_grade_pass": results['medical_grade_pass'],
+                "final/target_gap": test_accuracy - config['system']['target_accuracy'],
+                "final/medical_grade_gap": test_accuracy - 0.90
+            }
+
+            # Log per-class metrics from classification report
+            from sklearn.metrics import precision_recall_fscore_support
+            precision, recall, f1, support = precision_recall_fscore_support(
+                all_targets, all_predictions, average=None
+            )
+
+            for i, class_name in enumerate(class_names):
+                final_metrics[f"class_metrics/{class_name}/precision"] = precision[i]
+                final_metrics[f"class_metrics/{class_name}/recall"] = recall[i]
+                final_metrics[f"class_metrics/{class_name}/f1_score"] = f1[i]
+                final_metrics[f"class_metrics/{class_name}/support"] = support[i]
+
+            # Create and log confusion matrix visualization
+            plt.figure(figsize=(10, 8))
+            sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues',
+                       xticklabels=class_names, yticklabels=class_names)
+            plt.title(f'{model_name} - APTOS 2019 Confusion Matrix\nTest Accuracy: {test_accuracy:.3f}')
+            plt.ylabel('True Label')
+            plt.xlabel('Predicted Label')
+            plt.tight_layout()
+
+            # Log confusion matrix as image
+            final_metrics["visualizations/confusion_matrix"] = wandb.Image(plt)
+            plt.close()
+
+            # Create accuracy progress visualization
+            if hasattr(model, 'train_history') or 'train_history' in locals():
+                # Get training history from the saved checkpoint
+                model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_multiclass.pth"
+                if model_path.exists():
+                    checkpoint = torch.load(model_path, map_location='cpu')
+                    if 'train_history' in checkpoint:
+                        history = checkpoint['train_history']
+
+                        plt.figure(figsize=(12, 4))
+
+                        # Accuracy plot
+                        plt.subplot(1, 2, 1)
+                        epochs_range = range(1, len(history['train_accuracies']) + 1)
+                        plt.plot(epochs_range, history['train_accuracies'], 'b-', label='Training Accuracy')
+                        plt.plot(epochs_range, history['val_accuracies'], 'r-', label='Validation Accuracy')
+                        plt.axhline(y=config['system']['target_accuracy']*100, color='g', linestyle='--',
+                                   label=f'Target ({config["system"]["target_accuracy"]:.1%})')
+                        plt.axhline(y=90, color='orange', linestyle='--', label='Medical Grade (90%)')
+                        plt.title('Model Accuracy Progress')
+                        plt.xlabel('Epoch')
+                        plt.ylabel('Accuracy (%)')
+                        plt.legend()
+                        plt.grid(True, alpha=0.3)
+
+                        # Loss plot
+                        plt.subplot(1, 2, 2)
+                        plt.plot(epochs_range, history['train_losses'], 'b-', label='Training Loss')
+                        plt.plot(epochs_range, history['val_losses'], 'r-', label='Validation Loss')
+                        plt.title('Model Loss Progress')
+                        plt.xlabel('Epoch')
+                        plt.ylabel('Loss')
+                        plt.legend()
+                        plt.grid(True, alpha=0.3)
+
+                        plt.tight_layout()
+                        final_metrics["visualizations/training_progress"] = wandb.Image(plt)
+                        plt.close()
+
+            # Log all final metrics
+            wandb.log(final_metrics)
+
+            # Log the classification report as a table
+            report_data = []
+            lines = results['classification_report'].split('\n')
+            for line in lines[2:-5]:  # Skip header and footer
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        report_data.append([parts[0], float(parts[1]), float(parts[2]), float(parts[3]), int(parts[4])])
+
+            if report_data:
+                table = wandb.Table(
+                    columns=["Class", "Precision", "Recall", "F1-Score", "Support"],
+                    data=report_data
+                )
+                wandb.log({"classification_report": table})
+
+            # Log sample predictions visualization
+            sample_predictions = []
+            sample_images = []
+            sample_targets = []
+
+            # Get a few sample predictions for visualization
+            model.eval()
+            with torch.no_grad():
+                for i, (images, labels) in enumerate(test_loader):
+                    if i >= 2:  # Only process first 2 batches for samples
+                        break
+
+                    images = images.to(device)
+                    labels = labels.long().to(device)
+                    outputs = model(images)
+                    _, predicted = torch.max(outputs.data, 1)
+
+                    # Take first 4 samples from each batch
+                    for j in range(min(4, images.size(0))):
+                        img = images[j].cpu()
+                        # Denormalize for visualization
+                        mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+                        std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+                        img = img * std + mean
+                        img = torch.clamp(img, 0, 1)
+
+                        sample_images.append(img.permute(1, 2, 0).numpy())
+                        sample_targets.append(labels[j].item())
+                        sample_predictions.append(predicted[j].item())
+
+            # Create sample predictions visualization
+            if sample_images:
+                fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+                for idx, (img, true_label, pred_label) in enumerate(zip(sample_images, sample_targets, sample_predictions)):
+                    if idx >= 8:
+                        break
+                    row, col = idx // 4, idx % 4
+                    axes[row, col].imshow(img)
+                    axes[row, col].set_title(f'True: {class_names[true_label]}\nPred: {class_names[pred_label]}')
+                    axes[row, col].axis('off')
+
+                plt.tight_layout()
+                final_metrics["visualizations/sample_predictions"] = wandb.Image(plt)
+                plt.close()
+
+            # Re-log all final metrics with sample predictions
+            wandb.log(final_metrics)
+
+            logger.info("📊 Enhanced visualizations logged to Wandb")
+
+        # Log final results
+        logger.info("🎆 APTOS 2019 TRAINING COMPLETED!")
+        logger.info("=" * 60)
+        logger.info(f"🏆 FINAL RESULTS:")
+        logger.info(f"   Best Val Accuracy: {best_accuracy:.4f} ({best_accuracy*100:.2f}%)")
+        logger.info(f"   Test Accuracy: {test_accuracy:.4f} ({test_accuracy*100:.2f}%)")
+        logger.info(f"   Target ({config['system']['target_accuracy']:.1%}): {'✅ ACHIEVED' if results['target_achieved'] else '❌ NOT ACHIEVED'}")
+        logger.info(f"   Medical Grade (≥90%): {'✅ PASS' if results['medical_grade_pass'] else '❌ FAIL'}")
+
+        # Save results
+        results_path = Path(config['system']['output_dir']) / "results" / "aptos_multiclass_results.json"
+        results_path.parent.mkdir(parents=True, exist_ok=True)
+
+        json_results = {
+            'best_val_accuracy': float(best_accuracy),
+            'test_accuracy': float(test_accuracy),
+            'target_achieved': results['target_achieved'],
+            'medical_grade_pass': results['medical_grade_pass'],
+            'confusion_matrix': results['confusion_matrix'],
+            'model_name': model_name,
+            'target_accuracy': config['system']['target_accuracy']
+        }
+
+        with open(results_path, 'w') as f:
+            json.dump(json_results, f, indent=2)
+
+        logger.info(f"💾 Results saved: {results_path}")
+        return results
+
+    except Exception as e:
+        logger.error(f"❌ APTOS training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+    finally:
+        if config['system']['use_wandb'] and WANDB_AVAILABLE:
+            wandb.finish()
+
 def run_ovo_pipeline(config):
     """Complete OVO ensemble training and evaluation pipeline."""
 
@@ -1232,25 +1951,49 @@ def main():
     # Execute based on mode
     try:
         if args.mode == 'train':
-            # Run complete OVO training pipeline
-            final_results = run_ovo_pipeline(config)
+            # Determine training type based on configuration
+            is_single_model = len(config['model']['base_models']) == 1
+            dataset_name = Path(config['data']['dataset_path']).name.lower()
 
-            logger.info("✅ OVO ensemble training and evaluation completed successfully!")
+            if is_single_model and ('aptos' in dataset_name or 'dataset_aptos' in dataset_name):
+                # APTOS multi-class training (research-validated 92% approach)
+                logger.info("🔬 Detected APTOS dataset with single model - using multi-class training")
+                final_results = train_aptos_multiclass(config)
 
-            # Display final summary
-            logger.info("\n" + "=" * 60)
-            logger.info("🏆 FINAL RESULTS SUMMARY")
-            logger.info("=" * 60)
+                logger.info("✅ APTOS multi-class training completed!")
 
-            eval_results = final_results['evaluation_results']
-            logger.info(f"🎯 Ensemble Accuracy: {eval_results['ensemble_accuracy']:.4f} ({eval_results['ensemble_accuracy']*100:.2f}%)")
-            logger.info(f"🏥 Medical Grade: {'✅ PASS' if eval_results['medical_grade_pass'] else '❌ FAIL'} (≥90% required)")
-            logger.info(f"📊 Research Target: {'✅ ACHIEVED' if eval_results['research_target_achieved'] else '❌ NOT ACHIEVED'} ({config['system']['target_accuracy']:.2%} target)")
+                # Display final summary
+                logger.info("\n" + "=" * 60)
+                logger.info("🏆 APTOS 2019 RESULTS SUMMARY")
+                logger.info("=" * 60)
 
-            # Show individual model performance
-            logger.info("\n📊 Individual Model Performance:")
-            for model_name, accuracy in eval_results['individual_accuracies'].items():
-                logger.info(f"   {model_name.capitalize()}: {accuracy:.4f} ({accuracy*100:.2f}%)")
+                logger.info(f"🎯 Best Val Accuracy: {final_results['best_val_accuracy']:.4f} ({final_results['best_val_accuracy']*100:.2f}%)")
+                logger.info(f"🎯 Test Accuracy: {final_results['test_accuracy']:.4f} ({final_results['test_accuracy']*100:.2f}%)")
+                logger.info(f"🏥 Medical Grade: {'✅ PASS' if final_results['medical_grade_pass'] else '❌ FAIL'} (≥90% required)")
+                logger.info(f"📊 Research Target: {'✅ ACHIEVED' if final_results['target_achieved'] else '❌ NOT ACHIEVED'} ({config['system']['target_accuracy']:.1%} target)")
+                logger.info(f"🏗️ Model: {final_results['model_name']}")
+
+            else:
+                # OVO ensemble training for multiple models
+                logger.info("🔢 Detected multi-model configuration - using OVO ensemble training")
+                final_results = run_ovo_pipeline(config)
+
+                logger.info("✅ OVO ensemble training and evaluation completed successfully!")
+
+                # Display final summary
+                logger.info("\n" + "=" * 60)
+                logger.info("🏆 OVO ENSEMBLE RESULTS SUMMARY")
+                logger.info("=" * 60)
+
+                eval_results = final_results['evaluation_results']
+                logger.info(f"🎯 Ensemble Accuracy: {eval_results['ensemble_accuracy']:.4f} ({eval_results['ensemble_accuracy']*100:.2f}%)")
+                logger.info(f"🏥 Medical Grade: {'✅ PASS' if eval_results['medical_grade_pass'] else '❌ FAIL'} (≥90% required)")
+                logger.info(f"📊 Research Target: {'✅ ACHIEVED' if eval_results['research_target_achieved'] else '❌ NOT ACHIEVED'} ({config['system']['target_accuracy']:.2%} target)")
+
+                # Show individual model performance
+                logger.info("\n📊 Individual Model Performance:")
+                for model_name, accuracy in eval_results['individual_accuracies'].items():
+                    logger.info(f"   {model_name.capitalize()}: {accuracy:.4f} ({accuracy*100:.2f}%)")
 
         elif args.mode == 'evaluate':
             # Load and evaluate existing OVO ensemble

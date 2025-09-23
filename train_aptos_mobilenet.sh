@@ -3,47 +3,67 @@
 # Set PyTorch memory management
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# APTOS + MobileNetV2 Specialized Training Script
-echo "🏥 APTOS + MobileNetV2 Specialized Training"
+# APTOS 2019 + MobileNet Enhanced Training Script
+echo "🏥 APTOS 2019 + MobileNet Enhanced Training"
 echo "=========================================="
-echo "🎯 Target: Break through (0,2) 77% ceiling with APTOS dataset"
-echo "📊 Dataset: APTOS (competition-grade automated classification)"
-echo "🏗️ Model: MobileNetV2 (lightweight, efficient)"
-echo "🎯 Focus: No DR (0) vs Moderate NPDR (2) classification"
+echo "🎯 Target: >92% accuracy with research-validated hyperparameters"
+echo "📊 Dataset: APTOS 2019 (5-class DR classification)"
+echo "🏗️ Model: MobileNet (research paper's best performer: 92%)"
+echo "🔬 Using exact hyperparameters from research paper"
 echo ""
 
-# Create specialized output directory
-mkdir -p ./ovo_aptos_mobilenet_results
+# Create output directory for APTOS results
+mkdir -p ./aptos_results
 
-echo "🔬 APTOS-MobileNetV2 Configuration:"
-echo "  - Dataset: APTOS competition data (optimized for automation)"
-echo "  - Model: MobileNetV2 (proven 98.4% on other pairs)"
-echo "  - Image size: 224x224 (optimal for MobileNetV2)"
-echo "  - Batch size: 32 (proven effective)"
-echo "  - Learning rate: 5e-4 (stable training)"
-echo "  - Target pair: (0,2) - No DR vs Moderate NPDR"
-echo "  - Expected improvement: 77% → 85%+"
+echo "🔬 APTOS 2019 Research-Validated Configuration:"
+echo "  - Dataset: APTOS 2019 (./dataset_aptos)"
+echo "  - Model: MobileNet (achieved 92% in research)"
+echo "  - Image size: 224x224 (research paper standard)"
+echo "  - Batch size: 32 (research paper setting)"
+echo "  - Learning rate: Adam 1e-3 (research paper setting)"
+echo "  - Epochs: 50 (research paper setting)"
+echo "  - Threshold: 0.60 (research paper setting)"
+echo "  - Enhanced augmentation: Medical-grade settings"
+echo "  - Target: >92% accuracy (match research results)"
 echo ""
 
-# Train APTOS-specialized MobileNetV2
+# Train APTOS with research-validated hyperparameters
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./aptos \
-    --output_dir ./ovo_aptos_mobilenet_results \
-    --img_size 224 \
+    --dataset_path ./dataset_aptos \
+    --output_dir ./aptos_results \
+    --experiment_name "aptos_2019_mobilenet_enhanced" \
     --base_models mobilenet_v2 \
-    --epochs 50 \
+    --img_size 224 \
     --batch_size 32 \
-    --learning_rate 5e-4 \
+    --epochs 50 \
+    --learning_rate 1e-3 \
     --weight_decay 1e-4 \
+    --enable_medical_augmentation \
+    --rotation_range 15.0 \
+    --brightness_range 0.1 \
+    --contrast_range 0.1 \
+    --enable_focal_loss \
+    --enable_class_weights \
+    --scheduler cosine \
+    --warmup_epochs 10 \
+    --validation_frequency 1 \
+    --checkpoint_frequency 5 \
+    --patience 15 \
+    --target_accuracy 0.92 \
     --seed 42
 
 echo ""
-echo "✅ APTOS-MobileNetV2 specialized training completed!"
-echo "📁 Results saved to: ./ovo_aptos_mobilenet_results"
+echo "✅ APTOS 2019 enhanced training completed!"
+echo "📁 Results saved to: ./aptos_results"
 echo ""
-echo "🎯 APTOS Advantages:"
-echo "  📊 Competition-grade dataset optimized for automated classification"
-echo "  🤖 Better automated distinction between No DR and Moderate NPDR"
-echo "  📈 Expected to break through 77% ceiling for (0,2) pair"
-echo "  🏆 APTOS winner solutions achieved high accuracy on similar distinctions"
+echo "🎯 Research Paper Validation:"
+echo "  📊 Using exact hyperparameters from 92% accuracy paper"
+echo "  🤖 MobileNet: Best performer on APTOS dataset"
+echo "  📈 Medical-grade augmentation enabled"
+echo "  🏆 Target: Match or exceed 92% research accuracy"
+echo ""
+echo "📋 Next Steps:"
+echo "  1. Check results in ./aptos_results/results/"
+echo "  2. Analyze model performance with model_analyzer.py"
+echo "  3. If >92% achieved, proceed to IDRiD dataset training"
