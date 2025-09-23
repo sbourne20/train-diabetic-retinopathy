@@ -31,7 +31,7 @@ echo ""
 # Train Messidor with research-validated hyperparameters
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./dataset_messidor \
+    --dataset_path ./dataset_aptos \
     --output_dir ./messidor_results \
     --experiment_name "messidor_inception_medical" \
     --base_models inception_v3 \
