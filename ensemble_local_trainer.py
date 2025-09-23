@@ -1973,9 +1973,9 @@ def main():
             is_single_model = len(config['model']['base_models']) == 1
             dataset_name = Path(config['data']['dataset_path']).name.lower()
 
-            if is_single_model and ('aptos' in dataset_name or 'dataset_aptos' in dataset_name):
+            if is_single_model and ('aptos' in dataset_name or 'dataset_aptos' in dataset_name or 'ddr' in dataset_name or 'dataset_ddr' in dataset_name):
                 # APTOS multi-class training (research-validated 92% approach)
-                logger.info("🔬 Detected APTOS dataset with single model - using multi-class training")
+                logger.info("🔬 Detected APTOS/DDR dataset with single model - using multi-class training")
                 final_results = train_aptos_multiclass(config)
 
                 logger.info("✅ APTOS multi-class training completed!")
