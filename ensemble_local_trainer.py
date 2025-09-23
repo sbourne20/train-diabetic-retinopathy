@@ -1705,7 +1705,25 @@ def train_aptos_multiclass(config):
                 if line.strip():
                     parts = line.split()
                     if len(parts) >= 4:
-                        report_data.append([parts[0], float(parts[1]), float(parts[2]), float(parts[3]), int(parts[4])])
+                        try:
+                            # Handle class names with spaces (join multiple parts)
+                            if len(parts) > 5:
+                                class_name = ' '.join(parts[:-4])
+                                metrics = parts[-4:]
+                            else:
+                                class_name = parts[0]
+                                metrics = parts[1:]
+
+                            report_data.append([
+                                class_name,
+                                float(metrics[0]),
+                                float(metrics[1]),
+                                float(metrics[2]),
+                                int(metrics[3])
+                            ])
+                        except (ValueError, IndexError):
+                            # Skip lines that can't be parsed (headers, averages, etc.)
+                            continue
 
             if report_data:
                 table = wandb.Table(
