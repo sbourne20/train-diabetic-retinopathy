@@ -32,7 +32,7 @@ echo ""
 python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_ddr \
-    --output_dir ./ddr_results \
+    --output_dir ./ddr_densenet_results \
     --experiment_name "ddr_mobilenet_medical" \
     --base_models mobilenet_v2 \
     --img_size 224 \
