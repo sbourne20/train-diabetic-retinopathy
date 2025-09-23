@@ -397,7 +397,15 @@ class MedSigLIPClassifier(nn.Module):
         else:
             raise RuntimeError(f"Features must be tensor, got {type(features)}")
 
-        return self.classifier(features)
+        # Handle BatchNorm issue with single samples
+        if features.size(0) == 1 and self.training:
+            # Use eval mode for single samples to avoid BatchNorm error
+            self.classifier.eval()
+            result = self.classifier(features)
+            self.classifier.train()
+            return result
+        else:
+            return self.classifier(features)
 
 class EfficientNetClassifier(nn.Module):
     """EfficientNet classifier with memory optimization."""
@@ -451,7 +459,15 @@ class EfficientNetClassifier(nn.Module):
         else:
             features = self.backbone(x)
 
-        return self.classifier(features)
+        # Handle BatchNorm issue with single samples
+        if features.size(0) == 1 and self.training:
+            # Use eval mode for single samples to avoid BatchNorm error
+            self.classifier.eval()
+            result = self.classifier(features)
+            self.classifier.train()
+            return result
+        else:
+            return self.classifier(features)
 
 class SuperEnsemble(nn.Module):
     """Super-ensemble combining MedSigLIP + EfficientNets."""
@@ -959,7 +975,8 @@ def train_super_ensemble(config):
         shuffle=True,
         num_workers=0,  # Disable multiprocessing to avoid pickle issues
         pin_memory=True,
-        persistent_workers=False
+        persistent_workers=False,
+        drop_last=True  # Drop last incomplete batch to prevent BatchNorm errors
     )
     val_loader = DataLoader(
         val_dataset,
@@ -967,14 +984,16 @@ def train_super_ensemble(config):
         shuffle=False,
         num_workers=0,
         pin_memory=True,
-        persistent_workers=False
+        persistent_workers=False,
+        drop_last=True  # Drop last incomplete batch to prevent BatchNorm errors
     )
     test_loader = DataLoader(
         test_dataset,
         batch_size=config['batch_size'],
         shuffle=False,
         num_workers=0,
-        pin_memory=True
+        pin_memory=True,
+        drop_last=True  # Drop last incomplete batch to prevent BatchNorm errors
     )
 
     # Train individual models
