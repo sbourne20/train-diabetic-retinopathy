@@ -282,13 +282,23 @@ class MultiClassDRModel(nn.Module):
         if model_name == 'medsiglip_448':
             if not MEDSIGLIP_AVAILABLE:
                 raise ImportError("MedSigLIP requires transformers. Install with: pip install transformers")
+
+            # Get HuggingFace token from environment
+            hf_token = os.getenv('HUGGINGFACE_TOKEN')
+            if not hf_token:
+                raise ImportError("MedSigLIP requires HUGGINGFACE_TOKEN environment variable. Set it in .env file.")
+
             try:
-                self.backbone = AutoModel.from_pretrained("google/medsiglip-448", use_auth_token=True)
+                self.backbone = AutoModel.from_pretrained(
+                    "google/medsiglip-448",
+                    token=hf_token,
+                    trust_remote_code=True
+                )
                 self.vision_model = self.backbone.vision_model
                 num_features = self.backbone.config.vision_config.hidden_size
                 logger.info(f"✅ Loaded MedSigLIP-448: {num_features} features")
             except Exception as e:
-                raise ImportError(f"Failed to load MedSigLIP-448: {e}")
+                raise ImportError(f"Failed to load MedSigLIP-448: {e}. Check HUGGINGFACE_TOKEN in .env file.")
         elif model_name == 'mobilenet_v2':
             self.backbone = models.mobilenet_v2(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
@@ -307,7 +317,12 @@ class MultiClassDRModel(nn.Module):
         # Fine-tuning strategy (partial freezing for better accuracy)
         if freeze_weights:
             # Freeze early layers, fine-tune later layers
-            if model_name == 'mobilenet_v2':
+            if model_name == 'medsiglip_448':
+                # Freeze most of MedSigLIP, fine-tune last few layers
+                for name, param in self.backbone.named_parameters():
+                    if 'encoder.layers.23' not in name:  # Only unfreeze last layer
+                        param.requires_grad = False
+            elif model_name == 'mobilenet_v2':
                 for i, param in enumerate(self.backbone.parameters()):
                     if i < 100:  # Freeze first 100 parameters
                         param.requires_grad = False
@@ -336,12 +351,19 @@ class MultiClassDRModel(nn.Module):
 
     def forward(self, x):
         """Forward pass for multi-class classification."""
+        # Handle MedSigLIP input size requirements
+        if self.model_name == 'medsiglip_448' and x.size(-1) != 448:
+            x = F.interpolate(x, size=(448, 448), mode='bilinear', align_corners=False)
         # Handle InceptionV3 input size requirements
-        if self.model_name == 'inception_v3' and x.size(-1) < 299:
+        elif self.model_name == 'inception_v3' and x.size(-1) < 299:
             x = F.interpolate(x, size=(299, 299), mode='bilinear', align_corners=False)
 
         # Extract features
-        if self.model_name == 'inception_v3' and self.training:
+        if self.model_name == 'medsiglip_448':
+            # MedSigLIP forward pass
+            outputs = self.vision_model(pixel_values=x)
+            features = outputs.pooler_output  # Use pooled output
+        elif self.model_name == 'inception_v3' and self.training:
             features, aux_features = self.backbone(x)
         else:
             features = self.backbone(x)
@@ -349,8 +371,8 @@ class MultiClassDRModel(nn.Module):
         if isinstance(features, tuple):
             features = features[0]
 
-        # Global average pooling for feature maps
-        if len(features.shape) > 2:
+        # Global average pooling for feature maps (skip for MedSigLIP as it's already pooled)
+        if self.model_name != 'medsiglip_448' and len(features.shape) > 2:
             features = F.adaptive_avg_pool2d(features, (1, 1)).view(features.size(0), -1)
 
         return self.classifier(features)
@@ -449,7 +471,27 @@ class BinaryClassifier(nn.Module):
         self.model_name = model_name
 
         # Load pre-trained model
-        if model_name == 'mobilenet_v2':
+        if model_name == 'medsiglip_448':
+            if not MEDSIGLIP_AVAILABLE:
+                raise ImportError("MedSigLIP requires transformers. Install with: pip install transformers")
+
+            # Get HuggingFace token from environment
+            hf_token = os.getenv('HUGGINGFACE_TOKEN')
+            if not hf_token:
+                raise ImportError("MedSigLIP requires HUGGINGFACE_TOKEN environment variable. Set it in .env file.")
+
+            try:
+                self.backbone = AutoModel.from_pretrained(
+                    "google/medsiglip-448",
+                    token=hf_token,
+                    trust_remote_code=True
+                )
+                self.vision_model = self.backbone.vision_model
+                num_features = self.backbone.config.vision_config.hidden_size
+                logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier: {num_features} features")
+            except Exception as e:
+                raise ImportError(f"Failed to load MedSigLIP-448: {e}. Check HUGGINGFACE_TOKEN in .env file.")
+        elif model_name == 'mobilenet_v2':
             self.backbone = models.mobilenet_v2(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
@@ -469,7 +511,14 @@ class BinaryClassifier(nn.Module):
         # Fine-tuning strategy instead of freezing for better medical accuracy
         if freeze_weights:
             # Partial fine-tuning: freeze early layers, unfreeze later layers
-            if model_name == 'densenet121':
+            if model_name == 'medsiglip_448':
+                # Freeze most of MedSigLIP, fine-tune last few layers
+                for name, param in self.backbone.named_parameters():
+                    if 'encoder.layers.23' not in name:  # Only unfreeze last layer
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'densenet121':
                 # Freeze first 2 dense blocks, fine-tune last 2
                 for name, param in self.backbone.named_parameters():
                     if 'denseblock1' in name or 'denseblock2' in name:
@@ -512,13 +561,21 @@ class BinaryClassifier(nn.Module):
 
     def forward(self, x):
         """Forward pass for binary classification."""
+        # Handle MedSigLIP input size requirements
+        if self.model_name == 'medsiglip_448' and x.size(-1) != 448:
+            x = F.interpolate(x, size=(448, 448), mode='bilinear', align_corners=False)
         # Ensure input tensor has minimum size for InceptionV3
-        if self.model_name == 'inception_v3' and x.size(-1) < 75:
+        elif self.model_name == 'inception_v3' and x.size(-1) < 75:
             # Upscale if too small
             x = F.interpolate(x, size=(299, 299), mode='bilinear', align_corners=False)
 
+        # Extract features
+        if self.model_name == 'medsiglip_448':
+            # MedSigLIP forward pass
+            outputs = self.vision_model(pixel_values=x)
+            features = outputs.pooler_output  # Use pooled output
         # Handle InceptionV3 auxiliary outputs during training
-        if self.model_name == 'inception_v3' and self.training:
+        elif self.model_name == 'inception_v3' and self.training:
             features, aux_features = self.backbone(x)
             # We only use main features, ignore auxiliary
         else:
@@ -528,7 +585,7 @@ class BinaryClassifier(nn.Module):
         if isinstance(features, tuple):
             features = features[0]  # Take main output only
 
-        if len(features.shape) > 2:
+        if self.model_name != 'medsiglip_448' and len(features.shape) > 2:
             features = F.adaptive_avg_pool2d(features, (1, 1)).view(features.size(0), -1)
         return self.classifier(features)
 
