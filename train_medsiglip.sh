@@ -38,9 +38,10 @@ python ensemble_local_trainer.py \
     --img_size 448 \
     --batch_size 8 \
     --epochs 50 \
-    --learning_rate 1e-4 \
+    --learning_rate 5e-4 \
     --weight_decay 1e-3 \
     --ovo_dropout 0.4 \
+    --freeze_weights false \
     --enable_medical_augmentation \
     --rotation_range 15.0 \
     --brightness_range 0.1 \
