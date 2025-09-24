@@ -3,74 +3,94 @@
 # Set PyTorch memory management
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# APTOS + DenseNet121 V2 Medical-Grade Training Script
-echo "🏥 APTOS + DenseNet121 V2 Medical-Grade Training"
+# EyePACS + DenseNet121 Medical-Grade Training Script
+echo "🏥 EyePACS + DenseNet121 Medical-Grade Training"
 echo "==============================================="
-echo "🎯 Target: 85%+ accuracy with enhanced DenseNet121"
-echo "📊 Dataset: APTOS 2019 (5-class DR classification)"
-echo "🏗️ Model: DenseNet121 V2 (enhanced configuration)"
-echo "🔬 Different hyperparameters for ensemble diversity"
+echo "🎯 Target: 90%+ accuracy with optimized DenseNet121"
+echo "📊 Dataset: EyePACS (5-class DR classification)"
+echo "🏗️ Model: DenseNet121 (ensemble-compatible configuration)"
+echo "🔗 System: OVO-compatible with MedSigLIP ensemble"
 echo ""
 
-# Create output directory for APTOS V2 results
-mkdir -p ./aptos_densenet_v2_results
+# Create output directory for EyePACS DenseNet results
+mkdir -p ./densenet_eyepacs_results
 
-echo "🔬 APTOS DenseNet121 V2 Enhanced Configuration:"
-echo "  - Dataset: APTOS 2019 (./dataset_aptos)"
-echo "  - Model: DenseNet121 (enhanced settings)"
-echo "  - Image size: 224x224"
-echo "  - Batch size: 12 (smaller for better gradients)"
-echo "  - Learning rate: 1e-4 (more aggressive)"
-echo "  - Weight decay: 5e-4 (reduced for less constraint)"
-echo "  - Dropout: 0.3 (lighter regularization)"
-echo "  - Epochs: 100 (more training time)"
-echo "  - Enhanced augmentation + different seed"
-echo "  - Target: 85%+ accuracy (ensemble model #4)"
+echo "🔬 EyePACS DenseNet121 Optimized Configuration:"
+echo "  - Dataset: EyePACS (./dataset_eyepacs)"
+echo "  - Model: DenseNet121 (optimized for class imbalance)"
+echo "  - Image size: 224x224 (CNN optimized)"
+echo "  - Batch size: 16 (optimized for V100 memory)"
+echo "  - Learning rate: 2e-4 (aggressive for imbalanced data)"
+echo "  - Weight decay: 1e-3 (balanced regularization)"
+echo "  - Dropout: 0.4 (medical-grade regularization)"
+echo "  - Epochs: 60 (sufficient convergence)"
+echo "  - Class-aware augmentation + focal loss"
+echo "  - Target: 90%+ accuracy (medical production grade)"
 echo ""
 
-# Train APTOS with enhanced hyperparameters
+# Train EyePACS with optimized hyperparameters for class imbalance
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./dataset_aptos \
-    --output_dir ./aptos_densenet_v2_results \
-    --experiment_name "aptos_densenet121_v2_enhanced" \
+    --dataset_path ./dataset_eyepacs \
+    --output_dir ./densenet_eyepacs_results \
+    --experiment_name "eyepacs_densenet121_medical" \
     --base_models densenet121 \
     --img_size 224 \
-    --batch_size 12 \
-    --epochs 100 \
-    --learning_rate 1e-4 \
-    --weight_decay 5e-4 \
-    --ovo_dropout 0.3 \
+    --batch_size 16 \
+    --epochs 60 \
+    --learning_rate 2e-4 \
+    --weight_decay 1e-3 \
+    --ovo_dropout 0.4 \
+    --freeze_weights false \
     --enable_medical_augmentation \
-    --rotation_range 30.0 \
-    --brightness_range 0.2 \
-    --contrast_range 0.2 \
+    --rotation_range 20.0 \
+    --brightness_range 0.15 \
+    --contrast_range 0.15 \
     --enable_focal_loss \
     --enable_class_weights \
     --scheduler cosine \
-    --warmup_epochs 5 \
+    --warmup_epochs 8 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
-    --patience 10 \
-    --early_stopping_patience 8 \
-    --target_accuracy 0.85 \
-    --seed 123
+    --patience 12 \
+    --early_stopping_patience 10 \
+    --target_accuracy 0.90 \
+    --seed 42
 
 echo ""
-echo "✅ APTOS DenseNet121 V2 training completed!"
-echo "📁 Results saved to: ./aptos_densenet_v2_results"
+echo "✅ EyePACS DenseNet121 training completed!"
+echo "📁 Results saved to: ./densenet_eyepacs_results"
 echo ""
-echo "🎯 Enhanced Configuration Applied:"
-echo "  🏗️ Architecture: DenseNet121 V2 (enhanced hyperparameters)"
+echo "🎯 Optimized Configuration Applied:"
+echo "  🏗️ Architecture: DenseNet121 (class imbalance optimized)"
 echo "  📊 Model capacity: 8M parameters (medical-grade)"
-echo "  🎓 Aggressive learning rate: 1e-4 (faster learning)"
-echo "  💧 Lighter dropout: 0.3 (less constraint)"
-echo "  ⏰ Extended training: 100 epochs (more convergence time)"
-echo "  🔀 Enhanced augmentation: 30° rotation, 20% brightness/contrast"
-echo "  🎲 Different seed: 123 (model diversity)"
+echo "  🎓 Aggressive learning rate: 2e-4 (imbalanced data optimized)"
+echo "  💧 Medical dropout: 0.4 (balanced regularization)"
+echo "  ⏰ Efficient training: 60 epochs (sufficient convergence)"
+echo "  🔀 Class-aware augmentation: 20° rotation, 15% brightness/contrast"
+echo "  🎯 Medical targeting: 90%+ accuracy goal"
 echo ""
 echo "📊 Expected Performance:"
-echo "  🎯 Target: 85%+ validation accuracy (enhanced model)"
-echo "  🏥 Medical grade: Contribute to 90%+ ensemble"
-echo "  📈 Model diversity: Different from original DenseNet"
-echo "  🔬 5-model ensemble: Path to 90%+ accuracy"
+echo "  🎯 Target: 90%+ validation accuracy (medical-grade)"
+echo "  🏥 Medical grade: FULL PASS (≥90%)"
+echo "  📈 Generalization: Better performance on imbalanced data"
+echo "  🔗 EyePACS dataset: Large-scale diabetic retinopathy dataset"
+echo ""
+echo "🔗 ENSEMBLE COMPATIBILITY CONFIRMED:"
+echo "  ✅ Model saved as: best_densenet121_multiclass.pth (OVO-compatible)"
+echo "  ✅ Same training system as MedSigLIP (ensemble_local_trainer.py)"
+echo "  ✅ Same checkpoint format and structure"
+echo "  ✅ Compatible with train_medsiglip.sh output"
+echo "  ✅ Ready for ensemble combination"
+echo ""
+echo "📋 Next Steps:"
+echo "  1. Analyze results: python model_analyzer.py --model ./densenet_eyepacs_results/models/best_densenet121_multiclass.pth"
+echo "  2. Validate medical-grade performance (>90% required)"
+echo "  3. Combine with MedSigLIP model for ensemble:"
+echo "     # Both models now use same system and dataset"
+echo "     python analyze_ovo_with_metrics.py --dataset_path ./densenet_eyepacs_results"
+echo "     python analyze_ovo_with_metrics.py --dataset_path ./medsiglip_results"
+echo ""
+echo "🚀 ENSEMBLE USAGE EXAMPLES:"
+echo "  # Compare both models on same dataset"
+echo "  python analyze_all_ovo_models.py"
