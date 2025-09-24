@@ -20,7 +20,7 @@ echo "  - Dataset: EyePACS (./dataset_eyepacs)"
 echo "  - Model: DenseNet121 (optimized for class imbalance)"
 echo "  - Image size: 224x224 (CNN optimized)"
 echo "  - Batch size: 16 (optimized for V100 memory)"
-echo "  - Learning rate: 2e-4 (aggressive for imbalanced data)"
+echo "  - Learning rate: 3e-4 (aggressive for imbalanced data)"
 echo "  - Weight decay: 1e-3 (balanced regularization)"
 echo "  - Dropout: 0.4 (medical-grade regularization)"
 echo "  - Epochs: 60 (sufficient convergence)"
@@ -38,7 +38,7 @@ python ensemble_local_trainer.py \
     --img_size 224 \
     --batch_size 16 \
     --epochs 60 \
-    --learning_rate 2e-4 \
+    --learning_rate 3e-4 \
     --weight_decay 1e-3 \
     --ovo_dropout 0.4 \
     --freeze_weights false \
@@ -49,7 +49,7 @@ python ensemble_local_trainer.py \
     --enable_focal_loss \
     --enable_class_weights \
     --scheduler cosine \
-    --warmup_epochs 8 \
+    --warmup_epochs 3 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 12 \
@@ -64,7 +64,7 @@ echo ""
 echo "🎯 Optimized Configuration Applied:"
 echo "  🏗️ Architecture: DenseNet121 (class imbalance optimized)"
 echo "  📊 Model capacity: 8M parameters (medical-grade)"
-echo "  🎓 Aggressive learning rate: 2e-4 (imbalanced data optimized)"
+echo "  🎓 Aggressive learning rate: 3e-4 (imbalanced data optimized)"
 echo "  💧 Medical dropout: 0.4 (balanced regularization)"
 echo "  ⏰ Efficient training: 60 epochs (sufficient convergence)"
 echo "  🔀 Class-aware augmentation: 20° rotation, 15% brightness/contrast"
