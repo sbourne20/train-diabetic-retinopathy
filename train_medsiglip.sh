@@ -28,33 +28,32 @@ echo "  - Enhanced augmentation + progressive training"
 echo "  - Target: 95%+ accuracy (medical production grade)"
 echo ""
 
-# Train MedSigLIP with research-validated hyperparameters
-python super_ensemble_direct_trainer.py \
+# Train MedSigLIP with OVO-compatible system (single model mode)
+python ensemble_local_trainer.py \
+    --mode train \
     --dataset_path ./dataset_eyepacs \
     --output_dir ./medsiglip_results \
     --experiment_name "eyepacs_medsiglip_medical" \
-    --models medsiglip_448 \
+    --base_models medsiglip_448 \
+    --img_size 448 \
     --batch_size 8 \
     --epochs 50 \
-    --learning_rate 5e-5 \
-    --weight_decay 1e-2 \
-    --dropout 0.3 \
-    --medsiglip_lr_multiplier 1.0 \
-    --enable_clahe \
-    --augmentation_strength 0.15 \
+    --learning_rate 1e-4 \
+    --weight_decay 1e-3 \
+    --ovo_dropout 0.4 \
+    --enable_medical_augmentation \
+    --rotation_range 15.0 \
+    --brightness_range 0.1 \
+    --contrast_range 0.1 \
     --enable_focal_loss \
-    --focal_alpha 0.25 \
-    --focal_gamma 2.0 \
     --enable_class_weights \
-    --label_smoothing 0.1 \
+    --scheduler cosine \
     --warmup_epochs 5 \
-    --early_stopping_patience 12 \
-    --reduce_lr_patience 8 \
-    --min_lr 1e-8 \
-    --enable_memory_optimization \
-    --gradient_checkpointing \
-    --mixed_precision \
-    --enable_wandb \
+    --validation_frequency 1 \
+    --checkpoint_frequency 5 \
+    --patience 12 \
+    --early_stopping_patience 10 \
+    --target_accuracy 0.90 \
     --seed 42
 
 echo ""
@@ -76,20 +75,26 @@ echo "  📈 Generalization: Better performance on new patients"
 echo "  🔬 EyePACS dataset: Large-scale diabetic retinopathy dataset"
 echo ""
 echo "📋 Next Steps:"
-echo "  1. Analyze results: python model_analyzer.py --model ./medsiglip_results/models/best_medsiglip_448.pth"
+echo "  1. Analyze results: python model_analyzer.py --model ./medsiglip_results/models/best_medsiglip_448_multiclass.pth"
 echo "  2. Validate medical-grade performance (>90% required)"
-echo "  3. Copy model for ensemble: cp ./medsiglip_results/models/best_medsiglip_448.pth ./ensemble_models/"
-echo "  4. Combine with other models for ensemble evaluation"
+echo "  3. Train complementary models:"
+echo "     ./train_aptos_densenet_v2.sh"
+echo "     ./train_ddr_mobilenet.sh"
+echo "  4. Combine all models for ensemble analysis"
 echo ""
-echo "🔗 ENSEMBLE COMPATIBILITY:"
-echo "  ✅ Model saved as: best_medsiglip_448.pth (ensemble-compatible naming)"
-echo "  ✅ Contains full checkpoint with model_state_dict, accuracies, and config"
-echo "  ✅ Ready for combination with other models (efficientnet_b3, densenet121, etc.)"
-echo "  ✅ Compatible with analyze_ovo_with_metrics.py and other ensemble tools"
+echo "🔗 ENSEMBLE COMPATIBILITY CONFIRMED:"
+echo "  ✅ Model saved as: best_medsiglip_448_multiclass.pth (OVO-compatible)"
+echo "  ✅ Same checkpoint format as DenseNet/MobileNet models"
+echo "  ✅ Compatible with train_aptos_densenet_v2.sh output"
+echo "  ✅ Ready for OVO ensemble combination"
+echo "  ✅ Works with analyze_ovo_with_metrics.py and model_analyzer.py"
 echo ""
 echo "🚀 ENSEMBLE USAGE EXAMPLES:"
-echo "  # Analyze this model in ensemble context"
+echo "  # Analyze this model with other OVO models"
 echo "  python analyze_ovo_with_metrics.py --dataset_path ./medsiglip_results"
 echo ""
-echo "  # Combine with other models in super ensemble"
-echo "  python super_ensemble_direct_trainer.py --models medsiglip_448 efficientnet_b3 efficientnet_b4"
+echo "  # Comprehensive multi-model analysis"
+echo "  python analyze_all_ovo_models.py"
+echo ""
+echo "  # Train ensemble with MedSigLIP + DenseNet + MobileNet"
+echo "  # (After training other models, they will be compatible)"

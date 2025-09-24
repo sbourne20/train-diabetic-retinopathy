@@ -115,7 +115,7 @@ Example Usage:
     
     # OVO Ensemble configuration
     parser.add_argument('--base_models', nargs='+',
-                       default=['mobilenet_v2', 'inception_v3', 'densenet121', 'medsiglip_448'],
+                       default=['medsiglip_448', 'mobilenet_v2', 'inception_v3', 'densenet121'],
                        help='Base models for OVO ensemble (now includes MedSigLIP-448)')
     parser.add_argument('--img_size', type=int, default=224,
                        help='Input image size (224 optimal for CNNs)')
@@ -282,6 +282,8 @@ class MultiClassDRModel(nn.Module):
         if model_name == 'medsiglip_448':
             if not MEDSIGLIP_AVAILABLE:
                 raise ImportError("MedSigLIP requires transformers. Install with: pip install transformers")
+
+            # Load MedSigLIP-448 model
             try:
                 self.backbone = AutoModel.from_pretrained("google/medsiglip-448", use_auth_token=True)
                 self.vision_model = self.backbone.vision_model
@@ -307,7 +309,12 @@ class MultiClassDRModel(nn.Module):
         # Fine-tuning strategy (partial freezing for better accuracy)
         if freeze_weights:
             # Freeze early layers, fine-tune later layers
-            if model_name == 'mobilenet_v2':
+            if model_name == 'medsiglip_448':
+                # Freeze most of MedSigLIP, fine-tune last few layers
+                for name, param in self.backbone.named_parameters():
+                    if 'encoder.layers.23' not in name:  # Only unfreeze last layer
+                        param.requires_grad = False
+            elif model_name == 'mobilenet_v2':
                 for i, param in enumerate(self.backbone.parameters()):
                     if i < 100:  # Freeze first 100 parameters
                         param.requires_grad = False

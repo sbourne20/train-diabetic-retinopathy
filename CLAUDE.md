@@ -13,12 +13,16 @@ Complete Coverage Breakdown:
 
 Run python analyze_ovo_with_metrics.py to analyze all models.
 
+
+
 ## Project Overview
 This project builds a comprehensive medical-grade diabetic retinopathy analysis system using a multi-modal AI pipeline:
 - **MedSigLIP-448**: Image classification and severity grading
 - **YOLOv9 + SAM**: Lesion detection and segmentation 
 - **MedGemma**: Medical text generation and clinical reporting
 - **Unified API**: Complete medical report generation matching `data/medical_terms_type1.json` schema
+
+- DO NOT CREATE new files all the time, just fix the current code if need to change something.
 
 ## Implementation Strategy: Medical-Grade 7-Phase Approach
 **MEDICAL PRODUCTION REQUIREMENTS**: All phases must meet medical-grade standards with comprehensive validation. Execute phases sequentially. Do NOT run all phases at once. Each phase must be completed and validated before proceeding to the next.
