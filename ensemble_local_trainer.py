@@ -335,17 +335,22 @@ class MultiClassDRModel(nn.Module):
                     if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3']):
                         param.requires_grad = False
 
-        # Enhanced classifier head for medical accuracy
+        # EXTREME classifier head for severe class imbalance
+        # Larger capacity with specialized layers for minority classes
         self.classifier = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(num_features, 512),
+            nn.Linear(num_features, 1024),  # Increased from 512
+            nn.ReLU(),
+            nn.BatchNorm1d(1024),
+            nn.Dropout(dropout/2),
+            nn.Linear(1024, 512),
             nn.ReLU(),
             nn.BatchNorm1d(512),
-            nn.Dropout(dropout/2),
+            nn.Dropout(dropout/3),  # Even less dropout for final layers
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.BatchNorm1d(256),
-            nn.Dropout(dropout/2),
+            nn.Dropout(dropout/4),  # Minimal dropout before output
             nn.Linear(256, num_classes)
         )
 
@@ -869,19 +874,21 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
     device = torch.device(config['system']['device'])
     model = model.to(device)
 
-    # Enhanced loss for multi-class classification
+    # EXTREME loss configuration for severe class imbalance
     if config['training']['enable_focal_loss']:
-        criterion = FocalLoss(
-            alpha=config['training'].get('focal_loss_alpha', 2.0),
-            gamma=config['training'].get('focal_loss_gamma', 2.0)
-        )
-        logger.info("✅ Using Focal Loss for class imbalance")
+        # More aggressive focal loss parameters for extreme imbalance
+        alpha = config['training'].get('focal_loss_alpha', 2.0)
+        gamma = config['training'].get('focal_loss_gamma', 2.0)
+        criterion = FocalLoss(alpha=alpha, gamma=gamma)
+        logger.info(f"✅ Using EXTREME Focal Loss: alpha={alpha}, gamma={gamma}")
     else:
         if config['training']['enable_class_weights']:
-            # APTOS class distribution weights (No DR, Mild, Moderate, Severe, PDR)
-            class_weights = torch.tensor([1.0, 3.0, 2.0, 5.0, 4.0])  # Based on APTOS distribution
+            # EXTREME EyePACS class distribution weights - optimized for severe imbalance
+            severe_weight = config['training'].get('class_weight_severe', 8.0)
+            pdr_weight = config['training'].get('class_weight_pdr', 6.0)
+            class_weights = torch.tensor([1.0, 8.0, 4.0, severe_weight, pdr_weight])  # Extreme weights for rare classes
             criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
-            logger.info("✅ Using weighted CrossEntropyLoss with APTOS class weights")
+            logger.info(f"✅ Using EXTREME weighted CrossEntropyLoss: [1.0, 8.0, 4.0, {severe_weight}, {pdr_weight}]")
         else:
             criterion = nn.CrossEntropyLoss()
             logger.info("✅ Using standard CrossEntropyLoss")
@@ -903,15 +910,19 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
         {'params': classifier_params, 'lr': config['training']['learning_rate']}       # Full rate for classifier
     ], weight_decay=config['training']['weight_decay'])
 
-    # Learning rate scheduler
+    # EXTREME learning rate scheduler for minority class focus
     if config['training'].get('scheduler', 'cosine') == 'cosine':
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=config['training']['epochs'], eta_min=1e-6
+        # Cosine with warm restarts for better minority class learning
+        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, T_0=10, T_mult=2, eta_min=1e-7
         )
+        logger.info("✅ Using CosineAnnealingWarmRestarts for minority class optimization")
     else:
+        # More patient plateau scheduler for imbalanced data
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='max', factor=0.5, patience=5, verbose=True
+            optimizer, mode='max', factor=0.7, patience=8, verbose=True
         )
+        logger.info("✅ Using patient ReduceLROnPlateau for imbalanced data")
 
     # Training tracking
     best_val_acc = 0.0
