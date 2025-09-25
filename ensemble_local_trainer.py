@@ -115,7 +115,7 @@ Example Usage:
     
     # OVO Ensemble configuration
     parser.add_argument('--base_models', nargs='+',
-                       default=['mobilenet_v2', 'inception_v3', 'densenet121', 'medsiglip_448'],
+                       default=['mobilenet_v2', 'inception_v3', 'densenet121', 'medsiglip_448', 'efficientnetb5'],
                        help='Base models for OVO ensemble (now includes MedSigLIP-448)')
     parser.add_argument('--img_size', type=int, default=224,
                        help='Input image size (224 optimal for CNNs)')
@@ -311,6 +311,10 @@ class MultiClassDRModel(nn.Module):
             self.backbone = models.densenet121(pretrained=True)
             num_features = self.backbone.classifier.in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'efficientnetb5':
+            self.backbone = models.efficientnet_b5(pretrained=True)
+            num_features = self.backbone.classifier[1].in_features
+            self.backbone.classifier = nn.Identity()
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -333,6 +337,11 @@ class MultiClassDRModel(nn.Module):
             elif model_name == 'inception_v3':
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3']):
+                        param.requires_grad = False
+            elif model_name == 'efficientnetb5':
+                # Freeze early blocks, fine-tune later blocks for EfficientNet-B5
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['features.0', 'features.1', 'features.2', 'features.3']):
                         param.requires_grad = False
 
         # EXTREME classifier head for severe class imbalance
@@ -510,6 +519,10 @@ class BinaryClassifier(nn.Module):
             self.backbone = models.densenet121(pretrained=True)
             num_features = self.backbone.classifier.in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'efficientnetb5':
+            self.backbone = models.efficientnet_b5(pretrained=True)
+            num_features = self.backbone.classifier[1].in_features
+            self.backbone.classifier = nn.Identity()
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -541,6 +554,13 @@ class BinaryClassifier(nn.Module):
                 # Freeze early layers, fine-tune later
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3', 'Conv2d_4']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'efficientnetb5':
+                # Freeze early blocks, fine-tune later blocks for EfficientNet-B5
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['features.0', 'features.1', 'features.2', 'features.3']):
                         param.requires_grad = False
                     else:
                         param.requires_grad = True
