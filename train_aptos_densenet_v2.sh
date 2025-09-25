@@ -20,8 +20,8 @@ echo "  - Dataset: EyePACS (./dataset_eyepacs) - EXTREME IMBALANCE OPTIMIZED"
 echo "  - Model: DenseNet121 (advanced imbalance techniques)"
 echo "  - Image size: 299x299 (larger input for better features)"
 echo "  - Batch size: 12 (balanced sampling optimized)"
-echo "  - Learning rate: 2e-4 (conservative for stability)"
-echo "  - Weight decay: 5e-4 (reduced for minority classes)"
+echo "  - Learning rate: 1e-4 (stable for minority class learning)"
+echo "  - Weight decay: 3e-4 (reduced for minority classes)"
 echo "  - Dropout: 0.2 (reduced - preserve minority class features)"
 echo "  - Epochs: 80 (extended for minority class learning)"
 echo "  - EXTREME class weights + balanced sampling + mixup"
@@ -38,8 +38,8 @@ python ensemble_local_trainer.py \
     --img_size 299 \
     --batch_size 12 \
     --epochs 80 \
-    --learning_rate 2e-4 \
-    --weight_decay 5e-4 \
+    --learning_rate 1e-4 \
+    --weight_decay 3e-4 \
     --ovo_dropout 0.2 \
     --freeze_weights false \
     --enable_medical_augmentation \
@@ -52,11 +52,11 @@ python ensemble_local_trainer.py \
     --class_weight_pdr 35.0 \
     --focal_loss_alpha 3.0 \
     --focal_loss_gamma 4.0 \
-    --scheduler cosine \
+    --scheduler plateau \
     --warmup_epochs 5 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
-    --patience 15 \
+    --patience 20 \
     --early_stopping_patience 12 \
     --target_accuracy 0.90 \
     --seed 42
@@ -68,7 +68,7 @@ echo ""
 echo "🎯 EXTREME OPTIMIZATION Applied:"
 echo "  🏗️ Architecture: DenseNet121 (extreme imbalance techniques)"
 echo "  📊 Model capacity: 8M parameters + larger classifier head"
-echo "  🎓 Balanced learning rate: 2e-4 (stability + performance)"
+echo "  🎓 Stable learning rate: 1e-4 (minority class focused)"
 echo "  💧 Reduced dropout: 0.2 (preserve minority class features)"
 echo "  ⏰ Extended training: 80 epochs (minority class convergence)"
 echo "  🔀 Enhanced augmentation: 25° rotation, 20% brightness/contrast"

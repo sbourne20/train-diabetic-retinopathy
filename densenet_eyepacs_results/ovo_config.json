@@ -1,9 +1,9 @@
 {
   "data": {
-    "dataset_path": "./dataset_aptos",
+    "dataset_path": "./dataset_eyepacs",
     "num_classes": 5,
-    "img_size": 224,
-    "batch_size": 16,
+    "img_size": 299,
+    "batch_size": 12,
     "enable_clahe": false,
     "clahe_clip_limit": 3.0,
     "clahe_tile_grid_size": [
@@ -13,21 +13,21 @@
   },
   "model": {
     "base_models": [
-      "mobilenet_v2"
+      "densenet121"
     ],
-    "freeze_weights": true,
-    "dropout": 0.5,
+    "freeze_weights": false,
+    "dropout": 0.2,
     "num_classes": 5
   },
   "training": {
-    "epochs": 50,
-    "learning_rate": 0.0005,
-    "weight_decay": 0.001,
-    "patience": 5,
+    "epochs": 80,
+    "learning_rate": 0.0002,
+    "weight_decay": 0.0005,
+    "patience": 15,
     "enable_focal_loss": true,
     "enable_class_weights": true,
-    "focal_loss_alpha": 2.0,
-    "focal_loss_gamma": 3.0,
+    "focal_loss_alpha": 3.0,
+    "focal_loss_gamma": 4.0,
     "scheduler": "cosine",
     "warmup_epochs": 5,
     "rotation_range": 25.0,
@@ -36,13 +36,13 @@
     "resume": false
   },
   "paths": {
-    "output_dir": "./aptos_results"
+    "output_dir": "./densenet_eyepacs_results"
   },
   "system": {
     "device": "cuda",
     "seed": 42,
-    "output_dir": "./aptos_results",
-    "experiment_name": "aptos_2019_mobilenet_antioverfitting",
+    "output_dir": "./densenet_eyepacs_results",
+    "experiment_name": "eyepacs_densenet121_extreme_optimized",
     "target_accuracy": 0.9,
     "use_wandb": true
   }
