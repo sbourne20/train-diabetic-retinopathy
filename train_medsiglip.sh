@@ -20,11 +20,11 @@ echo "  - Dataset: EyePACS (./dataset_eyepacs)"
 echo "  - Model: MedSigLIP-448 (medical foundation model)"
 echo "  - Image size: 448x448 (MedSigLIP required size)"
 echo "  - Batch size: 8 (optimized for MedSigLIP memory)"
-echo "  - Learning rate: 5e-5 (foundation model optimized)"
-echo "  - Weight decay: 1e-2 (strong regularization)"
+echo "  - Learning rate: 5e-4 (foundation model optimized)"
+echo "  - Weight decay: 1e-3 (balanced regularization)"
 echo "  - Dropout: 0.3 (foundation model regularization)"
 echo "  - Epochs: 50 (sufficient for convergence)"
-echo "  - Enhanced augmentation + progressive training"
+echo "  - EXTREME class weights + enhanced augmentation"
 echo "  - Target: 95%+ accuracy (medical production grade)"
 echo ""
 
@@ -43,11 +43,15 @@ python ensemble_local_trainer.py \
     --ovo_dropout 0.4 \
     --freeze_weights false \
     --enable_medical_augmentation \
-    --rotation_range 15.0 \
-    --brightness_range 0.1 \
-    --contrast_range 0.1 \
+    --rotation_range 20.0 \
+    --brightness_range 0.15 \
+    --contrast_range 0.15 \
     --enable_focal_loss \
     --enable_class_weights \
+    --class_weight_severe 25.0 \
+    --class_weight_pdr 30.0 \
+    --focal_loss_alpha 2.5 \
+    --focal_loss_gamma 3.5 \
     --scheduler cosine \
     --warmup_epochs 5 \
     --validation_frequency 1 \
@@ -64,10 +68,10 @@ echo ""
 echo "🎯 Medical-Grade Configuration Applied:"
 echo "  🏗️ Architecture: MedSigLIP-448 (medical foundation model)"
 echo "  📊 Model capacity: 300M+ parameters (large medical model)"
-echo "  🎓 Optimized learning rate: 5e-5 (foundation model optimized)"
+echo "  🎓 Optimized learning rate: 5e-4 (foundation model optimized)"
 echo "  💧 Balanced dropout: 0.3 (prevents overfitting)"
 echo "  ⏰ Training epochs: 50 (sufficient convergence)"
-echo "  🔀 Enhanced augmentation: Medical imaging optimized settings"
+echo "  🔀 EXTREME optimization: 25x/30x class weights, enhanced augmentation"
 echo ""
 echo "📊 Expected Performance:"
 echo "  🎯 Target: 95%+ validation accuracy (ambitious medical-grade target)"
