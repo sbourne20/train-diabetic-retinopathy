@@ -15,17 +15,17 @@ echo ""
 # Create output directory for MedSigLIP results
 mkdir -p ./medsiglip_results
 
-echo "🔬 EyePACS MedSigLIP Medical-Grade Configuration:"
-echo "  - Dataset: EyePACS (./dataset_eyepacs)"
+echo "🔬 EyePACS MedSigLIP OPTIMIZED Configuration:"
+echo "  - Dataset: EyePACS (./dataset_eyepacs) - AUGMENTED 33,857 samples"
 echo "  - Model: MedSigLIP-448 (medical foundation model)"
 echo "  - Image size: 448x448 (MedSigLIP required size)"
 echo "  - Batch size: 8 (optimized for MedSigLIP memory)"
-echo "  - Learning rate: 5e-4 (foundation model optimized)"
-echo "  - Weight decay: 1e-3 (balanced regularization)"
-echo "  - Dropout: 0.3 (foundation model regularization)"
-echo "  - Epochs: 50 (sufficient for convergence)"
+echo "  - Learning rate: 3e-4 (adjusted for larger augmented dataset)"
+echo "  - Weight decay: 5e-4 (increased for regularization)"
+echo "  - Dropout: 0.4 (increased for better generalization)"
+echo "  - Epochs: 60 (extended for augmented data convergence)"
 echo "  - EXTREME class weights + enhanced augmentation"
-echo "  - Target: 95%+ accuracy (medical production grade)"
+echo "  - Target: 92%+ accuracy (medical production grade)"
 echo ""
 
 # Train MedSigLIP with OVO-compatible system (single model mode)
@@ -33,19 +33,19 @@ python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs \
     --output_dir ./medsiglip_results \
-    --experiment_name "eyepacs_medsiglip_medical" \
+    --experiment_name "eyepacs_medsiglip_augmented_optimized" \
     --base_models medsiglip_448 \
     --img_size 448 \
     --batch_size 8 \
-    --epochs 50 \
-    --learning_rate 5e-4 \
-    --weight_decay 1e-3 \
+    --epochs 60 \
+    --learning_rate 3e-4 \
+    --weight_decay 5e-4 \
     --ovo_dropout 0.4 \
     --freeze_weights false \
     --enable_medical_augmentation \
-    --rotation_range 20.0 \
-    --brightness_range 0.15 \
-    --contrast_range 0.15 \
+    --rotation_range 15.0 \
+    --brightness_range 0.10 \
+    --contrast_range 0.10 \
     --enable_focal_loss \
     --enable_class_weights \
     --class_weight_severe 25.0 \
@@ -53,31 +53,32 @@ python ensemble_local_trainer.py \
     --focal_loss_alpha 2.5 \
     --focal_loss_gamma 3.5 \
     --scheduler cosine \
-    --warmup_epochs 5 \
+    --warmup_epochs 8 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
-    --patience 12 \
-    --early_stopping_patience 10 \
-    --target_accuracy 0.90 \
+    --patience 15 \
+    --early_stopping_patience 12 \
+    --target_accuracy 0.92 \
     --seed 42
 
 echo ""
 echo "✅ EyePACS MedSigLIP training completed!"
 echo "📁 Results saved to: ./medsiglip_results"
 echo ""
-echo "🎯 Medical-Grade Configuration Applied:"
+echo "🎯 AUGMENTED Dataset Configuration Applied:"
 echo "  🏗️ Architecture: MedSigLIP-448 (medical foundation model)"
 echo "  📊 Model capacity: 300M+ parameters (large medical model)"
-echo "  🎓 Optimized learning rate: 5e-4 (foundation model optimized)"
-echo "  💧 Balanced dropout: 0.3 (prevents overfitting)"
-echo "  ⏰ Training epochs: 50 (sufficient convergence)"
-echo "  🔀 EXTREME optimization: 25x/30x class weights, enhanced augmentation"
+echo "  🎓 Optimized learning rate: 3e-4 (tuned for 33,857 samples)"
+echo "  💧 Enhanced dropout: 0.4 (improved generalization)"
+echo "  ⏰ Training epochs: 60 (extended for augmented data)"
+echo "  🔀 EXTREME optimization: 25x/30x class weights, refined augmentation"
+echo "  📈 Dataset: 33,857 samples with balanced minority classes"
 echo ""
-echo "📊 Expected Performance:"
-echo "  🎯 Target: 95%+ validation accuracy (ambitious medical-grade target)"
-echo "  🏥 Medical grade: Should achieve FULL PASS (≥90%)"
-echo "  📈 Generalization: Better performance on new patients"
-echo "  🔬 EyePACS dataset: Large-scale diabetic retinopathy dataset"
+echo "📊 Expected Performance with Augmented Data:"
+echo "  🎯 Target: 92%+ validation accuracy (realistic medical-grade)"
+echo "  🏥 Medical grade: FULL PASS expected (≥90%)"
+echo "  📈 Generalization: Superior minority class performance"
+echo "  🔗 Ensemble impact: Strong foundation for 94-96% ensemble"
 echo ""
 echo "📋 Next Steps:"
 echo "  1. Analyze results: python model_analyzer.py --model ./medsiglip_results/models/best_medsiglip_448_multiclass.pth"

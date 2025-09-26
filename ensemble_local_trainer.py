@@ -1099,7 +1099,9 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
                 'train_history': train_history,
                 'model_name': model_name,
                 'config': config,
-                'val_accuracies': train_history['val_accuracies'],
+                # Model analyzer compatible fields (converted to fractions)
+                'val_accuracies': [acc/100.0 for acc in train_history['val_accuracies']],
+                'train_accuracies': [acc/100.0 for acc in train_history['train_accuracies']],
                 'train_losses': train_history['train_losses'],
                 'val_losses': train_history['val_losses']
             }
@@ -1266,7 +1268,12 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
                 'train_history': train_history,
                 'class_pair': class_pair,
                 'model_name': model_name,
-                'config': config
+                'config': config,
+                # Model analyzer compatible fields
+                'val_accuracies': train_history['val_accuracies'],
+                'train_accuracies': train_history['train_accuracies'],
+                'train_losses': train_history['train_losses'],
+                'val_losses': train_history['val_losses']
             }
             torch.save(checkpoint, model_path)
             logger.info(f"🎯 New best for {model_name}_{class_pair}: {val_acc:.2f}%")
