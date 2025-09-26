@@ -15,15 +15,17 @@ echo ""
 # Create output directory for MedSigLIP results
 mkdir -p ./medsiglip_results
 
-echo "🔬 EyePACS MedSigLIP OPTIMIZED Configuration:"
+echo "🔬 EyePACS MedSigLIP OPTIMIZED Configuration (DenseNet-Inspired):"
 echo "  - Dataset: EyePACS (./dataset_eyepacs) - AUGMENTED 33,857 samples"
-echo "  - Model: MedSigLIP-448 (medical foundation model)"
+echo "  - Model: MedSigLIP-448 (medical foundation model - optimized)"
 echo "  - Image size: 448x448 (MedSigLIP required size)"
 echo "  - Batch size: 8 (optimized for MedSigLIP memory)"
-echo "  - Learning rate: 3e-4 (adjusted for larger augmented dataset)"
-echo "  - Weight decay: 5e-4 (increased for regularization)"
-echo "  - Dropout: 0.4 (increased for better generalization)"
-echo "  - Epochs: 60 (extended for augmented data convergence)"
+echo "  - Learning rate: 1e-4 (REDUCED - gentler fine-tuning for pre-trained features)"
+echo "  - Weight decay: 3e-4 (REDUCED - less aggressive regularization)"
+echo "  - Dropout: 0.2 (REDUCED - preserve pre-trained features)"
+echo "  - Epochs: 60 (extended for convergence)"
+echo "  - Scheduler: plateau (adaptive based on validation performance)"
+echo "  - Warmup: 5 epochs (reduced - sufficient for stable LR)"
 echo "  - EXTREME class weights + enhanced augmentation"
 echo "  - Target: 92%+ accuracy (medical production grade)"
 echo ""
@@ -38,9 +40,9 @@ python ensemble_local_trainer.py \
     --img_size 448 \
     --batch_size 8 \
     --epochs 60 \
-    --learning_rate 3e-4 \
-    --weight_decay 5e-4 \
-    --ovo_dropout 0.4 \
+    --learning_rate 1e-4 \
+    --weight_decay 3e-4 \
+    --ovo_dropout 0.2 \
     --freeze_weights false \
     --enable_medical_augmentation \
     --rotation_range 15.0 \
@@ -52,8 +54,8 @@ python ensemble_local_trainer.py \
     --class_weight_pdr 30.0 \
     --focal_loss_alpha 2.5 \
     --focal_loss_gamma 3.5 \
-    --scheduler cosine \
-    --warmup_epochs 8 \
+    --scheduler plateau \
+    --warmup_epochs 5 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 15 \
@@ -65,20 +67,24 @@ echo ""
 echo "✅ EyePACS MedSigLIP training completed!"
 echo "📁 Results saved to: ./medsiglip_results"
 echo ""
-echo "🎯 AUGMENTED Dataset Configuration Applied:"
-echo "  🏗️ Architecture: MedSigLIP-448 (medical foundation model)"
+echo "🎯 OPTIMIZED Dataset Configuration Applied (DenseNet-Inspired):"
+echo "  🏗️ Architecture: MedSigLIP-448 (medical foundation model - optimized)"
 echo "  📊 Model capacity: 300M+ parameters (large medical model)"
-echo "  🎓 Optimized learning rate: 3e-4 (tuned for 33,857 samples)"
-echo "  💧 Enhanced dropout: 0.4 (improved generalization)"
-echo "  ⏰ Training epochs: 60 (extended for augmented data)"
+echo "  🎓 Optimized learning rate: 1e-4 (REDUCED - gentler fine-tuning)"
+echo "  💧 Reduced dropout: 0.2 (preserve pre-trained features)"
+echo "  ⚖️ Reduced weight decay: 3e-4 (less aggressive regularization)"
+echo "  📈 Scheduler: plateau (adaptive convergence)"
+echo "  ⏰ Training epochs: 60 (extended for convergence)"
 echo "  🔀 EXTREME optimization: 25x/30x class weights, refined augmentation"
 echo "  📈 Dataset: 33,857 samples with balanced minority classes"
 echo ""
-echo "📊 Expected Performance with Augmented Data:"
+echo "📊 Expected Performance with Optimized Configuration:"
 echo "  🎯 Target: 92%+ validation accuracy (realistic medical-grade)"
+echo "  🚀 Initial epochs: Should start >80% (vs previous 74%)"
 echo "  🏥 Medical grade: FULL PASS expected (≥90%)"
 echo "  📈 Generalization: Superior minority class performance"
 echo "  🔗 Ensemble impact: Strong foundation for 94-96% ensemble"
+echo "  ⚡ Convergence: Faster and more stable than previous config"
 echo ""
 echo "📋 Next Steps:"
 echo "  1. Analyze results: python model_analyzer.py --model ./medsiglip_results/models/best_medsiglip_448_multiclass.pth"
