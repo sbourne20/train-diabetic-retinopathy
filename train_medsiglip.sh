@@ -62,10 +62,6 @@ python ensemble_local_trainer.py \
     --patience 15 \
     --early_stopping_patience 12 \
     --target_accuracy 0.90 \
-    --enable_gradient_clipping \
-    --gradient_clip_value 1.0 \
-    --enable_label_smoothing \
-    --label_smoothing 0.1 \
     --seed 42
 
 echo ""
@@ -80,7 +76,7 @@ echo "  💧 Balanced dropout: 0.3 (prevent overfitting while learning)"
 echo "  ⚖️ Optimized weight decay: 1e-4 (balanced regularization)"
 echo "  📈 Scheduler: cosine (PROVEN - proper LR progression)"
 echo "  ⏰ Extended warmup: 10 epochs (stable large model training)"
-echo "  🎯 Advanced techniques: Gradient clipping + Label smoothing"
+echo "  🎯 Core optimizations: LR + Batch size + Regularization"
 echo "  🔀 EXTREME optimization: 25x/30x class weights, refined augmentation"
 echo "  📈 Dataset: 33,857 samples with balanced minority classes"
 echo ""
@@ -90,7 +86,7 @@ echo "  🚀 Initial epochs: Should overcome previous stagnation"
 echo "  🏥 Medical grade: 90%+ TARGET (fixed from 79-86% range)"
 echo "  📈 Cosine scheduler: Proper LR progression vs plateau issues"
 echo "  🔗 Batch size 16: Better gradients for 880M parameter model"
-echo "  ⚡ Advanced optimization: Gradient clipping + Label smoothing"
+echo "  ⚡ Core fixes: Cosine scheduler + Larger batch + Balanced regularization"
 echo "  ✅ Fixed learning: Overcomes warmup LR stagnation issue"
 echo ""
 echo "📋 Next Steps:"
