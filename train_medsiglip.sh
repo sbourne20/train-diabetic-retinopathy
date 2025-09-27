@@ -19,14 +19,14 @@ echo "🔬 EyePACS MedSigLIP FIXED Configuration (90%+ Target):"
 echo "  - Dataset: EyePACS (./dataset_eyepacs) - AUGMENTED 33,857 samples"
 echo "  - Model: MedSigLIP-448 (medical foundation model - FIXED)"
 echo "  - Image size: 448x448 (MedSigLIP required size)"
-echo "  - Batch size: 16 (INCREASED - better gradients for large model)"
+echo "  - Batch size: 6 (OPTIMIZED - V100 memory limit for 880M model)"
 echo "  - Learning rate: 2e-4 (INCREASED - overcome stagnation)"
 echo "  - Weight decay: 1e-4 (OPTIMIZED - balanced regularization)"
 echo "  - Dropout: 0.3 (BALANCED - prevent overfitting)"
 echo "  - Epochs: 60 (extended for convergence)"
 echo "  - Scheduler: cosine (PROVEN - proper LR progression)"
 echo "  - Warmup: 10 epochs (EXTENDED - stable large model warmup)"
-echo "  - Advanced: Gradient clipping + Label smoothing"
+echo "  - Memory: Gradient accumulation to simulate larger batches"
 echo "  - EXTREME class weights + enhanced augmentation"
 echo "  - Target: 90%+ validation accuracy (FIXED)"
 echo ""
@@ -39,7 +39,7 @@ python ensemble_local_trainer.py \
     --experiment_name "eyepacs_medsiglip_augmented_optimized" \
     --base_models medsiglip_448 \
     --img_size 448 \
-    --batch_size 16 \
+    --batch_size 6 \
     --epochs 60 \
     --learning_rate 2e-4 \
     --weight_decay 1e-4 \
@@ -85,7 +85,7 @@ echo "  🎯 Target: 90%+ validation accuracy (FIXED approach)"
 echo "  🚀 Initial epochs: Should overcome previous stagnation"
 echo "  🏥 Medical grade: 90%+ TARGET (fixed from 79-86% range)"
 echo "  📈 Cosine scheduler: Proper LR progression vs plateau issues"
-echo "  🔗 Batch size 16: Better gradients for 880M parameter model"
+echo "  🔗 Batch size 6: Optimized for V100 memory with 880M model"
 echo "  ⚡ Core fixes: Cosine scheduler + Larger batch + Balanced regularization"
 echo "  ✅ Fixed learning: Overcomes warmup LR stagnation issue"
 echo ""
