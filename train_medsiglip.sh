@@ -15,52 +15,53 @@ echo ""
 # Create output directory for MedSigLIP results
 mkdir -p ./medsiglip_results
 
-echo "🔬 EyePACS MedSigLIP FIXED Configuration (90%+ Target):"
+echo "🔬 EyePACS MedSigLIP OPTIMIZED Configuration V2 (90%+ Target):"
 echo "  - Dataset: EyePACS (./dataset_eyepacs) - AUGMENTED 33,857 samples"
-echo "  - Model: MedSigLIP-448 (medical foundation model - FIXED)"
+echo "  - Model: MedSigLIP-448 (medical foundation model - OPTIMIZED)"
 echo "  - Image size: 448x448 (MedSigLIP required size)"
-echo "  - Batch size: 6 (OPTIMIZED - V100 memory limit for 880M model)"
-echo "  - Learning rate: 2e-4 (INCREASED - overcome stagnation)"
-echo "  - Weight decay: 1e-4 (OPTIMIZED - balanced regularization)"
-echo "  - Dropout: 0.3 (BALANCED - prevent overfitting)"
-echo "  - Epochs: 60 (extended for convergence)"
-echo "  - Scheduler: cosine (PROVEN - proper LR progression)"
-echo "  - Warmup: 10 epochs (EXTENDED - stable large model warmup)"
-echo "  - Memory: Gradient accumulation to simulate larger batches"
-echo "  - EXTREME class weights + enhanced augmentation"
-echo "  - Target: 90%+ validation accuracy (FIXED)"
+echo "  - Batch size: 8 (INCREASED - better GPU utilization)"
+echo "  - Learning rate: 4e-4 (DOUBLED - faster convergence for 880M model)"
+echo "  - Weight decay: 1e-5 (REDUCED - less aggressive regularization)"
+echo "  - Dropout: 0.2 (REDUCED - balanced learning capacity)"
+echo "  - Epochs: 50 (OPTIMIZED - sufficient for convergence)"
+echo "  - Scheduler: plateau (STABLE - reduces on validation plateau)"
+echo "  - Warmup: 15 epochs (EXTENDED - proper large model warmup)"
+echo "  - Checkpoint frequency: 3 epochs (frequent monitoring)"
+echo "  - Early stopping: 8 epochs patience (prevent overfitting)"
+echo "  - BALANCED class weights + refined augmentation"
+echo "  - Target: 90%+ validation accuracy (OPTIMIZED APPROACH)"
 echo ""
 
-# Train MedSigLIP with OVO-compatible system (single model mode)
+# Train MedSigLIP with OVO-compatible system (single model mode) - OPTIMIZED HYPERPARAMETERS
 python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs \
     --output_dir ./medsiglip_results \
-    --experiment_name "eyepacs_medsiglip_augmented_optimized" \
+    --experiment_name "eyepacs_medsiglip_augmented_v2" \
     --base_models medsiglip_448 \
     --img_size 448 \
-    --batch_size 6 \
-    --epochs 60 \
-    --learning_rate 2e-4 \
-    --weight_decay 1e-4 \
-    --ovo_dropout 0.3 \
+    --batch_size 8 \
+    --epochs 50 \
+    --learning_rate 4e-4 \
+    --weight_decay 1e-5 \
+    --ovo_dropout 0.2 \
     --freeze_weights false \
     --enable_medical_augmentation \
-    --rotation_range 15.0 \
-    --brightness_range 0.10 \
-    --contrast_range 0.10 \
+    --rotation_range 12.0 \
+    --brightness_range 0.08 \
+    --contrast_range 0.08 \
     --enable_focal_loss \
     --enable_class_weights \
-    --class_weight_severe 25.0 \
-    --class_weight_pdr 30.0 \
-    --focal_loss_alpha 2.0 \
+    --class_weight_severe 20.0 \
+    --class_weight_pdr 25.0 \
+    --focal_loss_alpha 1.5 \
     --focal_loss_gamma 2.0 \
-    --scheduler cosine \
-    --warmup_epochs 10 \
+    --scheduler plateau \
+    --warmup_epochs 15 \
     --validation_frequency 1 \
-    --checkpoint_frequency 5 \
-    --patience 15 \
-    --early_stopping_patience 12 \
+    --checkpoint_frequency 3 \
+    --patience 10 \
+    --early_stopping_patience 8 \
     --target_accuracy 0.90 \
     --seed 42
 
@@ -68,26 +69,26 @@ echo ""
 echo "✅ EyePACS MedSigLIP training completed!"
 echo "📁 Results saved to: ./medsiglip_results"
 echo ""
-echo "🎯 FIXED Configuration Applied (90%+ Target):"
-echo "  🏗️ Architecture: MedSigLIP-448 (medical foundation model - FIXED)"
+echo "🎯 OPTIMIZED Configuration V2 Applied (90%+ Target):"
+echo "  🏗️ Architecture: MedSigLIP-448 (medical foundation model - V2 OPTIMIZED)"
 echo "  📊 Model capacity: 880M parameters (large medical model)"
-echo "  🎓 Fixed learning rate: 2e-4 (INCREASED - overcome stagnation)"
-echo "  💧 Balanced dropout: 0.3 (prevent overfitting while learning)"
-echo "  ⚖️ Optimized weight decay: 1e-4 (balanced regularization)"
-echo "  📈 Scheduler: cosine (PROVEN - proper LR progression)"
-echo "  ⏰ Extended warmup: 10 epochs (stable large model training)"
-echo "  🎯 Core optimizations: LR + Batch size + Regularization"
-echo "  🔀 EXTREME optimization: 25x/30x class weights, refined augmentation"
-echo "  📈 Dataset: 33,857 samples with balanced minority classes"
+echo "  🎓 Learning rate: 4e-4 (DOUBLED - faster convergence for large model)"
+echo "  💧 Balanced dropout: 0.2 (optimized learning vs overfitting)"
+echo "  ⚖️ Weight decay: 1e-5 (REDUCED - less aggressive regularization)"
+echo "  📈 Scheduler: plateau (STABLE - adaptive LR reduction)"
+echo "  ⏰ Extended warmup: 15 epochs (proper large model initialization)"
+echo "  🎯 Core optimizations: Higher LR + Plateau scheduler + Balanced regularization"
+echo "  🔀 BALANCED optimization: 20x/25x class weights, refined augmentation"
+echo "  📈 Dataset: 33,857 samples with optimized minority class handling"
 echo ""
-echo "📊 Expected Performance with FIXED Configuration:"
-echo "  🎯 Target: 90%+ validation accuracy (FIXED approach)"
-echo "  🚀 Initial epochs: Should overcome previous stagnation"
-echo "  🏥 Medical grade: 90%+ TARGET (fixed from 79-86% range)"
-echo "  📈 Cosine scheduler: Proper LR progression vs plateau issues"
-echo "  🔗 Batch size 6: Optimized for V100 memory with 880M model"
-echo "  ⚡ Core fixes: Cosine scheduler + Larger batch + Balanced regularization"
-echo "  ✅ Fixed learning: Overcomes warmup LR stagnation issue"
+echo "📊 Expected Performance with OPTIMIZED V2 Configuration:"
+echo "  🎯 Target: 90%+ validation accuracy (V2 OPTIMIZED approach)"
+echo "  🚀 Initial epochs: Faster convergence with 4e-4 LR"
+echo "  🏥 Medical grade: 90%+ TARGET (improved from 79-86% range)"
+echo "  📈 Plateau scheduler: Stable LR with adaptive reduction"
+echo "  🔗 Batch size 8: Better GPU utilization for V100 with 880M model"
+echo "  ⚡ Core improvements: Higher LR + Plateau scheduler + Reduced regularization"
+echo "  ✅ Optimized learning: Overcomes LR stagnation with balanced approach"
 echo ""
 echo "📋 Next Steps:"
 echo "  1. Analyze results: python model_analyzer.py --model ./medsiglip_results/models/best_medsiglip_448_multiclass.pth"
