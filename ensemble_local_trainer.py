@@ -193,6 +193,10 @@ Example Usage:
                        help='Number of warmup epochs')
     parser.add_argument('--min_lr', type=float, default=1e-6,
                        help='Minimum learning rate')
+
+    # Label smoothing for improved generalization
+    parser.add_argument('--label_smoothing', type=float, default=0.0,
+                       help='Label smoothing factor (0.0-0.2 recommended, 0.0=disabled)')
     
     # OVO Training strategy
     parser.add_argument('--binary_epochs', type=int, default=30,
@@ -856,6 +860,9 @@ def setup_ovo_experiment(args):
             'rotation_range': args.rotation_range,
             'brightness_range': args.brightness_range,
             'contrast_range': args.contrast_range,
+            'label_smoothing': args.label_smoothing,
+            'class_weight_severe': args.class_weight_severe,
+            'class_weight_pdr': args.class_weight_pdr,
             'resume': args.resume
         },
         'paths': {
@@ -897,23 +904,32 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
     model = model.to(device)
 
     # EXTREME loss configuration for severe class imbalance
+    # Get label smoothing parameter
+    label_smoothing = config['training'].get('label_smoothing', 0.0)
+
     if config['training']['enable_focal_loss']:
         # More aggressive focal loss parameters for extreme imbalance
         alpha = config['training'].get('focal_loss_alpha', 2.0)
         gamma = config['training'].get('focal_loss_gamma', 2.0)
         criterion = FocalLoss(alpha=alpha, gamma=gamma)
         logger.info(f"✅ Using EXTREME Focal Loss: alpha={alpha}, gamma={gamma}")
+        if label_smoothing > 0:
+            logger.info(f"⚠️  Label smoothing ({label_smoothing}) not supported with Focal Loss")
     else:
         if config['training']['enable_class_weights']:
             # EXTREME EyePACS class distribution weights - optimized for severe imbalance
             severe_weight = config['training'].get('class_weight_severe', 8.0)
             pdr_weight = config['training'].get('class_weight_pdr', 6.0)
             class_weights = torch.tensor([1.0, 8.0, 4.0, severe_weight, pdr_weight])  # Extreme weights for rare classes
-            criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
+            criterion = nn.CrossEntropyLoss(weight=class_weights.to(device), label_smoothing=label_smoothing)
             logger.info(f"✅ Using EXTREME weighted CrossEntropyLoss: [1.0, 8.0, 4.0, {severe_weight}, {pdr_weight}]")
+            if label_smoothing > 0:
+                logger.info(f"✅ Label smoothing enabled: {label_smoothing}")
         else:
-            criterion = nn.CrossEntropyLoss()
-            logger.info("✅ Using standard CrossEntropyLoss")
+            criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+            logger.info(f"✅ Using standard CrossEntropyLoss")
+            if label_smoothing > 0:
+                logger.info(f"✅ Label smoothing enabled: {label_smoothing}")
 
     # Enhanced optimizer with different learning rates
     backbone_params = []
@@ -932,13 +948,15 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
         {'params': classifier_params, 'lr': config['training']['learning_rate']}       # Full rate for classifier
     ], weight_decay=config['training']['weight_decay'])
 
-    # EXTREME learning rate scheduler for minority class focus
+    # OPTIMIZED learning rate scheduler for high accuracy convergence
     if config['training'].get('scheduler', 'cosine') == 'cosine':
-        # Cosine with warm restarts for better minority class learning
+        # Cosine with warm restarts - T_0 adjusted based on warmup epochs for stable convergence
+        warmup = config['training'].get('warmup_epochs', 10)
+        T_0 = max(15, warmup + 5)  # Ensure T_0 is at least warmup + 5 epochs
         scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=10, T_mult=2, eta_min=1e-7
+            optimizer, T_0=T_0, T_mult=1, eta_min=1e-7
         )
-        logger.info("✅ Using CosineAnnealingWarmRestarts for minority class optimization")
+        logger.info(f"✅ Using CosineAnnealingWarmRestarts: T_0={T_0}, T_mult=1 (optimized for 90%+ accuracy)")
     else:
         # More patient plateau scheduler for imbalanced data
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
