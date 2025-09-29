@@ -294,7 +294,7 @@ class MultiClassDRModel(nn.Module):
                     token=hf_token,
                     trust_remote_code=True
                 )
-                self.vision_model = self.backbone.vision_model
+                # Use full model - this matches the 1.3B parameter working checkpoint
                 num_features = self.backbone.config.vision_config.hidden_size
                 logger.info(f"✅ Loaded MedSigLIP-448: {num_features} features")
             except Exception as e:
@@ -322,10 +322,13 @@ class MultiClassDRModel(nn.Module):
         if freeze_weights:
             # Freeze early layers, fine-tune later layers
             if model_name == 'medsiglip_448':
-                # Freeze most of MedSigLIP, fine-tune last few layers
+                # Freeze most of MedSigLIP vision model, fine-tune last few layers
+                # Keep text model trainable to match working 1.3B parameter checkpoint
                 for name, param in self.backbone.named_parameters():
-                    if 'encoder.layers.23' not in name:  # Only unfreeze last layer
-                        param.requires_grad = False
+                    if 'vision_model' in name and 'encoder.layers.23' not in name:
+                        param.requires_grad = False  # Freeze most vision layers
+                    else:
+                        param.requires_grad = True   # Keep text model and last vision layer trainable
             elif model_name == 'mobilenet_v2':
                 for i, param in enumerate(self.backbone.parameters()):
                     if i < 100:  # Freeze first 100 parameters
@@ -374,9 +377,8 @@ class MultiClassDRModel(nn.Module):
 
         # Extract features
         if self.model_name == 'medsiglip_448':
-            # MedSigLIP forward pass
-            outputs = self.vision_model(pixel_values=x)
-            features = outputs.pooler_output  # Use pooled output
+            # MedSigLIP forward pass - use full model's get_image_features for consistency with training
+            features = self.backbone.get_image_features(x)
         elif self.model_name == 'inception_v3' and self.training:
             features, aux_features = self.backbone(x)
         else:
@@ -500,7 +502,7 @@ class BinaryClassifier(nn.Module):
                     token=hf_token,
                     trust_remote_code=True
                 )
-                self.vision_model = self.backbone.vision_model
+                # Use full model - this matches the 1.3B parameter working checkpoint
                 num_features = self.backbone.config.vision_config.hidden_size
                 logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier: {num_features} features")
             except Exception as e:
@@ -530,10 +532,13 @@ class BinaryClassifier(nn.Module):
         if freeze_weights:
             # Partial fine-tuning: freeze early layers, unfreeze later layers
             if model_name == 'medsiglip_448':
-                # Freeze most of MedSigLIP, fine-tune last few layers
+                # Freeze most of MedSigLIP vision model, fine-tune last few layers
+                # Keep text model trainable to match working 1.3B parameter checkpoint
                 for name, param in self.backbone.named_parameters():
-                    if 'encoder.layers.23' not in name:  # Only unfreeze last layer
-                        param.requires_grad = False
+                    if 'vision_model' in name and 'encoder.layers.23' not in name:
+                        param.requires_grad = False  # Freeze most vision layers
+                    else:
+                        param.requires_grad = True   # Keep text model and last vision layer trainable
                     else:
                         param.requires_grad = True
             elif model_name == 'densenet121':
@@ -596,9 +601,8 @@ class BinaryClassifier(nn.Module):
 
         # Extract features
         if self.model_name == 'medsiglip_448':
-            # MedSigLIP forward pass
-            outputs = self.vision_model(pixel_values=x)
-            features = outputs.pooler_output  # Use pooled output
+            # MedSigLIP forward pass - use full model's get_image_features for consistency with training
+            features = self.backbone.get_image_features(x)
         # Handle InceptionV3 auxiliary outputs during training
         elif self.model_name == 'inception_v3' and self.training:
             features, aux_features = self.backbone(x)
