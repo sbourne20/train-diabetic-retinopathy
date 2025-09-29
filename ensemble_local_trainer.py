@@ -539,8 +539,6 @@ class BinaryClassifier(nn.Module):
                         param.requires_grad = False  # Freeze most vision layers
                     else:
                         param.requires_grad = True   # Keep text model and last vision layer trainable
-                    else:
-                        param.requires_grad = True
             elif model_name == 'densenet121':
                 # Freeze first 2 dense blocks, fine-tune last 2
                 for name, param in self.backbone.named_parameters():
