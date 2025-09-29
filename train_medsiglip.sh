@@ -37,7 +37,7 @@ python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs \
     --output_dir ./medsiglip_results \
-    --experiment_name "eyepacs_medsiglip_proven_config" \
+    --experiment_name "eyepacs_medsiglip_augmented_optimized" \
     --base_models medsiglip_448 \
     --img_size 448 \
     --batch_size 8 \
@@ -62,7 +62,7 @@ python ensemble_local_trainer.py \
     --checkpoint_frequency 5 \
     --patience 15 \
     --early_stopping_patience 12 \
-    --target_accuracy 0.90 \
+    --target_accuracy 0.95 \
     --seed 42
 
 echo ""
