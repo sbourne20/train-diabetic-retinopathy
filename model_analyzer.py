@@ -636,8 +636,8 @@ def display_high_level_summary(training_metrics, research_metrics, checkpoint=No
         recommendations.append("address overfitting (early stopping, regularization)")
 
     if 'stability' in research_metrics and research_metrics['stability']:
-        smoothness = research_metrics['stability'].get('training_smoothness', 1.0)
-        if smoothness < 0.3:
+        smoothness = research_metrics['stability'].get('training_smoothness')
+        if smoothness is not None and smoothness < 0.3:
             recommendations.append("monitor training convergence (very high oscillations)")
 
     if not recommendations:
@@ -662,7 +662,8 @@ def generate_research_insights(research_metrics):
     # Convergence insights
     if 'convergence' in research_metrics:
         conv = research_metrics['convergence']
-        if conv.get('convergence_rate', {}).get('early_convergence'):
+        conv_rate = conv.get('convergence_rate')
+        if conv_rate and conv_rate.get('early_convergence'):
             insights.append("Model converged early - very efficient training")
         elif conv.get('accuracy_improvement', 0) > 0.6:
             insights.append("Excellent learning capacity (+60% accuracy improvement)")
@@ -672,9 +673,11 @@ def generate_research_insights(research_metrics):
     # Stability insights
     if 'stability' in research_metrics:
         stab = research_metrics['stability']
-        if stab.get('overfitting_ratio', 2) < 1.1:
+        overfitting_ratio = stab.get('overfitting_ratio')
+        if overfitting_ratio is not None and overfitting_ratio < 1.1:
             insights.append("Excellent generalization - no overfitting detected")
-        if stab.get('training_smoothness', 0) > 0.8:
+        training_smoothness = stab.get('training_smoothness')
+        if training_smoothness is not None and training_smoothness > 0.8:
             insights.append("Very stable training - suitable for production")
     
     # LoRA insights
