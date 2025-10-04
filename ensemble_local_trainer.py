@@ -315,6 +315,10 @@ class MultiClassDRModel(nn.Module):
             self.backbone = models.densenet121(pretrained=True)
             num_features = self.backbone.classifier.in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'efficientnetb2':
+            self.backbone = models.efficientnet_b2(pretrained=True)
+            num_features = self.backbone.classifier[1].in_features
+            self.backbone.classifier = nn.Identity()
         elif model_name == 'efficientnetb5':
             self.backbone = models.efficientnet_b5(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
@@ -344,6 +348,11 @@ class MultiClassDRModel(nn.Module):
             elif model_name == 'inception_v3':
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3']):
+                        param.requires_grad = False
+            elif model_name == 'efficientnetb2':
+                # Freeze early blocks, fine-tune later blocks for EfficientNet-B2
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['features.0', 'features.1', 'features.2']):
                         param.requires_grad = False
             elif model_name == 'efficientnetb5':
                 # Freeze early blocks, fine-tune later blocks for EfficientNet-B5
@@ -525,6 +534,10 @@ class BinaryClassifier(nn.Module):
             self.backbone = models.densenet121(pretrained=True)
             num_features = self.backbone.classifier.in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'efficientnetb2':
+            self.backbone = models.efficientnet_b2(pretrained=True)
+            num_features = self.backbone.classifier[1].in_features
+            self.backbone.classifier = nn.Identity()
         elif model_name == 'efficientnetb5':
             self.backbone = models.efficientnet_b5(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
@@ -561,6 +574,13 @@ class BinaryClassifier(nn.Module):
                 # Freeze early layers, fine-tune later
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['Conv2d_1', 'Conv2d_2', 'Conv2d_3', 'Conv2d_4']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'efficientnetb2':
+                # Freeze early blocks, fine-tune later blocks for EfficientNet-B2
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['features.0', 'features.1', 'features.2']):
                         param.requires_grad = False
                     else:
                         param.requires_grad = True

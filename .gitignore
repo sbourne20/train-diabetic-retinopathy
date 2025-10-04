@@ -30,5 +30,8 @@ outputs/
 *.joblib
 *.zip
 ovo_ensemble_results_v2/models/*
-
+ensemble_densenet_medsiglip_results/*
+medsiglip*/
+test_image/
+densenet_eyepacs_results/*
 wandb/
