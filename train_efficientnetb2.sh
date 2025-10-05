@@ -38,7 +38,7 @@ echo ""
 # Train EfficientNetB2 with optimized hyperparameters
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./augmented_resized_V2_balanced \
+    --dataset_path ./dataset_eyepacs \
     --output_dir ./efficientnetb2_balanced_results \
     --experiment_name "balanced_efficientnetb2_optimized" \
     --base_models efficientnetb2 \
