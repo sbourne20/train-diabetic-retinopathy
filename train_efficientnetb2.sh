@@ -13,10 +13,10 @@ echo "🔬 Modern CNN architecture for medical imaging"
 echo ""
 
 # Create output directory for EfficientNetB2 results
-mkdir -p ./efficientnetb2_eyepacs_results
+mkdir -p ./efficientnetb2_balanced_results
 
-echo "🔬 EyePACS EfficientNetB2 OPTIMIZED Configuration:"
-echo "  - Dataset: EyePACS (./dataset_eyepacs) - 33,857 samples"
+echo "🔬 BALANCED DATASET EfficientNetB2 OPTIMIZED Configuration:"
+echo "  - Dataset: Balanced Eyepacs+Aptos+Messidor - 28,000 samples (PERFECTLY BALANCED)"
 echo "  - Model: EfficientNetB2 (9M params - best accuracy/efficiency ratio)"
 echo "  - Image size: 299x299 (consistent with DenseNet for ensemble)"
 echo "  - Batch size: 16 (optimal for EfficientNetB2 memory footprint)"
@@ -38,9 +38,9 @@ echo ""
 # Train EfficientNetB2 with optimized hyperparameters
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./dataset_eyepacs \
-    --output_dir ./efficientnetb2_eyepacs_results \
-    --experiment_name "eyepacs_efficientnetb2_optimized" \
+    --dataset_path ./augmented_resized_V2_balanced \
+    --output_dir ./efficientnetb2_balanced_results \
+    --experiment_name "balanced_efficientnetb2_optimized" \
     --base_models efficientnetb2 \
     --img_size 299 \
     --batch_size 16 \
@@ -74,8 +74,8 @@ python ensemble_local_trainer.py \
     --seed 42
 
 echo ""
-echo "✅ EyePACS EfficientNetB2 training completed!"
-echo "📁 Results saved to: ./efficientnetb2_eyepacs_results"
+echo "✅ BALANCED DATASET EfficientNetB2 training completed!"
+echo "📁 Results saved to: ./efficientnetb2_balanced_results"
 echo ""
 echo "🎯 EFFICIENTNETB2 ADVANTAGES:"
 echo "  🏗️ Architecture: EfficientNetB2 (2019 - state-of-the-art)"
@@ -86,11 +86,12 @@ echo "  🔬 Medical imaging: Proven leader in DR detection (2020-2024)"
 echo "  🎯 Compound scaling: Balanced depth, width, resolution"
 echo "  📈 Fine-grained detection: Excellent for microaneurysms, exudates"
 echo ""
-echo "📊 Expected Performance:"
-echo "  🎯 Target: 92-94% validation accuracy"
+echo "📊 Expected Performance (WITH BALANCED DATASET):"
+echo "  🎯 Target: 92-94% validation accuracy (vs 87.17% on imbalanced)"
 echo "  🏥 Medical grade: ✅ PASS (≥90%)"
-echo "  📈 Generalization: Better than ResNet50 on imbalanced data"
-echo "  🔗 Training time: ~3-4 hours on V100 (faster than larger models)"
+echo "  📈 Class 4 accuracy: 88-92% (vs ~45% on imbalanced - MAJOR GAIN!)"
+echo "  🔗 Training time: ~17 hours on V100 (80 epochs × 13 min)"
+echo "  ✅ Improvement: +5-7% overall accuracy with balanced data"
 echo ""
 echo "🔗 ENSEMBLE COMPATIBILITY CONFIRMED:"
 echo "  ✅ Model saved as: best_efficientnetb2_multiclass.pth"
@@ -101,25 +102,28 @@ echo "  ✅ Ready for 3-model ensemble (Target: 93-95%!)"
 echo ""
 echo "📋 Next Steps:"
 echo "  1. Analyze results:"
-echo "     python model_analyzer.py --model ./efficientnetb2_eyepacs_results/models/best_efficientnetb2_multiclass.pth"
+echo "     python model_analyzer.py --model ./efficientnetb2_balanced_results/models/best_efficientnetb2_multiclass.pth"
 echo ""
 echo "  2. Create 3-model ensemble (DenseNet + MedSigLIP + EfficientNetB2):"
 echo "     python simple_ensemble_inference.py \\"
 echo "       --densenet_checkpoint ./densenet_eyepacs_results/models/best_densenet121_multiclass.pth \\"
 echo "       --medsiglip_checkpoint ./medsiglip_95percent_results/models/best_medsiglip_448_multiclass.pth \\"
-echo "       --efficientnetb2_checkpoint ./efficientnetb2_eyepacs_results/models/best_efficientnetb2_multiclass.pth \\"
-echo "       --dataset_path ./dataset_eyepacs \\"
-echo "       --output_dir ./ensemble_3model_results"
+echo "       --efficientnetb2_checkpoint ./efficientnetb2_balanced_results/models/best_efficientnetb2_multiclass.pth \\"
+echo "       --dataset_path ./augmented_resized_V2_balanced/test \\"
+echo "       --output_dir ./ensemble_3model_balanced_results"
 echo ""
 echo "  3. Test single image prediction with 3-model ensemble:"
 echo "     python mata-dr.py --file ./test_image/40014_left.jpeg"
 echo ""
-echo "🚀 EXPECTED 3-MODEL ENSEMBLE RESULTS:"
+echo "🚀 EXPECTED 3-MODEL ENSEMBLE RESULTS (WITH BALANCED DATA):"
 echo "  📊 Individual models:"
-echo "     • DenseNet121: 88.88%"
-echo "     • MedSigLIP-448: 87.74%"
-echo "     • EfficientNetB2: 92-94% (expected)"
+echo "     • DenseNet121: 88.88% (imbalanced data)"
+echo "     • MedSigLIP-448: 88.13% (imbalanced data)"
+echo "     • EfficientNetB2: 92-94% (BALANCED data - expected)"
 echo "  🎯 3-Model Ensemble: 93-95% (✅ Medical-grade: >90%!)"
 echo "  🏆 Improvement: +3-5% over current 2-model ensemble (89.97%)"
-echo "  🔬 Research target: 96.96% (achievable with optimal training)"
+echo "  🔬 Research target: 96.96% (achievable with full balanced ensemble)"
+echo ""
+echo "💡 NEXT OPTIMIZATION: Retrain DenseNet121 + MedSigLIP on balanced data"
+echo "  Expected after full retraining: 96-97% ensemble accuracy!"
 echo ""

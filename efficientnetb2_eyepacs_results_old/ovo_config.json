@@ -4,7 +4,7 @@
     "num_classes": 5,
     "img_size": 299,
     "batch_size": 16,
-    "enable_clahe": true,
+    "enable_clahe": false,
     "clahe_clip_limit": 3.0,
     "clahe_tile_grid_size": [
       8,
