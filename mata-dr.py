@@ -247,8 +247,16 @@ class MATADR:
 
         return pred_class, confidence, probs[0].cpu().numpy()
 
-    def predict_ensemble(self, image_path):
-        """Get ensemble prediction from all three models"""
+    def predict_ensemble(self, image_path, weighting='accuracy_based'):
+        """
+        Get ensemble prediction from all three models
+
+        Args:
+            image_path: Path to fundus image
+            weighting: 'simple' for equal weights (33.3% each),
+                      'accuracy_based' for validation accuracy weights, or
+                      'custom' for DenseNet-heavy (40%, 35%, 25%)
+        """
         # DenseNet prediction
         densenet_class, densenet_conf, densenet_probs = self.predict_single_model(
             image_path, 'densenet', resize_to=299
@@ -264,8 +272,56 @@ class MATADR:
             image_path, 'efficientnetb2', resize_to=224
         )
 
-        # Average probabilities from all three models
-        ensemble_probs = (densenet_probs + medsiglip_probs + efficientnetb2_probs) / 3
+        # Weighted ensemble based on validation accuracy
+        if weighting == 'accuracy_based':
+            # Get validation accuracies
+            densenet_acc = self.models['densenet']['val_acc']  # 0.8823
+            medsiglip_acc = self.models['medsiglip']['val_acc']  # 0.8813
+            efficientnetb2_acc = self.models['efficientnetb2']['val_acc']  # 0.8729
+
+            # Calculate weights proportional to accuracy
+            total_acc = densenet_acc + medsiglip_acc + efficientnetb2_acc
+            w_densenet = densenet_acc / total_acc
+            w_medsiglip = medsiglip_acc / total_acc
+            w_efficientnetb2 = efficientnetb2_acc / total_acc
+
+            ensemble_probs = (
+                w_densenet * densenet_probs +
+                w_medsiglip * medsiglip_probs +
+                w_efficientnetb2 * efficientnetb2_probs
+            )
+
+            weight_info = {
+                'densenet': round(w_densenet * 100, 1),
+                'medsiglip': round(w_medsiglip * 100, 1),
+                'efficientnetb2': round(w_efficientnetb2 * 100, 1)
+            }
+        elif weighting == 'custom':
+            # Custom weights: EfficientNetB2-heavy (optimized for best performance)
+            w_densenet = 0.28
+            w_medsiglip = 0.25
+            w_efficientnetb2 = 0.47
+
+            ensemble_probs = (
+                w_densenet * densenet_probs +
+                w_medsiglip * medsiglip_probs +
+                w_efficientnetb2 * efficientnetb2_probs
+            )
+
+            weight_info = {
+                'densenet': 28.0,
+                'medsiglip': 25.0,
+                'efficientnetb2': 47.0
+            }
+        else:
+            # Simple averaging (equal weights)
+            ensemble_probs = (densenet_probs + medsiglip_probs + efficientnetb2_probs) / 3
+            weight_info = {
+                'densenet': 33.3,
+                'medsiglip': 33.3,
+                'efficientnetb2': 33.3
+            }
+
         ensemble_class = np.argmax(ensemble_probs)
         ensemble_conf = ensemble_probs[ensemble_class]
 
@@ -273,7 +329,9 @@ class MATADR:
             'ensemble': {
                 'class': int(ensemble_class),
                 'confidence': float(ensemble_conf),
-                'probabilities': ensemble_probs.tolist()
+                'probabilities': ensemble_probs.tolist(),
+                'weights': weight_info,
+                'weighting_method': weighting
             },
             'densenet': {
                 'class': int(densenet_class),
@@ -350,6 +408,9 @@ Examples:
                        help='Device to use (default: cuda)')
     parser.add_argument('--verbose', action='store_true',
                        help='Show detailed probabilities for all classes')
+    parser.add_argument('--weighting', type=str, default='accuracy_based',
+                       choices=['simple', 'accuracy_based', 'custom'],
+                       help='Ensemble weighting method (default: accuracy_based)')
 
     args = parser.parse_args()
 
@@ -368,7 +429,7 @@ Examples:
     try:
         if args.model == 'ensemble':
             print("🔍 Running ensemble prediction (DenseNet121 + MedSigLIP-448 + EfficientNetB2)...")
-            results = mata.predict_ensemble(args.file)
+            results = mata.predict_ensemble(args.file, weighting=args.weighting)
 
             # Display ensemble result
             print(mata.format_result(
@@ -379,6 +440,14 @@ Examples:
             ))
 
             if args.verbose:
+                # Show ensemble weights
+                weights = results['ensemble']['weights']
+                method = results['ensemble']['weighting_method']
+                print(f"\n⚖️  Ensemble Weights ({method}):")
+                print(f"    DenseNet121:    {weights['densenet']}%")
+                print(f"    MedSigLIP-448:  {weights['medsiglip']}%")
+                print(f"    EfficientNetB2: {weights['efficientnetb2']}%")
+
                 print("\n📋 Individual Model Predictions:")
                 print(f"\n  DenseNet121 (299x299):")
                 print(f"    Predicted: {mata.class_names[results['densenet']['class']]}")
