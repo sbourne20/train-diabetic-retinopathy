@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 MATA-DR: Medical AI Tool for Diabetic Retinopathy Grading
-Single Image Inference using DenseNet121 + MedSigLIP-448 Ensemble
+Single Image Inference using DenseNet121 + MedSigLIP-448 + EfficientNetB2 Ensemble
 
 Usage:
     python mata-dr.py --file ./test_image/40014_left.jpeg
     python mata-dr.py --file ./test_image/40014_left.jpeg --model densenet
     python mata-dr.py --file ./test_image/40014_left.jpeg --model medsiglip
+    python mata-dr.py --file ./test_image/40014_left.jpeg --model efficientnetb2
     python mata-dr.py --file ./test_image/40014_left.jpeg --model ensemble
 """
 
@@ -26,7 +27,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import model architectures
-from torchvision.models import densenet121
+from torchvision.models import densenet121, efficientnet_b2
 from transformers import AutoModel
 
 class DenseNet121_DR(nn.Module):
@@ -35,6 +36,35 @@ class DenseNet121_DR(nn.Module):
         super().__init__()
         self.backbone = densenet121(weights=None)
         num_features = self.backbone.classifier.in_features
+        self.backbone.classifier = nn.Identity()
+
+        self.classifier = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(num_features, 1024),
+            nn.ReLU(),
+            nn.BatchNorm1d(1024),
+            nn.Dropout(dropout/2),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.BatchNorm1d(512),
+            nn.Dropout(dropout/3),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.BatchNorm1d(256),
+            nn.Dropout(dropout/4),
+            nn.Linear(256, num_classes)
+        )
+
+    def forward(self, x):
+        features = self.backbone(x)
+        return self.classifier(features)
+
+class EfficientNetB2_DR(nn.Module):
+    """EfficientNetB2 for DR classification"""
+    def __init__(self, num_classes=5, dropout=0.2):
+        super().__init__()
+        self.backbone = efficientnet_b2(weights=None)
+        num_features = self.backbone.classifier[1].in_features
         self.backbone.classifier = nn.Identity()
 
         self.classifier = nn.Sequential(
@@ -139,7 +169,8 @@ class MATADR:
         self.models = {}
         self.model_paths = {
             'densenet': './densenet_eyepacs_results/models/best_densenet121_multiclass.pth',
-            'medsiglip': './medsiglip_95percent_results/models/best_medsiglip_448_multiclass.pth'
+            'medsiglip': './medsiglip_95percent_results/models/best_medsiglip_448_multiclass.pth',
+            'efficientnetb2': './efficientnetb2_eyepacs_results/models/best_efficientnetb2_multiclass.pth'
         }
 
     def load_model(self, model_type):
@@ -157,6 +188,8 @@ class MATADR:
             model = DenseNet121_DR(num_classes=5)
         elif model_type == 'medsiglip':
             model = MedSigLIP_DR(num_classes=5)
+        elif model_type == 'efficientnetb2':
+            model = EfficientNetB2_DR(num_classes=5)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
@@ -215,7 +248,7 @@ class MATADR:
         return pred_class, confidence, probs[0].cpu().numpy()
 
     def predict_ensemble(self, image_path):
-        """Get ensemble prediction from both models"""
+        """Get ensemble prediction from all three models"""
         # DenseNet prediction
         densenet_class, densenet_conf, densenet_probs = self.predict_single_model(
             image_path, 'densenet', resize_to=299
@@ -226,8 +259,13 @@ class MATADR:
             image_path, 'medsiglip', resize_to=448
         )
 
-        # Average probabilities
-        ensemble_probs = (densenet_probs + medsiglip_probs) / 2
+        # EfficientNetB2 prediction
+        efficientnetb2_class, efficientnetb2_conf, efficientnetb2_probs = self.predict_single_model(
+            image_path, 'efficientnetb2', resize_to=224
+        )
+
+        # Average probabilities from all three models
+        ensemble_probs = (densenet_probs + medsiglip_probs + efficientnetb2_probs) / 3
         ensemble_class = np.argmax(ensemble_probs)
         ensemble_conf = ensemble_probs[ensemble_class]
 
@@ -246,6 +284,11 @@ class MATADR:
                 'class': int(medsiglip_class),
                 'confidence': float(medsiglip_conf),
                 'probabilities': medsiglip_probs.tolist()
+            },
+            'efficientnetb2': {
+                'class': int(efficientnetb2_class),
+                'confidence': float(efficientnetb2_conf),
+                'probabilities': efficientnetb2_probs.tolist()
             }
         }
 
@@ -290,6 +333,7 @@ Examples:
   # Single model prediction
   python mata-dr.py --file ./test_image/40014_left.jpeg --model densenet
   python mata-dr.py --file ./test_image/40014_left.jpeg --model medsiglip
+  python mata-dr.py --file ./test_image/40014_left.jpeg --model efficientnetb2
 
   # Show detailed probabilities
   python mata-dr.py --file ./test_image/40014_left.jpeg --verbose
@@ -299,7 +343,7 @@ Examples:
     parser.add_argument('--file', type=str, required=True,
                        help='Path to fundus image (JPEG/PNG)')
     parser.add_argument('--model', type=str, default='ensemble',
-                       choices=['ensemble', 'densenet', 'medsiglip'],
+                       choices=['ensemble', 'densenet', 'medsiglip', 'efficientnetb2'],
                        help='Model to use for prediction (default: ensemble)')
     parser.add_argument('--device', type=str, default='cuda',
                        choices=['cuda', 'cpu'],
@@ -323,7 +367,7 @@ Examples:
     # Make prediction
     try:
         if args.model == 'ensemble':
-            print("🔍 Running ensemble prediction (DenseNet121 + MedSigLIP-448)...")
+            print("🔍 Running ensemble prediction (DenseNet121 + MedSigLIP-448 + EfficientNetB2)...")
             results = mata.predict_ensemble(args.file)
 
             # Display ensemble result
@@ -342,9 +386,20 @@ Examples:
                 print(f"\n  MedSigLIP-448 (448x448):")
                 print(f"    Predicted: {mata.class_names[results['medsiglip']['class']]}")
                 print(f"    Confidence: {results['medsiglip']['confidence']*100:.2f}%")
+                print(f"\n  EfficientNetB2 (224x224):")
+                print(f"    Predicted: {mata.class_names[results['efficientnetb2']['class']]}")
+                print(f"    Confidence: {results['efficientnetb2']['confidence']*100:.2f}%")
         else:
             print(f"🔍 Running {args.model.upper()} prediction...")
-            resize_to = 299 if args.model == 'densenet' else 448
+            if args.model == 'densenet':
+                resize_to = 299
+            elif args.model == 'medsiglip':
+                resize_to = 448
+            elif args.model == 'efficientnetb2':
+                resize_to = 224
+            else:
+                resize_to = 299
+
             pred_class, confidence, probabilities = mata.predict_single_model(
                 args.file, args.model, resize_to=resize_to
             )
