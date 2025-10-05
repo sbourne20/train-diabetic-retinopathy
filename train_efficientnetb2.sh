@@ -3,20 +3,20 @@
 # Set PyTorch memory management
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# EyePACS + EfficientNetB2 Medical-Grade Training Script
-echo "🏥 EyePACS + EfficientNetB2 Medical-Grade Training"
+# APTOS 2019 + EfficientNetB2 Medical-Grade Training Script
+echo "🏥 APTOS 2019 + EfficientNetB2 Medical-Grade Training"
 echo "=================================================="
-echo "🎯 Target: 92-94% accuracy (Research: 96.27% achievable)"
-echo "📊 Dataset: EyePACS (5-class DR classification)"
+echo "🎯 Target: 85-90% accuracy (Research: 96.27% achievable)"
+echo "📊 Dataset: APTOS 2019 (5-class DR classification - 3,657 images)"
 echo "🏗️ Model: EfficientNetB2 (9M params - optimal efficiency)"
 echo "🔬 Modern CNN architecture for medical imaging"
 echo ""
 
 # Create output directory for EfficientNetB2 results
-mkdir -p ./efficientnetb2_balanced_results
+mkdir -p ./efficientnetb2_aptos_results
 
-echo "🔬 BALANCED DATASET EfficientNetB2 OPTIMIZED Configuration:"
-echo "  - Dataset: Balanced Eyepacs+Aptos+Messidor - 28,000 samples (PERFECTLY BALANCED)"
+echo "🔬 APTOS 2019 EfficientNetB2 OPTIMIZED Configuration:"
+echo "  - Dataset: APTOS 2019 - 3,657 samples (IMBALANCED - needs SMOTE)"
 echo "  - Model: EfficientNetB2 (9M params - best accuracy/efficiency ratio)"
 echo "  - Image size: 299x299 (consistent with DenseNet for ensemble)"
 echo "  - Batch size: 16 (optimal for EfficientNetB2 memory footprint)"
@@ -27,20 +27,20 @@ echo "  - Epochs: 80 (full convergence)"
 echo "  - Scheduler: cosine with warm restarts (T_0=15)"
 echo "  - Warmup: 8 epochs (stable initialization)"
 echo "  - Focal loss: alpha=2.5, gamma=3.5 (robust loss function)"
-echo "  - Class weights: 2.0x (minimal - data already balanced)"
-echo "  - SMOTE: DISABLED (data pre-balanced at 4,000/class)"
-echo "  - CLAHE: DISABLED (augmented images already preprocessed)"
+echo "  - Class weights: 2.0x (handle imbalance)"
+echo "  - SMOTE: ENABLED (balance minority classes)"
+echo "  - CLAHE: ENABLED (enhance retinal features)"
 echo "  - Enhanced augmentation: 20° rotation, 15% brightness/contrast"
 echo "  - Gradient clipping: 1.0 (stability)"
-echo "  - Target: 92-94% validation accuracy (medical-grade)"
+echo "  - Target: 85-90% validation accuracy (medical-grade)"
 echo ""
 
 # Train EfficientNetB2 with optimized hyperparameters
 python ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./dataset_eyepacs \
-    --output_dir ./efficientnetb2_balanced_results \
-    --experiment_name "balanced_efficientnetb2_optimized" \
+    --dataset_path ./dataset_aptos2019 \
+    --output_dir ./efficientnetb2_aptos_results \
+    --experiment_name "aptos2019_efficientnetb2_optimized" \
     --base_models efficientnetb2 \
     --img_size 299 \
     --batch_size 16 \
@@ -70,8 +70,8 @@ python ensemble_local_trainer.py \
     --seed 42
 
 echo ""
-echo "✅ BALANCED DATASET EfficientNetB2 training completed!"
-echo "📁 Results saved to: ./efficientnetb2_balanced_results"
+echo "✅ APTOS 2019 EfficientNetB2 training completed!"
+echo "📁 Results saved to: ./efficientnetb2_aptos_results"
 echo ""
 echo "🎯 EFFICIENTNETB2 ADVANTAGES:"
 echo "  🏗️ Architecture: EfficientNetB2 (2019 - state-of-the-art)"
@@ -82,44 +82,33 @@ echo "  🔬 Medical imaging: Proven leader in DR detection (2020-2024)"
 echo "  🎯 Compound scaling: Balanced depth, width, resolution"
 echo "  📈 Fine-grained detection: Excellent for microaneurysms, exudates"
 echo ""
-echo "📊 Expected Performance (WITH BALANCED DATASET):"
-echo "  🎯 Target: 92-94% validation accuracy (vs 87.17% on imbalanced)"
-echo "  🏥 Medical grade: ✅ PASS (≥90%)"
-echo "  📈 Class 4 accuracy: 88-92% (vs ~45% on imbalanced - MAJOR GAIN!)"
-echo "  🔗 Training time: ~17 hours on V100 (80 epochs × 13 min)"
-echo "  ✅ Improvement: +5-7% overall accuracy with balanced data"
+echo "📊 Expected Performance (APTOS 2019 - 3,657 images):"
+echo "  🎯 Target: 85-90% validation accuracy (challenging with small dataset)"
+echo "  🏥 Medical grade: ⚠️  Target ≥90% (may need ensemble)"
+echo "  📈 Class 3/4 accuracy: 75-85% (SMOTE + focal loss helps)"
+echo "  🔗 Training time: ~6-8 hours on V100 (80 epochs × 5 min)"
+echo "  ✅ Strong foundation for 3-model ensemble"
 echo ""
-echo "🔗 ENSEMBLE COMPATIBILITY CONFIRMED:"
+echo "🔗 READY FOR ENSEMBLE:"
 echo "  ✅ Model saved as: best_efficientnetb2_multiclass.pth"
-echo "  ✅ Same training system as DenseNet/MedSigLIP"
-echo "  ✅ Same checkpoint format and structure"
-echo "  ✅ Compatible with DenseNet (88.88%) + MedSigLIP (87.74%)"
-echo "  ✅ Ready for 3-model ensemble (Target: 93-95%!)"
+echo "  ✅ Can be combined with ResNet50 + DenseNet121 for ensemble"
+echo "  ✅ Or add MedSigLIP-448 for 4-model ensemble (best for 90%)"
 echo ""
 echo "📋 Next Steps:"
 echo "  1. Analyze results:"
-echo "     python model_analyzer.py --model ./efficientnetb2_balanced_results/models/best_efficientnetb2_multiclass.pth"
+echo "     python model_analyzer.py --model ./efficientnetb2_aptos_results/models/best_efficientnetb2_multiclass.pth"
 echo ""
-echo "  2. Create 3-model ensemble (DenseNet + MedSigLIP + EfficientNetB2):"
-echo "     python simple_ensemble_inference.py \\"
-echo "       --densenet_checkpoint ./densenet_eyepacs_results/models/best_densenet121_multiclass.pth \\"
-echo "       --medsiglip_checkpoint ./medsiglip_95percent_results/models/best_medsiglip_448_multiclass.pth \\"
-echo "       --efficientnetb2_checkpoint ./efficientnetb2_balanced_results/models/best_efficientnetb2_multiclass.pth \\"
-echo "       --dataset_path ./augmented_resized_V2_balanced/test \\"
-echo "       --output_dir ./ensemble_3model_balanced_results"
+echo "  2. Train other models (ResNet50, DenseNet121) on APTOS 2019"
 echo ""
-echo "  3. Test single image prediction with 3-model ensemble:"
-echo "     python mata-dr.py --file ./test_image/40014_left.jpeg"
+echo "  3. Create 3-model ensemble (ResNet50 + DenseNet121 + EfficientNetB2):"
+echo "     Expected ensemble: 87-90% accuracy"
 echo ""
-echo "🚀 EXPECTED 3-MODEL ENSEMBLE RESULTS (WITH BALANCED DATA):"
-echo "  📊 Individual models:"
-echo "     • DenseNet121: 88.88% (imbalanced data)"
-echo "     • MedSigLIP-448: 88.13% (imbalanced data)"
-echo "     • EfficientNetB2: 92-94% (BALANCED data - expected)"
-echo "  🎯 3-Model Ensemble: 93-95% (✅ Medical-grade: >90%!)"
-echo "  🏆 Improvement: +3-5% over current 2-model ensemble (89.97%)"
-echo "  🔬 Research target: 96.96% (achievable with full balanced ensemble)"
+echo "  4. OPTIONAL: Add MedSigLIP-448 as 4th model for 90%+ target:"
+echo "     Expected 4-model ensemble: 88-92% accuracy"
 echo ""
-echo "💡 NEXT OPTIMIZATION: Retrain DenseNet121 + MedSigLIP on balanced data"
-echo "  Expected after full retraining: 96-97% ensemble accuracy!"
+echo "🚀 EXPECTED RESULTS (APTOS 2019):"
+echo "  📊 EfficientNetB2 alone: 83-87%"
+echo "  🎯 3-Model Ensemble (E-Net + ResNet + DenseNet): 87-90%"
+echo "  ⭐ 4-Model Ensemble (+ MedSigLIP): 88-92% (✅ Best chance for 90%!)"
+echo "  🔬 Success factors: SMOTE + focal loss + CLAHE + ensemble diversity"
 echo ""
