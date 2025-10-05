@@ -26,10 +26,10 @@ echo "  - Dropout: 0.2 (lighter than larger models)"
 echo "  - Epochs: 80 (full convergence)"
 echo "  - Scheduler: cosine with warm restarts (T_0=15)"
 echo "  - Warmup: 8 epochs (stable initialization)"
-echo "  - Focal loss: alpha=2.5, gamma=3.5 (class imbalance)"
-echo "  - Class weights: 30x/35x (severe NPDR & PDR boost)"
-echo "  - SMOTE: Enabled (k=5 neighbors) - CRITICAL for 8.3:1 imbalance"
-echo "  - CLAHE: Enabled (+3-5% accuracy) - retinal vessel enhancement"
+echo "  - Focal loss: alpha=2.5, gamma=3.5 (robust loss function)"
+echo "  - Class weights: 2.0x (minimal - data already balanced)"
+echo "  - SMOTE: DISABLED (data pre-balanced at 4,000/class)"
+echo "  - CLAHE: DISABLED (augmented images already preprocessed)"
 echo "  - Enhanced augmentation: 20° rotation, 15% brightness/contrast"
 echo "  - Gradient clipping: 1.0 (stability)"
 echo "  - Target: 92-94% validation accuracy (medical-grade)"
@@ -50,16 +50,12 @@ python ensemble_local_trainer.py \
     --ovo_dropout 0.2 \
     --freeze_weights false \
     --enable_medical_augmentation \
-    --enable_clahe \
     --rotation_range 20.0 \
     --brightness_range 0.15 \
     --contrast_range 0.15 \
     --enable_focal_loss \
-    --enable_class_weights \
-    --enable_smote \
-    --smote_k_neighbors 5 \
-    --class_weight_severe 30.0 \
-    --class_weight_pdr 35.0 \
+    --class_weight_severe 2.0 \
+    --class_weight_pdr 2.0 \
     --focal_loss_alpha 2.5 \
     --focal_loss_gamma 3.5 \
     --scheduler cosine \
