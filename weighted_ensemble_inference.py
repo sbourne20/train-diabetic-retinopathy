@@ -42,26 +42,20 @@ class WeightedEnsemblePredictor:
         print(f"✅ Loaded {len(self.models)} models")
 
     def load_model(self, model_name, checkpoint_path):
-        """Load model from checkpoint"""
+        """Load model from checkpoint - using ensemble_local_trainer.py architecture"""
+        from ensemble_local_trainer import MultiClassDRModel
+
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
 
+        # Create model using the same architecture as training
         if model_name == 'densenet':
-            model = models.densenet121(weights=None)
-            model.classifier = nn.Linear(1024, 5)
+            model = MultiClassDRModel(model_name='densenet121', num_classes=5, freeze_weights=False, dropout=0.3)
         elif model_name == 'efficientnetb2':
-            model = models.efficientnet_b2(weights=None)
-            model.classifier[1] = nn.Linear(1408, 5)
+            model = MultiClassDRModel(model_name='efficientnetb2', num_classes=5, freeze_weights=False, dropout=0.2)
         elif model_name == 'medsiglip':
             if not MEDSIGLIP_AVAILABLE:
                 raise ImportError("transformers not available for MedSigLIP")
-            base_model = AutoModel.from_pretrained(
-                "flaviagiammarino/pubmed-clip-vit-base-patch32",
-                trust_remote_code=True
-            )
-            model = nn.Sequential(
-                base_model.vision_model,
-                nn.Linear(768, 5)
-            )
+            model = MultiClassDRModel(model_name='medsiglip_448', num_classes=5, freeze_weights=False, dropout=0.3)
         else:
             raise ValueError(f"Unknown model: {model_name}")
 
