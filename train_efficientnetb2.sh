@@ -26,7 +26,7 @@ echo "  - Weight decay: 1e-4 (balanced regularization)"
 echo "  - Dropout: 0.3 (prevent overfitting on balanced data)"
 echo "  - Epochs: 100 (full convergence on balanced dataset)"
 echo "  - Scheduler: cosine annealing (smooth decay)"
-echo "  - Warmup: 2 epochs (REDUCED for faster ramp-up)"
+echo "  - Warmup: DISABLED (full LR from epoch 1)"
 echo "  - Focal loss: gamma=2.0 (handle remaining edge cases)"
 echo "  - Class weights: DISABLED (dataset already balanced)"
 echo "  - Enhanced augmentation: ENABLED (rotation, brightness, contrast)"
@@ -55,7 +55,7 @@ python ensemble_local_trainer.py \
     --enable_focal_loss \
     --focal_loss_gamma 2.0 \
     --scheduler cosine \
-    --warmup_epochs 2 \
+    --warmup_epochs 0 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 15 \
