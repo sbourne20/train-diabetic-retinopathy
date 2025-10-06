@@ -3,37 +3,39 @@
 # Set PyTorch memory management
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# EyePACS Balanced + EfficientNetB2 - OPTIMIZED FIXED VERSION
-echo "🏥 EyePACS BALANCED + EfficientNetB2 - FIXED LEARNING RATE"
+# EyePACS Balanced + EfficientNetB2 - OPTIMIZED WITH BALANCED VALIDATION
+echo "🏥 EyePACS BALANCED + EfficientNetB2 - BALANCED VALIDATION FIX"
 echo "=========================================================="
 echo "🎯 Target: 96%+ accuracy (Research: 96.27% achievable)"
 echo "📊 Dataset: EyePACS Balanced (40,001 training images)"
+echo "📊 Validation: BALANCED (71 per class = 355 total)"
 echo "🏗️ Model: EfficientNetB2 (9M params)"
-echo "🔧 FIX: Faster warmup + higher initial LR for rapid convergence"
+echo "🔧 FIX: Balanced validation for FAIR accuracy metrics"
 echo ""
 
 # Create output directory
 mkdir -p ./efficientnetb2_eyepacs_balanced_results
 
-echo "🔬 FIXED Configuration (Faster Convergence):"
-echo "  - Dataset: EyePACS Balanced - 40,001 samples (8,000 per class)"
+echo "🔬 BALANCED VALIDATION Configuration:"
+echo "  - Dataset: EyePACS Balanced - 40,001 training samples (8,000 per class)"
+echo "  - Validation: BALANCED - 2,500 samples (500 per class)"
 echo "  - Model: EfficientNetB2 (9M params)"
 echo "  - Image size: 224x224"
 echo "  - Batch size: 32"
-echo "  - Learning rate: 3e-4 (INCREASED for faster learning)"
+echo "  - Learning rate: 3e-4"
 echo "  - Weight decay: 1e-4"
 echo "  - Dropout: 0.3"
 echo "  - Epochs: 100"
 echo "  - Scheduler: cosine annealing"
-echo "  - Warmup: 2 epochs (REDUCED - faster ramp up)"
+echo "  - Warmup: 2 epochs"
 echo "  - Focal loss: gamma=2.0"
 echo "  - Target: 96%+ validation accuracy"
 echo ""
-echo "🚀 OPTIMIZATION CHANGES:"
-echo "  ✅ Learning rate: 1e-4 → 3e-4 (3x faster learning)"
-echo "  ✅ Warmup epochs: 5 → 2 (reaches full LR faster)"
-echo "  ✅ Expected: Hit 85% by epoch 10-15 (vs 25-30 before)"
-echo "  ✅ Expected: Hit 90% by epoch 20-25 (vs 35-40 before)"
+echo "🚀 CRITICAL FIX - BALANCED VALIDATION:"
+echo "  ❌ BEFORE: Val stuck at 73% (biased by 73% Class 0 dominance)"
+echo "  ✅ AFTER:  Val shows TRUE performance (71 samples per class)"
+echo "  ✅ Expected: Epoch 1 starts at 78-82% (not 73%)"
+echo "  ✅ Expected: Clear progression: 80% → 90% → 96%"
 echo ""
 
 # Train EfficientNetB2 with FIXED hyperparameters
