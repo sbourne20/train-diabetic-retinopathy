@@ -15,18 +15,18 @@ echo ""
 # Create output directory for EfficientNetB2 results
 mkdir -p ./efficientnetb2_eyepacs_balanced_results
 
-echo "🔬 EyePACS BALANCED EfficientNetB2 Configuration:"
+echo "🔬 EyePACS BALANCED EfficientNetB2 Configuration (FIXED):"
 echo "  - Dataset: EyePACS Balanced - 40,001 training samples (8,000 per class)"
 echo "  - Balance method: Heavy augmentation + CLAHE (Classes 1-4)"
 echo "  - Model: EfficientNetB2 (9M params - best accuracy/efficiency ratio)"
 echo "  - Image size: 224x224 (optimal for CNN architectures)"
 echo "  - Batch size: 32 (optimal for V100 GPU on vast.ai)"
-echo "  - Learning rate: 1e-4 (proven for EfficientNet fine-tuning)"
+echo "  - Learning rate: 3e-4 (INCREASED for faster convergence)"
 echo "  - Weight decay: 1e-4 (balanced regularization)"
 echo "  - Dropout: 0.3 (prevent overfitting on balanced data)"
 echo "  - Epochs: 100 (full convergence on balanced dataset)"
 echo "  - Scheduler: cosine annealing (smooth decay)"
-echo "  - Warmup: 5 epochs (stable initialization)"
+echo "  - Warmup: 2 epochs (REDUCED for faster ramp-up)"
 echo "  - Focal loss: gamma=2.0 (handle remaining edge cases)"
 echo "  - Class weights: DISABLED (dataset already balanced)"
 echo "  - Enhanced augmentation: ENABLED (rotation, brightness, contrast)"
@@ -34,7 +34,7 @@ echo "  - Gradient clipping: 1.0 (stability)"
 echo "  - Target: 96%+ validation accuracy (medical-grade)"
 echo ""
 
-# Train EfficientNetB2 with optimized hyperparameters for balanced dataset
+# Train EfficientNetB2 with FIXED hyperparameters for balanced dataset
 python ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs_ori_balanced_smote \
@@ -44,7 +44,7 @@ python ensemble_local_trainer.py \
     --img_size 224 \
     --batch_size 32 \
     --epochs 100 \
-    --learning_rate 1e-4 \
+    --learning_rate 3e-4 \
     --weight_decay 1e-4 \
     --ovo_dropout 0.3 \
     --freeze_weights false \
@@ -55,7 +55,7 @@ python ensemble_local_trainer.py \
     --enable_focal_loss \
     --focal_loss_gamma 2.0 \
     --scheduler cosine \
-    --warmup_epochs 5 \
+    --warmup_epochs 2 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 15 \
