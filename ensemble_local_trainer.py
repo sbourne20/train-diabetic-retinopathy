@@ -963,10 +963,13 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
                 classifier_params.append(param)
 
     # Research-validated optimizer settings
+    # For balanced datasets, use same LR for all parameters (no differential LR)
     optimizer = optim.Adam([
-        {'params': backbone_params, 'lr': config['training']['learning_rate'] * 0.1},  # Lower for pre-trained
-        {'params': classifier_params, 'lr': config['training']['learning_rate']}       # Full rate for classifier
+        {'params': backbone_params, 'lr': config['training']['learning_rate']},
+        {'params': classifier_params, 'lr': config['training']['learning_rate']}
     ], weight_decay=config['training']['weight_decay'])
+
+    logger.info(f"✅ Using uniform learning rate: {config['training']['learning_rate']:.1e} for all parameters")
 
     # OPTIMIZED learning rate scheduler for high accuracy convergence
     scheduler_type = config['training'].get('scheduler', 'cosine')
