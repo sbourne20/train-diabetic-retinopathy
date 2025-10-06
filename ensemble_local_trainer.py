@@ -969,7 +969,13 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
     ], weight_decay=config['training']['weight_decay'])
 
     # OPTIMIZED learning rate scheduler for high accuracy convergence
-    if config['training'].get('scheduler', 'cosine') == 'cosine':
+    scheduler_type = config['training'].get('scheduler', 'cosine')
+
+    if scheduler_type == 'none':
+        # No scheduler - constant learning rate
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 1.0)
+        logger.info("✅ Using CONSTANT learning rate (no scheduler)")
+    elif scheduler_type == 'cosine':
         # Cosine with warm restarts - T_0 adjusted based on warmup epochs for stable convergence
         warmup = config['training'].get('warmup_epochs', 10)
         T_0 = max(15, warmup + 5)  # Ensure T_0 is at least warmup + 5 epochs
@@ -1093,7 +1099,10 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
 
         # Step scheduler
         current_lr = optimizer.param_groups[0]['lr']
-        if config['training'].get('scheduler', 'cosine') == 'cosine':
+        scheduler_type = config['training'].get('scheduler', 'cosine')
+        if scheduler_type == 'none':
+            scheduler.step()  # LambdaLR needs step() but doesn't change LR
+        elif scheduler_type == 'cosine':
             scheduler.step()
         else:
             scheduler.step(val_acc)
