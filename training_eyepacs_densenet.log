@@ -1,0 +1,43 @@
+🏥 APTOS 2019 + DenseNet121 Medical-Grade Training
+===============================================
+🎯 Target: 80-84% accuracy with optimized DenseNet121
+📊 Dataset: APTOS 2019 (5-class DR classification - 3,657 images)
+🏗️ Model: DenseNet121 (ensemble-compatible configuration)
+🔗 System: Compatible with EfficientNetB2 ensemble
+
+🔬 APTOS 2019 DenseNet121 OPTIMIZED Configuration:
+  - Dataset: APTOS 2019 (./dataset_aptos2019) - IMBALANCED
+  - Model: DenseNet121 (8M params - dense connectivity)
+  - Image size: 299x299 (same as EfficientNetB2)
+  - Batch size: 10 (optimized for V100)
+  - Learning rate: 1e-4 (stable proven rate)
+  - Weight decay: 3e-4 (balanced regularization)
+  - Dropout: 0.2 (consistent with EfficientNetB2)
+  - Epochs: 80 (early stopping enabled)
+  - Focal loss: alpha=2.5, gamma=3.0 (moderate - like EfficientNetB2)
+  - Class weights: 10x severe, 12x PDR (balanced for APTOS)
+  - Scheduler: Cosine with warm restarts (T_0=15)
+  - Target: 80-84% accuracy (ensemble component)
+
+INFO:__main__:⚠️ Running on CPU mode (training will be slower)
+INFO:__main__:📁 Output directory: densenet_eyepacs_results
+INFO:__main__:🔧 OVO Configuration:
+INFO:__main__:   Base models: ['densenet121']
+INFO:__main__:   Classes: 5
+INFO:__main__:   Binary classifiers: 10
+INFO:__main__:   Freeze weights: False
+INFO:__main__:   CLAHE enabled: False
+INFO:__main__:🎲 Random seed set: 42
+INFO:__main__:💾 Configuration saved: densenet_eyepacs_results/ovo_config.json
+INFO:__main__:🔬 Detected single model dataset - using multi-class training
+INFO:__main__:🚀 STARTING APTOS 2019 MULTI-CLASS DR TRAINING
+INFO:__main__:============================================================
+INFO:__main__:📊 Dataset: APTOS 2019 (5-class DR classification)
+INFO:__main__:🏗️ Model: densenet121
+INFO:__main__:🎯 Target accuracy: 84.0%
+INFO:__main__:============================================================
+INFO:__main__:📁 Preparing OVO dataset from: ./dataset_eyepacs
+INFO:__main__:📊 Dataset splits loaded:
+INFO:__main__:   Training: 33857 samples
+INFO:__main__:   Validation: 3958 samples
+INFO:__main__:   Test: 3760 samples

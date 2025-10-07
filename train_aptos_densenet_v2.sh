@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Activate virtual environment
+source venv/bin/activate
+
 # Set PyTorch memory management
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
@@ -30,12 +33,12 @@ echo "  - Scheduler: Cosine with warm restarts (T_0=15)"
 echo "  - Target: 80-84% accuracy (ensemble component)"
 echo ""
 
-# Train APTOS 2019 with optimized hyperparameters for class imbalance
-python ensemble_local_trainer.py \
+# Train EyePACS with optimized hyperparameters for class imbalance
+python3 ensemble_local_trainer.py \
     --mode train \
-    --dataset_path ./dataset_aptos2019 \
-    --output_dir ./densenet_aptos_results \
-    --experiment_name "aptos2019_densenet121_optimized" \
+    --dataset_path ./dataset_eyepacs \
+    --output_dir ./densenet_eyepacs_results \
+    --experiment_name "eyepacs_densenet121_optimized" \
     --base_models densenet121 \
     --img_size 299 \
     --batch_size 10 \

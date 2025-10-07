@@ -31,14 +31,17 @@ echo "  - Warmup: 2 epochs"
 echo "  - Focal loss: gamma=2.0"
 echo "  - Target: 96%+ validation accuracy"
 echo ""
-echo "🚀 ANTI-OVERFITTING CONFIGURATION:"
-echo "  ✅ Learning rate: 1e-4 (reduced for stability)"
-echo "  ✅ Weight decay: 5e-4 (5x increase to combat overfitting)"
-echo "  ✅ Dropout: 0.5 (increased from 0.3)"
-echo "  ✅ Augmentation: Stronger (rotation 20°, brightness/contrast 15%)"
-echo "  ✅ Focal loss gamma: 1.0 (reduced from 2.0)"
-echo "  ✅ Patience: 20 epochs (early stopping patience)"
-echo "  ✅ Warmup: 5 epochs (gradual learning rate ramp)"
+echo "🚀 FRESH START CONFIGURATION (NO FOCAL LOSS):"
+echo "  ✅ Learning rate: 1e-3 (INCREASED - model needs to learn faster)"
+echo "  ✅ Weight decay: 1e-5 (REDUCED - allow model to learn)"
+echo "  ✅ Dropout: 0.3 (standard dropout)"
+echo "  ✅ Augmentation: Strong (rotation 20°, brightness/contrast 15%)"
+echo "  ✅ Loss: CrossEntropy with class weights (NO FOCAL LOSS)"
+echo "  ✅ Patience: 20 epochs"
+echo "  ✅ Warmup: 5 epochs"
+echo ""
+echo "💡 HYPOTHESIS: Focal loss was preventing model from learning!"
+echo "   Switching to standard CrossEntropy with class weights."
 echo ""
 
 # Train EfficientNetB2 with FIXED hyperparameters
@@ -51,16 +54,15 @@ python ensemble_local_trainer.py \
     --img_size 224 \
     --batch_size 32 \
     --epochs 100 \
-    --learning_rate 1e-4 \
-    --weight_decay 5e-4 \
-    --ovo_dropout 0.5 \
+    --learning_rate 1e-3 \
+    --weight_decay 1e-5 \
+    --ovo_dropout 0.3 \
     --freeze_weights false \
     --enable_medical_augmentation \
     --rotation_range 20.0 \
     --brightness_range 0.15 \
     --contrast_range 0.15 \
-    --enable_focal_loss \
-    --focal_loss_gamma 1.0 \
+    --enable_class_weights \
     --scheduler cosine \
     --warmup_epochs 5 \
     --validation_frequency 1 \

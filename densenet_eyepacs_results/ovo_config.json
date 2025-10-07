@@ -3,7 +3,7 @@
     "dataset_path": "./dataset_eyepacs",
     "num_classes": 5,
     "img_size": 299,
-    "batch_size": 12,
+    "batch_size": 10,
     "enable_clahe": false,
     "clahe_clip_limit": 3.0,
     "clahe_tile_grid_size": [
@@ -21,18 +21,21 @@
   },
   "training": {
     "epochs": 80,
-    "learning_rate": 0.0002,
-    "weight_decay": 0.0005,
-    "patience": 15,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0003,
+    "patience": 20,
     "enable_focal_loss": true,
     "enable_class_weights": true,
-    "focal_loss_alpha": 3.0,
-    "focal_loss_gamma": 4.0,
+    "focal_loss_alpha": 2.5,
+    "focal_loss_gamma": 3.0,
     "scheduler": "cosine",
-    "warmup_epochs": 5,
-    "rotation_range": 25.0,
-    "brightness_range": 0.2,
-    "contrast_range": 0.2,
+    "warmup_epochs": 8,
+    "rotation_range": 20.0,
+    "brightness_range": 0.15,
+    "contrast_range": 0.15,
+    "label_smoothing": 0.1,
+    "class_weight_severe": 10.0,
+    "class_weight_pdr": 12.0,
     "resume": false
   },
   "paths": {
@@ -42,8 +45,8 @@
     "device": "cuda",
     "seed": 42,
     "output_dir": "./densenet_eyepacs_results",
-    "experiment_name": "eyepacs_densenet121_extreme_optimized",
-    "target_accuracy": 0.9,
+    "experiment_name": "eyepacs_densenet121_optimized",
+    "target_accuracy": 0.84,
     "use_wandb": true
   }
 }
