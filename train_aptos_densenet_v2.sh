@@ -18,58 +18,58 @@ echo ""
 # Create output directory for APTOS DenseNet results
 mkdir -p ./densenet_aptos_results
 
-echo "🔬 EyePACS DenseNet121 MEDICAL-GRADE Configuration (90%+ TARGET):"
-echo "  - Dataset: EyePACS (./dataset_eyepacs) - BALANCED WITH ENHANCEMENTS"
+echo "🔬 EyePACS DenseNet121 BALANCED Configuration (85-90% TARGET):"
+echo "  - Dataset: EyePACS (./dataset_eyepacs) - 33,857 training images"
 echo "  - Model: DenseNet121 (8M params - dense connectivity)"
 echo "  - Image size: 299x299 (optimal for medical imaging)"
 echo "  - Batch size: 10 (optimized for V100)"
 echo "  - Learning rate: 1e-4 (stable proven rate)"
 echo "  - Weight decay: 3e-4 (balanced regularization)"
-echo "  - Dropout: 0.4 (INCREASED for better generalization)"
+echo "  - Dropout: 0.3 (BALANCED - not too aggressive)"
 echo "  - Epochs: 100 (extended for convergence)"
-echo "  - CLAHE: ENABLED (+3-5% accuracy boost)"
-echo "  - Focal loss: alpha=2.5, gamma=4.0 (AGGRESSIVE for imbalance)"
-echo "  - Class weights: 15x mild, 10x severe, 12x PDR (OPTIMIZED)"
-echo "  - Augmentation: ENHANCED (30° rotation, 25% brightness/contrast)"
+echo "  - CLAHE: ENABLED with conservative augmentation"
+echo "  - Focal loss: alpha=2.5, gamma=3.0 (BALANCED for CLAHE)"
+echo "  - Class weights: 12x mild, 6x moderate, 10x severe, 12x PDR"
+echo "  - Augmentation: MODERATE (25° rotation, 20% brightness/contrast)"
 echo "  - Scheduler: Cosine with warm restarts (T_0=15)"
-echo "  - Target: 90%+ accuracy (medical-grade threshold)"
+echo "  - Strategy: CLAHE requires LESS aggressive other settings"
 echo ""
 
-# Train EyePACS with MEDICAL-GRADE hyperparameters for 90%+ accuracy
+# Train EyePACS with BALANCED hyperparameters optimized for CLAHE
 python3 ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs \
     --output_dir ./densenet_eyepacs_results \
-    --experiment_name "eyepacs_densenet121_medical_grade" \
+    --experiment_name "eyepacs_densenet121_balanced_clahe" \
     --base_models densenet121 \
     --img_size 299 \
     --batch_size 10 \
     --epochs 100 \
     --learning_rate 1e-4 \
     --weight_decay 3e-4 \
-    --ovo_dropout 0.4 \
+    --ovo_dropout 0.3 \
     --freeze_weights false \
     --enable_clahe \
-    --clahe_clip_limit 3.0 \
+    --clahe_clip_limit 2.5 \
     --enable_medical_augmentation \
-    --rotation_range 30.0 \
-    --brightness_range 0.25 \
-    --contrast_range 0.25 \
+    --rotation_range 25.0 \
+    --brightness_range 0.20 \
+    --contrast_range 0.20 \
     --enable_focal_loss \
     --enable_class_weights \
-    --class_weight_mild 15.0 \
-    --class_weight_moderate 4.0 \
+    --class_weight_mild 12.0 \
+    --class_weight_moderate 6.0 \
     --class_weight_severe 10.0 \
     --class_weight_pdr 12.0 \
     --focal_loss_alpha 2.5 \
-    --focal_loss_gamma 4.0 \
+    --focal_loss_gamma 3.0 \
     --scheduler cosine \
     --warmup_epochs 10 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 25 \
     --early_stopping_patience 20 \
-    --target_accuracy 0.90 \
+    --target_accuracy 0.88 \
     --max_grad_norm 1.0 \
     --label_smoothing 0.1 \
     --seed 42
@@ -78,24 +78,24 @@ echo ""
 echo "✅ EyePACS DenseNet121 MEDICAL-GRADE training completed!"
 echo "📁 Results saved to: ./densenet_eyepacs_results"
 echo ""
-echo "🎯 MEDICAL-GRADE OPTIMIZATIONS Applied:"
+echo "🎯 BALANCED OPTIMIZATIONS Applied:"
 echo "  🏗️ Architecture: DenseNet121 (dense connectivity)"
 echo "  📊 Model capacity: 8M parameters"
 echo "  🎓 Learning rate: 1e-4 (stable for medical imaging)"
-echo "  💧 Dropout: 0.4 (INCREASED from 0.2 for generalization)"
+echo "  💧 Dropout: 0.3 (BALANCED - CLAHE reduces overfitting naturally)"
 echo "  ⏰ Training: 100 epochs (extended for convergence)"
-echo "  🔬 CLAHE: ENABLED (+3-5% accuracy improvement)"
-echo "  🔀 Augmentation: 30° rotation, 25% brightness/contrast (ENHANCED)"
-echo "  ⚖️ Class weights: 15x mild, 10x severe, 12x PDR (OPTIMIZED)"
-echo "  🎯 Focal loss: alpha=2.5, gamma=4.0 (AGGRESSIVE for imbalance)"
+echo "  🔬 CLAHE: ENABLED (clip_limit=2.5, conservative)"
+echo "  🔀 Augmentation: 25° rotation, 20% brightness/contrast (MODERATE)"
+echo "  ⚖️ Class weights: 12x mild, 6x moderate, 10x severe, 12x PDR"
+echo "  🎯 Focal loss: alpha=2.5, gamma=3.0 (BALANCED with CLAHE)"
 echo "  🔧 Scheduler: Cosine with warm restarts (T_0=15)"
 echo ""
 echo "📊 Expected Performance (EyePACS - 33,857 images):"
-echo "  🎯 Target: 90%+ validation accuracy (medical-grade)"
-echo "  🏥 Medical grade: ✅ MEETS 90% threshold"
-echo "  📈 Dense connectivity: Superior feature reuse"
+echo "  🎯 Target: 85-88% validation accuracy (realistic with CLAHE)"
+echo "  🏥 Strategy: CLAHE + moderate settings = stable improvement"
+echo "  📈 Previous run: 82% (no CLAHE) → Expected: 85-88% (with CLAHE)"
 echo "  🔗 Training time: ~3-4 hours on V100"
-echo "  ✅ Key improvements: CLAHE + enhanced augmentation + optimized class weights"
+echo "  ⚠️ LESSON: CLAHE makes images similar → use LESS aggressive augmentation"
 echo ""
 echo "🔗 ENSEMBLE COMPATIBILITY:"
 echo "  ✅ Model saved as: best_densenet121_multiclass.pth"
@@ -116,12 +116,23 @@ echo "     • Train EfficientNetB2 (96.27% target)"
 echo "     • Train ResNet50 (94.95% target)"
 echo "     • Ensemble DenseNet121 + EfficientNetB2 + ResNet50 → 96.96%"
 echo ""
-echo "🚀 KEY IMPROVEMENTS FROM PREVIOUS RUN (82% → 90%+):"
-echo "  ✅ CLAHE preprocessing enabled (+3-5%)"
-echo "  ✅ Enhanced augmentation: 30° rotation, 25% brightness/contrast (+2-3%)"
-echo "  ✅ Increased dropout: 0.4 for better generalization (+1-2%)"
-echo "  ✅ Aggressive focal loss: gamma=4.0 for hard examples (+1-2%)"
-echo "  ✅ Optimized class weights: 15x mild NPDR (+1-2%)"
+echo "🚀 BALANCED APPROACH (82% → 85-88%):"
+echo "  ✅ CLAHE preprocessing: ENABLED but conservative (clip=2.5)"
+echo "  ✅ Moderate augmentation: 25° rotation, 20% brightness/contrast"
+echo "  ✅ Balanced dropout: 0.3 (not too high with CLAHE)"
+echo "  ✅ Balanced focal loss: gamma=3.0 (not conflicting with CLAHE)"
+echo "  ✅ Optimized class weights: 12x mild, 6x moderate"
 echo "  ✅ Extended training: 100 epochs for full convergence"
-echo "  📊 Expected combined improvement: +8-14% (82% → 90-96%)"
+echo "  📊 Expected improvement: +3-6% (82% → 85-88%)"
+echo ""
+echo "⚠️ IMPORTANT LESSON LEARNED:"
+echo "  ❌ Previous attempt: Too aggressive (dropout=0.4, gamma=4.0, 30° rotation)"
+echo "     → CLAHE + extreme settings = conflicting signals → 79% (WORSE)"
+echo "  ✅ Current approach: Moderate settings balanced with CLAHE"
+echo "     → CLAHE enhances features → need LESS augmentation → 85-88% expected"
+echo ""
+echo "🎯 PATH TO 90%+ IF THIS REACHES 85-88%:"
+echo "  1. Create balanced dataset (SMOTE): +3-5% → 88-93%"
+echo "  2. Add ensemble (EfficientNetB2 + ResNet50): +3-5% → 91-98%"
+echo "  3. Fine-tune on balanced data: → 96%+ target"
 echo ""
