@@ -181,10 +181,14 @@ Example Usage:
                        help='Focal loss gamma parameter (reduced for ensemble)')
     parser.add_argument('--enable_class_weights', action='store_true',
                        help='Enable class weights for imbalanced data')
+    parser.add_argument('--class_weight_mild', type=float, default=8.0,
+                       help='Class weight multiplier for mild NPDR (Class 1)')
+    parser.add_argument('--class_weight_moderate', type=float, default=4.0,
+                       help='Class weight multiplier for moderate NPDR (Class 2)')
     parser.add_argument('--class_weight_severe', type=float, default=8.0,
-                       help='Class weight multiplier for severe NPDR')
+                       help='Class weight multiplier for severe NPDR (Class 3)')
     parser.add_argument('--class_weight_pdr', type=float, default=6.0,
-                       help='Class weight multiplier for PDR')
+                       help='Class weight multiplier for PDR (Class 4)')
     
     # Scheduler configuration
     parser.add_argument('--scheduler', choices=['cosine', 'linear', 'plateau', 'none'],
@@ -881,6 +885,8 @@ def setup_ovo_experiment(args):
             'brightness_range': args.brightness_range,
             'contrast_range': args.contrast_range,
             'label_smoothing': args.label_smoothing,
+            'class_weight_mild': args.class_weight_mild,
+            'class_weight_moderate': args.class_weight_moderate,
             'class_weight_severe': args.class_weight_severe,
             'class_weight_pdr': args.class_weight_pdr,
             'resume': args.resume
@@ -938,11 +944,13 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
     else:
         if config['training']['enable_class_weights']:
             # EXTREME EyePACS class distribution weights - optimized for severe imbalance
+            mild_weight = config['training'].get('class_weight_mild', 8.0)
+            moderate_weight = config['training'].get('class_weight_moderate', 4.0)
             severe_weight = config['training'].get('class_weight_severe', 8.0)
             pdr_weight = config['training'].get('class_weight_pdr', 6.0)
-            class_weights = torch.tensor([1.0, 8.0, 4.0, severe_weight, pdr_weight])  # Extreme weights for rare classes
+            class_weights = torch.tensor([1.0, mild_weight, moderate_weight, severe_weight, pdr_weight])
             criterion = nn.CrossEntropyLoss(weight=class_weights.to(device), label_smoothing=label_smoothing)
-            logger.info(f"✅ Using EXTREME weighted CrossEntropyLoss: [1.0, 8.0, 4.0, {severe_weight}, {pdr_weight}]")
+            logger.info(f"✅ Using OPTIMIZED weighted CrossEntropyLoss: [1.0 (No DR), {mild_weight} (Mild), {moderate_weight} (Moderate), {severe_weight} (Severe), {pdr_weight} (PDR)]")
             if label_smoothing > 0:
                 logger.info(f"✅ Label smoothing enabled: {label_smoothing}")
         else:

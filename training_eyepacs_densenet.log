@@ -41,3 +41,60 @@ INFO:__main__:📊 Dataset splits loaded:
 INFO:__main__:   Training: 33857 samples
 INFO:__main__:   Validation: 3958 samples
 INFO:__main__:   Test: 3760 samples
+INFO:__main__:   Train classes: [20648, 3500, 4234, 3000, 2475]
+INFO:__main__:   Val classes: [2581, 350, 529, 300, 198]
+INFO:__main__:   Test classes: [2581, 250, 529, 200, 200]
+/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/venv/lib/python3.13/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/venv/lib/python3.13/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=DenseNet121_Weights.IMAGENET1K_V1`. You can also use `weights=DenseNet121_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+INFO:__main__:🏗️ Created densenet121 multi-class model
+INFO:__main__:📊 Parameters: 8,664,453
+INFO:__main__:📊 Trainable: 8,664,453
+ERROR:__main__:❌ OVO pipeline execution failed: api_key not configured (no-tty). call wandb.login(key=[your_api_key])
+Traceback (most recent call last):
+  File "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/ensemble_local_trainer.py", line 2145, in main
+    final_results = train_aptos_multiclass(config)
+  File "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/ensemble_local_trainer.py", line 1711, in train_aptos_multiclass
+    wandb.init(
+    ~~~~~~~~~~^
+        project="aptos_dr_multiclass",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        notes=f"APTOS 2019 training with {model_name} targeting {config['system']['target_accuracy']:.1%} accuracy"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/venv/lib/python3.13/site-packages/wandb/sdk/wandb_init.py", line 1581, in init
+    wandb._sentry.reraise(e)
+    ~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/venv/lib/python3.13/site-packages/wandb/analytics/sentry.py", line 162, in reraise
+    raise exc.with_traceback(sys.exc_info()[2])
+  File "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/venv/lib/python3.13/site-packages/wandb/sdk/wandb_init.py", line 1504, in init
+    wi.maybe_login(init_settings)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/venv/lib/python3.13/site-packages/wandb/sdk/wandb_init.py", line 190, in maybe_login
+    wandb_login._login(
+    ~~~~~~~~~~~~~~~~~~^
+        anonymous=run_settings.anonymous,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        _silent=run_settings.quiet or run_settings.silent,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/venv/lib/python3.13/site-packages/wandb/sdk/wandb_login.py", line 318, in _login
+    key, key_status = wlogin.prompt_api_key(referrer=referrer)
+                      ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/iwanbudihalim/Downloads/working-code/train-diabetic-retinopathy/venv/lib/python3.13/site-packages/wandb/sdk/wandb_login.py", line 244, in prompt_api_key
+    raise UsageError("api_key not configured (no-tty). call " + directive)
+wandb.errors.errors.UsageError: api_key not configured (no-tty). call wandb.login(key=[your_api_key])
+✅ Environment variables loaded from .env file
+✅ MedSigLIP support enabled (transformers available)
+🔢 ONE-VERSUS-ONE (OVO) ENSEMBLE DIABETIC RETINOPATHY TRAINING
+======================================================================
+Research Implementation: Lightweight Transfer Learning Ensemble
+Base Models: MobileNet-v2 + InceptionV3 + DenseNet121
+Binary Classifiers: 10 (One-vs-One for 5 classes)
+Target: 96.96% accuracy with medical-grade validation
+======================================================================
