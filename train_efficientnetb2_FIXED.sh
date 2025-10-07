@@ -31,11 +31,14 @@ echo "  - Warmup: 2 epochs"
 echo "  - Focal loss: gamma=2.0"
 echo "  - Target: 96%+ validation accuracy"
 echo ""
-echo "🚀 CRITICAL FIX - BALANCED VALIDATION:"
-echo "  ❌ BEFORE: Val stuck at 73% (biased by 73% Class 0 dominance)"
-echo "  ✅ AFTER:  Val shows TRUE performance (71 samples per class)"
-echo "  ✅ Expected: Epoch 1 starts at 78-82% (not 73%)"
-echo "  ✅ Expected: Clear progression: 80% → 90% → 96%"
+echo "🚀 ANTI-OVERFITTING CONFIGURATION:"
+echo "  ✅ Learning rate: 1e-4 (reduced for stability)"
+echo "  ✅ Weight decay: 5e-4 (5x increase to combat overfitting)"
+echo "  ✅ Dropout: 0.5 (increased from 0.3)"
+echo "  ✅ Augmentation: Stronger (rotation 20°, brightness/contrast 15%)"
+echo "  ✅ Focal loss gamma: 1.0 (reduced from 2.0)"
+echo "  ✅ Patience: 20 epochs (early stopping patience)"
+echo "  ✅ Warmup: 5 epochs (gradual learning rate ramp)"
 echo ""
 
 # Train EfficientNetB2 with FIXED hyperparameters
@@ -48,22 +51,21 @@ python ensemble_local_trainer.py \
     --img_size 224 \
     --batch_size 32 \
     --epochs 100 \
-    --learning_rate 3e-4 \
-    --weight_decay 1e-4 \
-    --ovo_dropout 0.3 \
+    --learning_rate 1e-4 \
+    --weight_decay 5e-4 \
+    --ovo_dropout 0.5 \
     --freeze_weights false \
     --enable_medical_augmentation \
-    --rotation_range 15.0 \
-    --brightness_range 0.1 \
-    --contrast_range 0.1 \
+    --rotation_range 20.0 \
+    --brightness_range 0.15 \
+    --contrast_range 0.15 \
     --enable_focal_loss \
-    --focal_loss_gamma 2.0 \
+    --focal_loss_gamma 1.0 \
     --scheduler cosine \
-    --warmup_epochs 2 \
+    --warmup_epochs 5 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
-    --patience 15 \
-    --early_stopping_patience 12 \
+    --patience 20 \
     --target_accuracy 0.96 \
     --max_grad_norm 1.0 \
     --label_smoothing 0.1 \
