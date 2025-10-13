@@ -1,0 +1,45 @@
+{
+  "ensemble_accuracy": 0.6484249536751081,
+  "individual_accuracies": {
+    "densenet121": 0.6484249536751081
+  },
+  "medical_grade_pass": false,
+  "research_target_achieved": false,
+  "confusion_matrix": [
+    [
+      1457,
+      7,
+      148,
+      0,
+      7
+    ],
+    [
+      295,
+      986,
+      258,
+      39,
+      41
+    ],
+    [
+      319,
+      287,
+      690,
+      185,
+      138
+    ],
+    [
+      15,
+      82,
+      232,
+      871,
+      419
+    ],
+    [
+      9,
+      32,
+      109,
+      224,
+      1245
+    ]
+  ]
+}

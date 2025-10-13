@@ -1,0 +1,163 @@
+{
+  "training_results": {
+    "densenet121": {
+      "pair_0_1": {
+        "best_accuracy": 88.53522867737948
+      },
+      "pair_0_2": {
+        "best_accuracy": 86.40296662546353
+      },
+      "pair_0_3": {
+        "best_accuracy": 98.76390605686032
+      },
+      "pair_0_4": {
+        "best_accuracy": 99.28924598269468
+      },
+      "pair_1_2": {
+        "best_accuracy": 77.13226205191594
+      },
+      "pair_1_3": {
+        "best_accuracy": 91.34734239802225
+      },
+      "pair_1_4": {
+        "best_accuracy": 92.21260815822002
+      },
+      "pair_2_3": {
+        "best_accuracy": 83.03461063040791
+      },
+      "pair_2_4": {
+        "best_accuracy": 89.15327564894932
+      },
+      "pair_3_4": {
+        "best_accuracy": 78.70828182941904
+      }
+    }
+  },
+  "evaluation_results": {
+    "ensemble_accuracy": 0.6484249536751081,
+    "individual_accuracies": {
+      "densenet121": 0.6484249536751081
+    },
+    "medical_grade_pass": false,
+    "research_target_achieved": false,
+    "classification_report": "              precision    recall  f1-score   support\n\n     Class_0       0.70      0.90      0.78      1619\n     Class_1       0.71      0.61      0.65      1619\n     Class_2       0.48      0.43      0.45      1619\n     Class_3       0.66      0.54      0.59      1619\n     Class_4       0.67      0.77      0.72      1619\n\n    accuracy                           0.65      8095\n   macro avg       0.64      0.65      0.64      8095\nweighted avg       0.64      0.65      0.64      8095\n",
+    "confusion_matrix": [
+      [
+        1457,
+        7,
+        148,
+        0,
+        7
+      ],
+      [
+        295,
+        986,
+        258,
+        39,
+        41
+      ],
+      [
+        319,
+        287,
+        690,
+        185,
+        138
+      ],
+      [
+        15,
+        82,
+        232,
+        871,
+        419
+      ],
+      [
+        9,
+        32,
+        109,
+        224,
+        1245
+      ]
+    ]
+  },
+  "dataset_info": {
+    "class_counts": {
+      "train": [
+        7550,
+        7550,
+        7550,
+        7550,
+        7550
+      ],
+      "val": [
+        1618,
+        1618,
+        1618,
+        1618,
+        1618
+      ],
+      "test": [
+        1619,
+        1619,
+        1619,
+        1619,
+        1619
+      ]
+    },
+    "num_classes": 5
+  },
+  "config": {
+    "data": {
+      "dataset_path": "./dataset_eyepacs_5class_balanced",
+      "num_classes": 5,
+      "img_size": 299,
+      "batch_size": 10,
+      "enable_clahe": true,
+      "clahe_clip_limit": 2.5,
+      "clahe_tile_grid_size": [
+        8,
+        8
+      ]
+    },
+    "model": {
+      "base_models": [
+        "densenet121"
+      ],
+      "freeze_weights": false,
+      "dropout": 0.32,
+      "num_classes": 5
+    },
+    "training": {
+      "epochs": 100,
+      "learning_rate": 9e-05,
+      "weight_decay": 0.00035,
+      "patience": 22,
+      "enable_focal_loss": true,
+      "enable_class_weights": true,
+      "focal_loss_alpha": 2.5,
+      "focal_loss_gamma": 3.0,
+      "scheduler": "cosine",
+      "warmup_epochs": 10,
+      "rotation_range": 25.0,
+      "brightness_range": 0.2,
+      "contrast_range": 0.2,
+      "label_smoothing": 0.11,
+      "class_weight_0": 1.0,
+      "class_weight_1": 1.0,
+      "class_weight_2": 1.0,
+      "class_weight_3": 1.0,
+      "class_weight_4": 1.0,
+      "resume": false
+    },
+    "paths": {
+      "output_dir": "./densenet_5class_results"
+    },
+    "system": {
+      "device": "cuda",
+      "seed": 42,
+      "output_dir": "./densenet_5class_results",
+      "experiment_name": "5class_densenet121_v3_finetuned",
+      "target_accuracy": 0.95,
+      "use_wandb": true
+    }
+  }
+}
