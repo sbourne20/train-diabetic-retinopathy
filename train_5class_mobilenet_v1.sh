@@ -92,8 +92,6 @@ python3 ensemble_5class_trainer.py \
     --rotation_range 45.0 \
     --brightness_range 0.2 \
     --contrast_range 0.2 \
-    --enable_focal_loss false \
-    --enable_class_weights false \
     --label_smoothing 0.0 \
     --scheduler cosine \
     --warmup_epochs 5 \
@@ -103,7 +101,9 @@ python3 ensemble_5class_trainer.py \
     --early_stopping_patience 10 \
     --target_accuracy 0.92 \
     --max_grad_norm 1.0 \
-    --seed 42
+    --seed 42 \
+    --device cuda \
+    --no_wandb
 
 echo ""
 echo "✅ 5-CLASS MobileNetV2 OVO ENSEMBLE training completed!"
