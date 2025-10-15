@@ -1,0 +1,371 @@
+[
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_0_1.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 88.53522867737948
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_0_2.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 86.40296662546353
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_0_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 98.76390605686032
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_0_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 99.28924598269468
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_1_2.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 77.13226205191594
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_1_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 91.34734239802225
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_1_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 92.21260815822002
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_2_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 83.03461063040791
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_2_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 89.15327564894932
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/best_densenet121_3_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 78.70828182941904
+  },
+  {
+    "model_name": "densenet_5class_results",
+    "path": "./densenet_5class_results/models/ovo_ensemble_best.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": null
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_0_1.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 88.75154511742892
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_0_2.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 87.3300370828183
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_0_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 98.94932014833127
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_0_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 99.32014833127317
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_1_2.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 79.26452410383189
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_1_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 90.32756489493201
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_1_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 92.89245982694685
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_2_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 82.6946847960445
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_2_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 89.15327564894932
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/best_efficientnetb2_3_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 76.79233621755253
+  },
+  {
+    "model_name": "efficientnetb2_5class_results",
+    "path": "./efficientnetb2_5class_results/models/ovo_ensemble_best.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": null
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_0_1.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 88.53522867737948
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_0_2.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 86.40296662546353
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_0_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 98.76390605686032
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_0_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 99.28924598269468
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_1_2.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 77.13226205191594
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_1_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 91.34734239802225
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_1_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 92.21260815822002
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_2_3.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 83.03461063040791
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_2_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 89.15327564894932
+  },
+  {
+    "model_name": "densenet_5class_results_v1",
+    "path": "./v1-model-dr/densenet_5class_results_v1/models/best_densenet121_3_4.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 78.70828182941904
+  },
+  {
+    "model_name": "best_densenet121_multiclass",
+    "path": "./v1-model-dr/densenet_eyepacs_results/models/best_densenet121_multiclass.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.8822637695805963
+  },
+  {
+    "model_name": "best_densenet121_multiclass_epoch2",
+    "path": "./v1-model-dr/densenet_eyepacs_results/models/best_densenet121_multiclass_epoch2.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.818089944416372
+  },
+  {
+    "model_name": "best_densenet121_multiclass_epoch20",
+    "path": "./v1-model-dr/densenet_eyepacs_results/models/best_densenet121_multiclass_epoch20.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.8815058110156645
+  },
+  {
+    "model_name": "best_densenet121_multiclass",
+    "path": "./v1-model-dr/densenet_eyepacs_results_v2/models/best_densenet121_multiclass.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.883021728145528
+  },
+  {
+    "model_name": "best_efficientnetb2_multiclass",
+    "path": "./v1-model-dr/efficientnetb2_aptos_results/models/best_efficientnetb2_multiclass.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.8205128205128206
+  },
+  {
+    "model_name": "best_efficientnetb2_multiclass",
+    "path": "./v1-model-dr/efficientnetb2_eyepacs_results/models/best_efficientnetb2_multiclass.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.8729156139464377
+  },
+  {
+    "model_name": "best_efficientnetb2_multiclass",
+    "path": "./v1-model-dr/efficientnetb2_eyepacs_results_old/models/best_efficientnetb2_multiclass.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.8693784739767559
+  },
+  {
+    "model_name": "best_medsiglip_448_multiclass",
+    "path": "./v1-model-dr/medsiglip_95percent_results/models/best_medsiglip_448_multiclass.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.8812531581606872
+  },
+  {
+    "model_name": "best_medsiglip_448_multiclass",
+    "path": "./v1-model-dr/medsiglip_results_86/models/best_medsiglip_448_multiclass.pth",
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "auc": null,
+    "accuracy": 0.8605356240525518
+  }
+]

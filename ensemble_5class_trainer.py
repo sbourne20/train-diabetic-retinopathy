@@ -57,6 +57,15 @@ except ImportError:
     WANDB_AVAILABLE = False
     print("⚠️ Warning: wandb not available. Logging disabled.")
 
+# Optional timm import for SEResNext and other advanced models
+try:
+    import timm
+    TIMM_AVAILABLE = True
+    print("✅ timm library available - SEResNext and advanced models enabled")
+except ImportError:
+    TIMM_AVAILABLE = False
+    print("⚠️ Warning: timm not available. Install with: pip install timm")
+
 # Essential imports for OVO ensemble
 import torchvision.transforms as transforms
 from torchvision import models
@@ -330,6 +339,15 @@ class MultiClassDRModel(nn.Module):
             self.backbone = models.efficientnet_b5(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'seresnext50_32x4d':
+            if not TIMM_AVAILABLE:
+                raise ImportError("SEResNext requires timm library. Install with: pip install timm")
+            # Load SEResNext50_32x4d from timm (Kaggle winner's architecture)
+            self.backbone = timm.create_model('seresnext50_32x4d', pretrained=True)
+            num_features = self.backbone.num_features
+            # Remove the classification head (replace with identity)
+            self.backbone.fc = nn.Identity()
+            logger.info(f"✅ Loaded SEResNext50_32x4d: {num_features} features (Winner's architecture)")
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -365,6 +383,11 @@ class MultiClassDRModel(nn.Module):
                 # Freeze early blocks, fine-tune later blocks for EfficientNet-B5
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['features.0', 'features.1', 'features.2', 'features.3']):
+                        param.requires_grad = False
+            elif model_name == 'seresnext50_32x4d':
+                # Freeze first 2 layers, fine-tune later layers for SEResNext
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['layer1', 'layer2']):
                         param.requires_grad = False
 
         # EXTREME classifier head for severe class imbalance
@@ -549,6 +572,15 @@ class BinaryClassifier(nn.Module):
             self.backbone = models.efficientnet_b5(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'seresnext50_32x4d':
+            if not TIMM_AVAILABLE:
+                raise ImportError("SEResNext requires timm library. Install with: pip install timm")
+            # Load SEResNext50_32x4d from timm (Kaggle winner's architecture)
+            self.backbone = timm.create_model('seresnext50_32x4d', pretrained=True)
+            num_features = self.backbone.num_features
+            # Remove the classification head (replace with identity)
+            self.backbone.fc = nn.Identity()
+            logger.info(f"✅ Loaded SEResNext50_32x4d Binary Classifier: {num_features} features (Winner's architecture)")
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -595,6 +627,13 @@ class BinaryClassifier(nn.Module):
                 # Freeze early blocks, fine-tune later blocks for EfficientNet-B5
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['features.0', 'features.1', 'features.2', 'features.3']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'seresnext50_32x4d':
+                # Freeze first 2 layers, fine-tune later layers for SEResNext
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['layer1', 'layer2']):
                         param.requires_grad = False
                     else:
                         param.requires_grad = True
@@ -679,6 +718,71 @@ class OVOEnsemble(nn.Module):
         logger.info(f"   Binary classifiers per model: {len(self.class_pairs)}")
         logger.info(f"   Total binary classifiers: {len(base_models) * len(self.class_pairs)}")
 
+        # Storage for binary classifier accuracies (loaded from checkpoints)
+        self.binary_accuracies = None
+
+    def load_binary_accuracies(self, results_dir):
+        """
+        Load actual binary classifier accuracies from saved checkpoints.
+        This updates the weighted voting to use real performance metrics.
+
+        Args:
+            results_dir: Path to results directory containing model checkpoints
+        """
+        from pathlib import Path
+        import torch
+
+        accuracies = {}
+        results_path = Path(results_dir)
+        models_dir = results_path / 'models'
+
+        if not models_dir.exists():
+            logger.warning(f"⚠️ Models directory not found: {models_dir}")
+            logger.warning("   Using default accuracy weights")
+            return
+
+        logger.info(f"📊 Loading binary classifier accuracies from: {models_dir}")
+
+        for model_name in self.base_models:
+            accuracies[model_name] = {}
+
+            for class_a, class_b in self.class_pairs:
+                pair_name = f"pair_{class_a}_{class_b}"
+                checkpoint_pattern = f"*{model_name}*{class_a}*{class_b}*.pth"
+
+                # Find checkpoint file
+                checkpoint_files = list(models_dir.glob(checkpoint_pattern))
+
+                if checkpoint_files:
+                    checkpoint_path = checkpoint_files[0]
+                    try:
+                        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+
+                        # Try to extract accuracy from checkpoint
+                        accuracy = None
+                        for key in ['best_val_accuracy', 'val_accuracy', 'test_accuracy', 'accuracy']:
+                            if key in checkpoint:
+                                accuracy = checkpoint[key]
+                                break
+
+                        if accuracy is not None:
+                            accuracies[model_name][pair_name] = float(accuracy)
+                            logger.info(f"   ✅ {model_name} {pair_name}: {accuracy:.4f}")
+                        else:
+                            logger.warning(f"   ⚠️ No accuracy found in {checkpoint_path.name}, using default")
+                            accuracies[model_name][pair_name] = 0.85  # Default
+
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ Failed to load {checkpoint_path.name}: {e}")
+                        accuracies[model_name][pair_name] = 0.85  # Default
+                else:
+                    logger.warning(f"   ⚠️ No checkpoint found for {model_name} {pair_name}")
+                    accuracies[model_name][pair_name] = 0.85  # Default
+
+        self.binary_accuracies = accuracies
+        logger.info(f"✅ Loaded accuracies for {len(accuracies)} models")
+        return accuracies
+
     def forward(self, x, return_individual=False):
         """FIXED forward pass with medical-grade voting mechanism"""
         batch_size = x.size(0)
@@ -695,24 +799,35 @@ class OVOEnsemble(nn.Module):
         pdr_pairs = ['pair_0_4', 'pair_1_4', 'pair_2_4', 'pair_3_4']  # Pairs involving PDR (class 4)
         severe_npdr_pairs = ['pair_0_3', 'pair_1_3', 'pair_2_3', 'pair_3_4']  # Pairs involving Severe NPDR
 
-        # Binary accuracy weights for 5-class (will be updated after each training)
-        binary_accuracies = {
-            'mobilenet_v2': {
-                'pair_0_1': 0.90, 'pair_0_2': 0.91, 'pair_0_3': 0.92, 'pair_0_4': 0.93,
-                'pair_1_2': 0.88, 'pair_1_3': 0.89, 'pair_1_4': 0.90,
-                'pair_2_3': 0.87, 'pair_2_4': 0.89, 'pair_3_4': 0.88
-            },
-            'inception_v3': {
-                'pair_0_1': 0.89, 'pair_0_2': 0.90, 'pair_0_3': 0.91, 'pair_0_4': 0.92,
-                'pair_1_2': 0.87, 'pair_1_3': 0.88, 'pair_1_4': 0.89,
-                'pair_2_3': 0.86, 'pair_2_4': 0.88, 'pair_3_4': 0.87
-            },
-            'densenet121': {
-                'pair_0_1': 0.91, 'pair_0_2': 0.92, 'pair_0_3': 0.93, 'pair_0_4': 0.94,
-                'pair_1_2': 0.89, 'pair_1_3': 0.90, 'pair_1_4': 0.91,
-                'pair_2_3': 0.88, 'pair_2_4': 0.90, 'pair_3_4': 0.89
+        # Use loaded accuracies if available, otherwise use defaults
+        if self.binary_accuracies is not None:
+            binary_accuracies = self.binary_accuracies
+        else:
+            # Binary accuracy weights from actual training (Table 11 from paper)
+            # These are defaults - call load_binary_accuracies() for real values
+            binary_accuracies = {
+                'mobilenet_v2': {
+                    # Based on MobileNet APTOS 2019 results (update with your actual values)
+                    'pair_0_1': 0.94, 'pair_0_2': 0.97, 'pair_0_3': 0.99, 'pair_0_4': 0.98,  # No DR vs others
+                    'pair_1_2': 0.79, 'pair_1_3': 0.88, 'pair_1_4': 0.81,  # Mild DR vs others
+                    'pair_2_3': 0.85, 'pair_2_4': 0.82,  # Moderate DR vs Severe/PDR
+                    'pair_3_4': 0.78   # Severe NPDR vs PDR (hardest)
+                },
+                'inception_v3': {
+                    # Use similar pattern - adjust based on your model's performance
+                    'pair_0_1': 0.93, 'pair_0_2': 0.96, 'pair_0_3': 0.98, 'pair_0_4': 0.97,
+                    'pair_1_2': 0.78, 'pair_1_3': 0.87, 'pair_1_4': 0.80,
+                    'pair_2_3': 0.84, 'pair_2_4': 0.81,
+                    'pair_3_4': 0.77
+                },
+                'densenet121': {
+                    # Use similar pattern - adjust based on your model's performance
+                    'pair_0_1': 0.92, 'pair_0_2': 0.95, 'pair_0_3': 0.97, 'pair_0_4': 0.96,
+                    'pair_1_2': 0.77, 'pair_1_3': 0.86, 'pair_1_4': 0.79,
+                    'pair_2_3': 0.83, 'pair_2_4': 0.80,
+                    'pair_3_4': 0.76
+                }
             }
-        }
 
         # No weak classifiers expected for perfectly balanced dataset
         weak_classifiers = set()
@@ -1525,6 +1640,15 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
                 logger.warning(f"❌ Missing checkpoint: {model_path.name}")
 
     logger.info(f"📦 Loaded {loaded_count}/30 binary classifiers into ensemble")
+
+    # Load binary classifier accuracies for weighted voting
+    logger.info("\n⚖️ Loading binary classifier accuracies for weighted voting...")
+    try:
+        ovo_ensemble.load_binary_accuracies(config['system']['output_dir'])
+        logger.info("✅ Weighted voting enabled with actual model accuracies")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to load accuracies: {e}")
+        logger.warning("   Using default accuracy weights for voting")
 
     # Save complete ensemble
     ensemble_path = Path(config['system']['output_dir']) / "models" / "ovo_ensemble_best.pth"

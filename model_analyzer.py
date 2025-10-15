@@ -727,65 +727,361 @@ def save_analysis_report(analysis, output_path):
     
     print(f"\n💾 Analysis report saved to: {output_path}")
 
+def find_all_model_checkpoints(search_dirs=None):
+    """Find all .pth checkpoint files in specified directories"""
+    if search_dirs is None:
+        search_dirs = [
+            './results',
+            './checkpoints',
+            './ovo_models',
+            './models',
+            '.'
+        ]
+
+    checkpoint_files = []
+    for search_dir in search_dirs:
+        if os.path.exists(search_dir):
+            for root, dirs, files in os.walk(search_dir):
+                for file in files:
+                    if file.endswith('.pth'):
+                        checkpoint_files.append(os.path.join(root, file))
+
+    return sorted(checkpoint_files)
+
+def extract_model_name(checkpoint_path, checkpoint=None):
+    """Extract a readable model name from checkpoint path and content"""
+    # Try to extract meaningful name from path
+    parts = checkpoint_path.replace('\\', '/').split('/')
+    filename = os.path.basename(checkpoint_path)
+
+    # Look for class information in filename
+    # Pattern 1: class_X or class_X_vs_Y
+    if 'class_' in filename.lower():
+        base_name = filename.replace('.pth', '').replace('_best_model', '').replace('checkpoint_', '')
+        return base_name
+
+    # Pattern 2: OVO pattern like "ovo_mild_moderate" or "ovo_0_1"
+    for part in parts:
+        if 'ovo_' in part.lower():
+            return part.replace('.pth', '').replace('_best_model', '').replace('checkpoint_', '')
+
+    # Pattern 3: Try to extract class info from checkpoint content
+    if checkpoint and isinstance(checkpoint, dict):
+        # Check for class pair information
+        if 'class_pair' in checkpoint:
+            class_pair = checkpoint['class_pair']
+            if isinstance(class_pair, (list, tuple)) and len(class_pair) == 2:
+                # Get parent directory name
+                parent_dir = os.path.basename(os.path.dirname(checkpoint_path))
+                return f"{parent_dir}_{class_pair[0]}-{class_pair[1]}"
+
+        # Check for class names in config
+        if 'config' in checkpoint and isinstance(checkpoint['config'], dict):
+            config = checkpoint['config']
+            if 'class_names' in config:
+                classes = config['class_names']
+                if isinstance(classes, list) and len(classes) == 2:
+                    parent_dir = os.path.basename(os.path.dirname(checkpoint_path))
+                    return f"{parent_dir}_{classes[0]}-{classes[1]}"
+
+    # Pattern 4: Extract from parent directory + filename pattern
+    parent_dir = os.path.basename(os.path.dirname(checkpoint_path))
+
+    # If filename has numbers that might indicate classes
+    import re
+    numbers = re.findall(r'\d+', filename)
+    if len(numbers) >= 2:
+        # Likely class indices
+        return f"{parent_dir}_{numbers[0]}-{numbers[1]}"
+    elif len(numbers) == 1:
+        # Single class or epoch number - use parent dir + number
+        return f"{parent_dir}_{numbers[0]}"
+
+    # Default: use parent directory name
+    return parent_dir
+
+def extract_biclass_metrics(checkpoint):
+    """Extract precision, recall, F1, and AUC from checkpoint if available"""
+    metrics = {
+        'precision': None,
+        'recall': None,
+        'f1_score': None,
+        'auc': None,
+        'accuracy': None,
+        'is_state_dict_only': False
+    }
+
+    # Check if this is just a state_dict (weights only) - common for ensemble models
+    if isinstance(checkpoint, dict):
+        # Check if it looks like a pure state_dict (all keys are tensor names)
+        all_keys = list(checkpoint.keys())
+        if all_keys and all(isinstance(checkpoint[k], torch.Tensor) for k in all_keys[:10]):
+            # This appears to be a state_dict without training metrics
+            metrics['is_state_dict_only'] = True
+            return metrics
+
+        # Try to find metrics in various checkpoint keys
+        # Check for explicit metric keys
+        for key in ['precision', 'test_precision', 'val_precision']:
+            if key in checkpoint:
+                metrics['precision'] = checkpoint[key]
+                break
+
+        for key in ['recall', 'test_recall', 'val_recall', 'sensitivity']:
+            if key in checkpoint:
+                metrics['recall'] = checkpoint[key]
+                break
+
+        for key in ['f1_score', 'f1', 'test_f1', 'val_f1']:
+            if key in checkpoint:
+                metrics['f1_score'] = checkpoint[key]
+                break
+
+        for key in ['auc', 'roc_auc', 'test_auc', 'val_auc']:
+            if key in checkpoint:
+                metrics['auc'] = checkpoint[key]
+                break
+
+        for key in ['best_val_accuracy', 'best_accuracy', 'val_accuracy', 'test_accuracy', 'accuracy']:
+            if key in checkpoint and metrics['accuracy'] is None:
+                metrics['accuracy'] = checkpoint[key]
+                break
+
+    return metrics
+
+def analyze_all_models(checkpoint_files, output_table=True):
+    """Analyze all model checkpoints and display summary table"""
+    all_results = []
+
+    for checkpoint_path in checkpoint_files:
+        try:
+            print(f"\n🔍 Loading: {checkpoint_path}")
+
+            # Load checkpoint quietly
+            checkpoint = None
+            try:
+                checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+            except:
+                try:
+                    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+                except:
+                    print(f"   ❌ Failed to load")
+                    continue
+
+            if checkpoint is None:
+                continue
+
+            # Extract model name (pass checkpoint for better naming)
+            model_name = extract_model_name(checkpoint_path, checkpoint)
+
+            # Extract metrics
+            metrics = extract_biclass_metrics(checkpoint)
+
+            all_results.append({
+                'model_name': model_name,
+                'path': checkpoint_path,
+                **metrics
+            })
+
+            print(f"   ✅ Loaded successfully")
+
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+            continue
+
+    if output_table and all_results:
+        print("\n" + "="*100)
+        print("📊 MODEL PERFORMANCE SUMMARY")
+        print("="*100)
+
+        # Print table header
+        print(f"\n{'Model Name':<40} | {'Precision':<10} | {'Recall':<10} | {'F1-Score':<10} | {'AUC':<10} | {'Accuracy':<10}")
+        print("-" * 100)
+
+        # Print each model's metrics
+        for result in all_results:
+            model_name = result['model_name'][:38]  # Truncate if too long
+
+            # Check if this is a weights-only checkpoint
+            if result.get('is_state_dict_only', False):
+                precision = "Weights"
+                recall = "Only"
+                f1 = "(Ensemble)"
+                auc = "-"
+                accuracy = "-"
+            else:
+                precision = f"{result['precision']:.4f}" if result['precision'] is not None else "N/A"
+                recall = f"{result['recall']:.4f}" if result['recall'] is not None else "N/A"
+                f1 = f"{result['f1_score']:.4f}" if result['f1_score'] is not None else "N/A"
+                auc = f"{result['auc']:.4f}" if result['auc'] is not None else "N/A"
+                accuracy = f"{result['accuracy']:.4f}" if result['accuracy'] is not None else "N/A"
+
+            print(f"{model_name:<40} | {precision:<10} | {recall:<10} | {f1:<10} | {auc:<10} | {accuracy:<10}")
+
+        print("="*100)
+
+        # Calculate averages for metrics (excluding state_dict_only models)
+        valid_results = [r for r in all_results if not r.get('is_state_dict_only', False)]
+
+        if valid_results:
+            # Calculate average accuracy
+            accuracies = [r['accuracy'] for r in valid_results if r['accuracy'] is not None]
+            if accuracies:
+                avg_accuracy = sum(accuracies) / len(accuracies)
+                print(f"\n{'Model Average':<40} | {'-':<10} | {'-':<10} | {'-':<10} | {'-':<10} | {avg_accuracy:.4f}")
+
+            # Calculate other averages if available
+            precisions = [r['precision'] for r in valid_results if r['precision'] is not None]
+            recalls = [r['recall'] for r in valid_results if r['recall'] is not None]
+            f1_scores = [r['f1_score'] for r in valid_results if r['f1_score'] is not None]
+            aucs = [r['auc'] for r in valid_results if r['auc'] is not None]
+
+            if precisions or recalls or f1_scores or aucs:
+                avg_precision = sum(precisions) / len(precisions) if precisions else None
+                avg_recall = sum(recalls) / len(recalls) if recalls else None
+                avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else None
+                avg_auc = sum(aucs) / len(aucs) if aucs else None
+
+                # Only print if we have more than just accuracy
+                if any([avg_precision, avg_recall, avg_f1, avg_auc]):
+                    precision_str = f"{avg_precision:.4f}" if avg_precision is not None else "-"
+                    recall_str = f"{avg_recall:.4f}" if avg_recall is not None else "-"
+                    f1_str = f"{avg_f1:.4f}" if avg_f1 is not None else "-"
+                    auc_str = f"{avg_auc:.4f}" if avg_auc is not None else "-"
+                    accuracy_str = f"{avg_accuracy:.4f}" if accuracies else "-"
+
+                    print(f"{'Model Average (All Metrics)':<40} | {precision_str:<10} | {recall_str:<10} | {f1_str:<10} | {auc_str:<10} | {accuracy_str:<10}")
+
+        print("="*100)
+        print(f"\n✅ Analyzed {len(all_results)} models successfully!")
+
+    return all_results
+
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze PyTorch model checkpoints and extract training statistics",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Analyze single model
   python model_analyzer.py --model ./results/models/best_model.pth
+
+  # Analyze all models in default directories
+  python model_analyzer.py
+
+  # Analyze all models with detailed output
+  python model_analyzer.py --verbose
+
+  # Analyze single model with JSON output
   python model_analyzer.py --model ./checkpoints/epoch_10.pth --output analysis.json
-  python model_analyzer.py --model ./results/models/checkpoint_best_model.pth --verbose
         """
     )
-    
+
     parser.add_argument(
         '--model', '-m',
         type=str,
-        required=True,
-        help='Path to the model checkpoint (.pth file)'
+        default=None,
+        help='Path to the model checkpoint (.pth file). If not specified, analyzes all models.'
     )
-    
+
     parser.add_argument(
         '--output', '-o',
         type=str,
         help='Output JSON file to save analysis results (optional)'
     )
-    
+
     parser.add_argument(
         '--verbose', '-v',
         action='store_true',
         help='Show detailed parameter information'
     )
-    
+
+    parser.add_argument(
+        '--search-dirs',
+        type=str,
+        nargs='+',
+        default=None,
+        help='Directories to search for model checkpoints (default: ./results, ./checkpoints, ./ovo_models, ./models, .)'
+    )
+
     args = parser.parse_args()
-    
+
     try:
-        # Analyze the model
-        analysis = analyze_model_checkpoint(args.model)
-        
-        if analysis is None:
-            print("❌ Failed to analyze model checkpoint")
-            sys.exit(1)
-        
-        # Save analysis report if requested
-        if args.output:
-            save_analysis_report(analysis, args.output)
-        
-        # Show detailed parameter info if verbose
-        if args.verbose and 'model_info' in analysis and 'parameter_shapes' in analysis['model_info']:
-            print(f"\n📝 DETAILED PARAMETER INFORMATION:")
-            param_shapes = analysis['model_info']['parameter_shapes']
-            for name, shape in param_shapes.items():
-                num_params = 1
-                for dim in shape:
-                    num_params *= dim
-                print(f"   • {name}: {shape} ({num_params:,} parameters)")
-        
-        print(f"\n✅ Analysis completed successfully!")
-        
+        if args.model:
+            # Check if --model is a directory or a file
+            if os.path.isdir(args.model):
+                # Directory provided - analyze all .pth files in it
+                print(f"🔎 Searching for model checkpoints in: {args.model}")
+                checkpoint_files = find_all_model_checkpoints([args.model])
+
+                if not checkpoint_files:
+                    print(f"❌ No checkpoint files found in: {args.model}")
+                    sys.exit(1)
+
+                print(f"📁 Found {len(checkpoint_files)} checkpoint files")
+
+                # Analyze all models in the directory
+                results = analyze_all_models(checkpoint_files, output_table=True)
+
+                # Save results if requested
+                if args.output:
+                    with open(args.output, 'w') as f:
+                        json.dump(results, f, indent=2, default=str)
+                    print(f"\n💾 Results saved to: {args.output}")
+
+            elif os.path.isfile(args.model):
+                # Single file provided (original behavior)
+                analysis = analyze_model_checkpoint(args.model)
+
+                if analysis is None:
+                    print("❌ Failed to analyze model checkpoint")
+                    sys.exit(1)
+
+                # Save analysis report if requested
+                if args.output:
+                    save_analysis_report(analysis, args.output)
+
+                # Show detailed parameter info if verbose
+                if args.verbose and 'model_info' in analysis and 'parameter_shapes' in analysis['model_info']:
+                    print(f"\n📝 DETAILED PARAMETER INFORMATION:")
+                    param_shapes = analysis['model_info']['parameter_shapes']
+                    for name, shape in param_shapes.items():
+                        num_params = 1
+                        for dim in shape:
+                            num_params *= dim
+                        print(f"   • {name}: {shape} ({num_params:,} parameters)")
+
+                print(f"\n✅ Analysis completed successfully!")
+
+            else:
+                print(f"❌ Path does not exist: {args.model}")
+                sys.exit(1)
+
+        else:
+            # Multi-model analysis (new behavior)
+            print("🔎 Searching for all model checkpoints...")
+            checkpoint_files = find_all_model_checkpoints(args.search_dirs)
+
+            if not checkpoint_files:
+                print("❌ No checkpoint files found in search directories")
+                print("   Search directories: ./results, ./checkpoints, ./ovo_models, ./models, .")
+                sys.exit(1)
+
+            print(f"📁 Found {len(checkpoint_files)} checkpoint files")
+
+            # Analyze all models
+            results = analyze_all_models(checkpoint_files, output_table=True)
+
+            # Save results if requested
+            if args.output:
+                with open(args.output, 'w') as f:
+                    json.dump(results, f, indent=2, default=str)
+                print(f"\n💾 Results saved to: {args.output}")
+
     except Exception as e:
         print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":
