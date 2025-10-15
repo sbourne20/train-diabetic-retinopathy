@@ -1361,7 +1361,39 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
             break
 
     logger.info(f"✅ {model_name} for {class_pair}: Best Val Acc = {best_val_acc:.2f}%")
-    return best_val_acc
+
+    # Calculate final overfitting status using last 3 epochs
+    final_train_acc = train_history['train_accuracies'][-1] if train_history['train_accuracies'] else 0.0
+    final_val_acc = train_history['val_accuracies'][-1] if train_history['val_accuracies'] else 0.0
+
+    # Calculate overfitting ratio from losses (like model_analyzer.py)
+    if len(train_history['train_losses']) >= 3 and len(train_history['val_losses']) >= 3:
+        recent_train_loss = sum(train_history['train_losses'][-3:]) / 3
+        recent_val_loss = sum(train_history['val_losses'][-3:]) / 3
+        overfitting_ratio = recent_val_loss / recent_train_loss if recent_train_loss > 0 else 1.0
+
+        # Classify overfitting status
+        if overfitting_ratio < 1.2:
+            overfitting_status = "no_significant_overfitting"
+        elif overfitting_ratio < 1.5:
+            overfitting_status = "mild_overfitting"
+        elif overfitting_ratio < 2.5:
+            overfitting_status = "moderate_overfitting"
+        else:
+            overfitting_status = "severe_overfitting"
+    else:
+        overfitting_ratio = 1.0
+        overfitting_status = "unknown"
+
+    # Return comprehensive results
+    return {
+        'best_val_accuracy': best_val_acc,
+        'final_train_accuracy': final_train_acc,
+        'final_val_accuracy': final_val_acc,
+        'overfitting_ratio': overfitting_ratio,
+        'overfitting_status': overfitting_status,
+        'train_history': train_history
+    }
 
 def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
     """Train complete OVO ensemble."""
@@ -1435,7 +1467,7 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
             )
 
             # Train binary classifier
-            best_acc = train_binary_classifier(
+            training_result = train_binary_classifier(
                 model=binary_model,
                 train_loader=binary_datasets[pair_name]['train_loader'],
                 val_loader=binary_datasets[pair_name]['val_loader'],
@@ -1445,7 +1477,13 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
             )
 
             trained_models[model_name][pair_name] = binary_model
-            training_results[model_name][pair_name] = {'best_accuracy': best_acc}
+            training_results[model_name][pair_name] = {
+                'best_val_accuracy': training_result['best_val_accuracy'],
+                'final_train_accuracy': training_result['final_train_accuracy'],
+                'final_val_accuracy': training_result['final_val_accuracy'],
+                'overfitting_ratio': training_result['overfitting_ratio'],
+                'overfitting_status': training_result['overfitting_status']
+            }
 
     # Create and save complete OVO ensemble
     logger.info("\n🅾️ Creating complete OVO ensemble")
