@@ -807,7 +807,9 @@ def extract_biclass_metrics(checkpoint):
         'recall': None,
         'f1_score': None,
         'auc': None,
-        'accuracy': None,
+        'val_accuracy': None,
+        'test_accuracy': None,
+        'accuracy': None,  # Best available accuracy (for backward compatibility)
         'is_state_dict_only': False
     }
 
@@ -842,10 +844,28 @@ def extract_biclass_metrics(checkpoint):
                 metrics['auc'] = checkpoint[key]
                 break
 
-        for key in ['best_val_accuracy', 'best_accuracy', 'val_accuracy', 'test_accuracy', 'accuracy']:
-            if key in checkpoint and metrics['accuracy'] is None:
-                metrics['accuracy'] = checkpoint[key]
+        # Extract BOTH validation and test accuracy separately
+        for key in ['best_val_accuracy', 'val_accuracy', 'validation_accuracy']:
+            if key in checkpoint and metrics['val_accuracy'] is None:
+                metrics['val_accuracy'] = checkpoint[key]
                 break
+
+        for key in ['test_accuracy', 'final_test_accuracy']:
+            if key in checkpoint and metrics['test_accuracy'] is None:
+                metrics['test_accuracy'] = checkpoint[key]
+                break
+
+        # For backward compatibility: set 'accuracy' to validation first, then test if no val
+        if metrics['val_accuracy'] is not None:
+            metrics['accuracy'] = metrics['val_accuracy']
+        elif metrics['test_accuracy'] is not None:
+            metrics['accuracy'] = metrics['test_accuracy']
+        else:
+            # Fallback to any accuracy key
+            for key in ['best_accuracy', 'accuracy']:
+                if key in checkpoint and metrics['accuracy'] is None:
+                    metrics['accuracy'] = checkpoint[key]
+                    break
 
     return metrics
 
@@ -890,17 +910,17 @@ def analyze_all_models(checkpoint_files, output_table=True):
             continue
 
     if output_table and all_results:
-        print("\n" + "="*100)
+        print("\n" + "="*120)
         print("📊 MODEL PERFORMANCE SUMMARY")
-        print("="*100)
+        print("="*120)
 
-        # Print table header
-        print(f"\n{'Model Name':<40} | {'Precision':<10} | {'Recall':<10} | {'F1-Score':<10} | {'AUC':<10} | {'Accuracy':<10}")
-        print("-" * 100)
+        # Print table header with both Val and Test accuracy
+        print(f"\n{'Model Name':<35} | {'Precision':<10} | {'Recall':<10} | {'F1-Score':<10} | {'AUC':<10} | {'Val Acc':<10} | {'Test Acc':<10}")
+        print("-" * 120)
 
         # Print each model's metrics
         for result in all_results:
-            model_name = result['model_name'][:38]  # Truncate if too long
+            model_name = result['model_name'][:33]  # Truncate if too long
 
             # Check if this is a weights-only checkpoint
             if result.get('is_state_dict_only', False):
@@ -908,27 +928,30 @@ def analyze_all_models(checkpoint_files, output_table=True):
                 recall = "Only"
                 f1 = "(Ensemble)"
                 auc = "-"
-                accuracy = "-"
+                val_accuracy = "-"
+                test_accuracy = "-"
             else:
                 precision = f"{result['precision']:.4f}" if result['precision'] is not None else "N/A"
                 recall = f"{result['recall']:.4f}" if result['recall'] is not None else "N/A"
                 f1 = f"{result['f1_score']:.4f}" if result['f1_score'] is not None else "N/A"
                 auc = f"{result['auc']:.4f}" if result['auc'] is not None else "N/A"
-                accuracy = f"{result['accuracy']:.4f}" if result['accuracy'] is not None else "N/A"
+                val_accuracy = f"{result['val_accuracy']:.4f}" if result['val_accuracy'] is not None else "N/A"
+                test_accuracy = f"{result['test_accuracy']:.4f}" if result['test_accuracy'] is not None else "N/A"
 
-            print(f"{model_name:<40} | {precision:<10} | {recall:<10} | {f1:<10} | {auc:<10} | {accuracy:<10}")
+            print(f"{model_name:<35} | {precision:<10} | {recall:<10} | {f1:<10} | {auc:<10} | {val_accuracy:<10} | {test_accuracy:<10}")
 
-        print("="*100)
+        print("="*120)
 
         # Calculate averages for metrics (excluding state_dict_only models)
         valid_results = [r for r in all_results if not r.get('is_state_dict_only', False)]
 
         if valid_results:
-            # Calculate average accuracy
-            accuracies = [r['accuracy'] for r in valid_results if r['accuracy'] is not None]
-            if accuracies:
-                avg_accuracy = sum(accuracies) / len(accuracies)
-                print(f"\n{'Model Average':<40} | {'-':<10} | {'-':<10} | {'-':<10} | {'-':<10} | {avg_accuracy:.4f}")
+            # Calculate average validation and test accuracies separately
+            val_accuracies = [r['val_accuracy'] for r in valid_results if r['val_accuracy'] is not None]
+            test_accuracies = [r['test_accuracy'] for r in valid_results if r['test_accuracy'] is not None]
+
+            avg_val_accuracy = sum(val_accuracies) / len(val_accuracies) if val_accuracies else None
+            avg_test_accuracy = sum(test_accuracies) / len(test_accuracies) if test_accuracies else None
 
             # Calculate other averages if available
             precisions = [r['precision'] for r in valid_results if r['precision'] is not None]
@@ -936,23 +959,22 @@ def analyze_all_models(checkpoint_files, output_table=True):
             f1_scores = [r['f1_score'] for r in valid_results if r['f1_score'] is not None]
             aucs = [r['auc'] for r in valid_results if r['auc'] is not None]
 
-            if precisions or recalls or f1_scores or aucs:
-                avg_precision = sum(precisions) / len(precisions) if precisions else None
-                avg_recall = sum(recalls) / len(recalls) if recalls else None
-                avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else None
-                avg_auc = sum(aucs) / len(aucs) if aucs else None
+            avg_precision = sum(precisions) / len(precisions) if precisions else None
+            avg_recall = sum(recalls) / len(recalls) if recalls else None
+            avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else None
+            avg_auc = sum(aucs) / len(aucs) if aucs else None
 
-                # Only print if we have more than just accuracy
-                if any([avg_precision, avg_recall, avg_f1, avg_auc]):
-                    precision_str = f"{avg_precision:.4f}" if avg_precision is not None else "-"
-                    recall_str = f"{avg_recall:.4f}" if avg_recall is not None else "-"
-                    f1_str = f"{avg_f1:.4f}" if avg_f1 is not None else "-"
-                    auc_str = f"{avg_auc:.4f}" if avg_auc is not None else "-"
-                    accuracy_str = f"{avg_accuracy:.4f}" if accuracies else "-"
+            # Format average strings
+            precision_str = f"{avg_precision:.4f}" if avg_precision is not None else "-"
+            recall_str = f"{avg_recall:.4f}" if avg_recall is not None else "-"
+            f1_str = f"{avg_f1:.4f}" if avg_f1 is not None else "-"
+            auc_str = f"{avg_auc:.4f}" if avg_auc is not None else "-"
+            val_accuracy_str = f"{avg_val_accuracy:.4f}" if avg_val_accuracy is not None else "-"
+            test_accuracy_str = f"{avg_test_accuracy:.4f}" if avg_test_accuracy is not None else "-"
 
-                    print(f"{'Model Average (All Metrics)':<40} | {precision_str:<10} | {recall_str:<10} | {f1_str:<10} | {auc_str:<10} | {accuracy_str:<10}")
+            print(f"\n{'Model Average':<35} | {precision_str:<10} | {recall_str:<10} | {f1_str:<10} | {auc_str:<10} | {val_accuracy_str:<10} | {test_accuracy_str:<10}")
 
-        print("="*100)
+        print("="*120)
         print(f"\n✅ Analyzed {len(all_results)} models successfully!")
 
     return all_results
