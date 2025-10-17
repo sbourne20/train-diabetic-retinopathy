@@ -110,9 +110,9 @@ python3 ensemble_5class_trainer.py \
     --img_size 512 \
     --batch_size 6 \
     --epochs 100 \
-    --learning_rate 5e-5 \
-    --weight_decay 2e-4 \
-    --ovo_dropout 0.25 \
+    --learning_rate 4e-5 \
+    --weight_decay 4e-4 \
+    --ovo_dropout 0.40 \
     --freeze_weights false \
     --enable_clahe \
     --clahe_clip_limit 2.5 \
@@ -136,7 +136,7 @@ python3 ensemble_5class_trainer.py \
     --patience 25 \
     --early_stopping_patience 20 \
     --target_accuracy 0.95 \
-    --max_grad_norm 1.0 \
+    --max_grad_norm 0.5 \
     --label_smoothing 0.10 \
     --seed 42
 

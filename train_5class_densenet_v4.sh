@@ -93,9 +93,9 @@ python3 ensemble_5class_trainer.py \
     --img_size 448 \
     --batch_size 8 \
     --epochs 100 \
-    --learning_rate 7e-5 \
-    --weight_decay 3e-4 \
-    --ovo_dropout 0.30 \
+    --learning_rate 5e-5 \
+    --weight_decay 5e-4 \
+    --ovo_dropout 0.40 \
     --freeze_weights false \
     --enable_clahe \
     --clahe_clip_limit 2.5 \
