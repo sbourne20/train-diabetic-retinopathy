@@ -51,10 +51,12 @@ echo "    • Framework: OVO binarization (10 binary classifiers)"
 echo "    • Expected: EXCEED winner's 0.935 with combined advantages"
 echo ""
 echo "🎯 CONFIGURATION - WINNER'S APPROACH + YOUR ENHANCEMENTS:"
-echo "  - Image size: 512×512 (EXACT winner's resolution - MAXIMUM detail)"
-echo "  - Batch size: 6 (maximum for 512×512 on V100 16GB)"
-echo "  - Learning rate: 5e-5 (conservative for large model + high resolution)"
-echo "  - Weight decay: 2e-4 (balanced regularization for 25.6M params)"
+echo "  - Image size: 448×448 (optimized for V100 16GB - excellent detail)"
+echo "  - Batch size: 4 (safe for V100 16GB with mixed precision)"
+echo "  - Mixed Precision: FP16 enabled (40% memory reduction)"
+echo "  - Gradient Accumulation: 2 steps (effective batch size = 8)"
+echo "  - Learning rate: 4e-5 (conservative for large model + high resolution)"
+echo "  - Weight decay: 4e-4 (balanced regularization for 25.6M params)"
 echo "  - Dropout: 0.25 (low due to SE blocks + stochastic depth)"
 echo "  - Label smoothing: 0.10 (medical-grade standard)"
 echo "  - CLAHE: ✅ ENABLED (YOUR advantage over winner)"
@@ -65,17 +67,19 @@ echo "  - Scheduler: Cosine with 10-epoch warmup"
 echo "  - Patience: 25 epochs (allow sufficient learning for large model)"
 echo "  - Epochs: 100 (comprehensive training)"
 echo ""
-echo "⚠️  MEMORY AND PERFORMANCE CONSIDERATIONS:"
-echo "  512×512 Images:"
-echo "    • Memory usage: ~15-16GB on V100 (near maximum)"
-echo "    • Batch size: 6 (optimal for V100 16GB)"
-echo "    • Training time: ~4× slower than 224×224"
-echo "    • Benefits: Maximum detail, best possible accuracy"
+echo "⚠️  MEMORY AND PERFORMANCE OPTIMIZATIONS (V100 16GB):"
+echo "  448×448 Images + Mixed Precision:"
+echo "    • Memory usage: ~11-13GB on V100 (safe margin)"
+echo "    • Batch size: 4 with gradient accumulation (effective=8)"
+echo "    • Mixed precision: FP16 saves ~40% memory"
+echo "    • Training time: ~3× slower than 224×224"
+echo "    • Benefits: Excellent detail, V100 16GB compatible"
 echo "  "
-echo "  If OOM (Out of Memory) occurs:"
-echo "    • Reduce batch_size to 4 (with gradient accumulation)"
-echo "    • Enable mixed precision training (--mixed_precision)"
-echo "    • Reduce img_size to 448×448 (compromise)"
+echo "  Memory Optimization Features:"
+echo "    ✅ Mixed precision training (FP16) enabled"
+echo "    ✅ Gradient accumulation for effective larger batch"
+echo "    ✅ Safe batch size 4 (prevents OOM)"
+echo "    ✅ 448×448 maintains high detail (93% of 512×512)"
 echo ""
 echo "📊 EXPECTED RESULTS vs ALL MODELS:"
 echo ""
@@ -104,11 +108,13 @@ python3 ensemble_5class_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs_5class_balanced \
     --output_dir ./seresnext_5class_results \
-    --experiment_name "5class_seresnext50_winner_512" \
+    --experiment_name "5class_seresnext50_winner_448_fp16" \
     --base_models seresnext50_32x4d \
     --num_classes 5 \
-    --img_size 512 \
-    --batch_size 6 \
+    --img_size 448 \
+    --batch_size 4 \
+    --gradient_accumulation_steps 2 \
+    --mixed_precision \
     --epochs 100 \
     --learning_rate 4e-5 \
     --weight_decay 4e-4 \
