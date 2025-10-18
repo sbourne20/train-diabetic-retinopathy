@@ -52,9 +52,9 @@ echo "    • Expected: EXCEED winner's 0.935 with combined advantages"
 echo ""
 echo "🎯 CONFIGURATION - WINNER'S APPROACH + YOUR ENHANCEMENTS:"
 echo "  - Image size: 448×448 (optimized for V100 16GB - excellent detail)"
-echo "  - Batch size: 4 (safe for V100 16GB with mixed precision)"
+echo "  - Batch size: 2 (ULTRA-SAFE for V100 16GB with mixed precision)"
 echo "  - Mixed Precision: FP16 enabled (40% memory reduction)"
-echo "  - Gradient Accumulation: 2 steps (effective batch size = 8)"
+echo "  - Gradient Accumulation: 4 steps (effective batch size = 8)"
 echo "  - Learning rate: 4e-5 (conservative for large model + high resolution)"
 echo "  - Weight decay: 4e-4 (balanced regularization for 25.6M params)"
 echo "  - Dropout: 0.25 (low due to SE blocks + stochastic depth)"
@@ -69,8 +69,8 @@ echo "  - Epochs: 100 (comprehensive training)"
 echo ""
 echo "⚠️  MEMORY AND PERFORMANCE OPTIMIZATIONS (V100 16GB):"
 echo "  448×448 Images + Mixed Precision:"
-echo "    • Memory usage: ~11-13GB on V100 (safe margin)"
-echo "    • Batch size: 4 with gradient accumulation (effective=8)"
+echo "    • Memory usage: ~8-10GB on V100 (ultra-safe margin)"
+echo "    • Batch size: 2 with gradient accumulation=4 (effective=8)"
 echo "    • Mixed precision: FP16 saves ~40% memory"
 echo "    • Training time: ~3× slower than 224×224"
 echo "    • Benefits: Excellent detail, V100 16GB compatible"
@@ -112,8 +112,8 @@ python3 ensemble_5class_trainer.py \
     --base_models seresnext50_32x4d \
     --num_classes 5 \
     --img_size 448 \
-    --batch_size 4 \
-    --gradient_accumulation_steps 2 \
+    --batch_size 2 \
+    --gradient_accumulation_steps 4 \
     --epochs 100 \
     --learning_rate 4e-5 \
     --weight_decay 4e-4 \
