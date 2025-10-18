@@ -114,7 +114,6 @@ python3 ensemble_5class_trainer.py \
     --img_size 448 \
     --batch_size 4 \
     --gradient_accumulation_steps 2 \
-    --mixed_precision \
     --epochs 100 \
     --learning_rate 4e-5 \
     --weight_decay 4e-4 \
