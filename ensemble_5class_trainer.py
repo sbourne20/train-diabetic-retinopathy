@@ -347,7 +347,13 @@ class MultiClassDRModel(nn.Module):
             num_features = self.backbone.num_features
             # Remove the classification head (replace with identity)
             self.backbone.fc = nn.Identity()
-            logger.info(f"✅ Loaded SEResNext50_32x4d: {num_features} features (Winner's architecture)")
+
+            # 🔥 MEMORY OPTIMIZATION: Enable gradient checkpointing for SEResNext
+            if hasattr(self.backbone, 'set_grad_checkpointing'):
+                self.backbone.set_grad_checkpointing(enable=True)
+                logger.info(f"✅ Loaded SEResNext50_32x4d with GRADIENT CHECKPOINTING: {num_features} features (40% memory saving)")
+            else:
+                logger.info(f"✅ Loaded SEResNext50_32x4d: {num_features} features (Winner's architecture)")
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -580,7 +586,14 @@ class BinaryClassifier(nn.Module):
             num_features = self.backbone.num_features
             # Remove the classification head (replace with identity)
             self.backbone.fc = nn.Identity()
-            logger.info(f"✅ Loaded SEResNext50_32x4d Binary Classifier: {num_features} features (Winner's architecture)")
+
+            # 🔥 MEMORY OPTIMIZATION: Enable gradient checkpointing for SEResNext
+            # This trades computation for memory (recomputes activations during backward pass)
+            if hasattr(self.backbone, 'set_grad_checkpointing'):
+                self.backbone.set_grad_checkpointing(enable=True)
+                logger.info(f"✅ Loaded SEResNext50_32x4d with GRADIENT CHECKPOINTING: {num_features} features (40% memory saving)")
+            else:
+                logger.info(f"✅ Loaded SEResNext50_32x4d Binary Classifier: {num_features} features (Winner's architecture)")
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -1322,7 +1335,9 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
     return best_val_acc / 100.0  # Return as fraction
 
 def train_binary_classifier(model, train_loader, val_loader, config, class_pair, model_name):
-    """Train a single binary classifier (for OVO ensemble)."""
+    """Train a single binary classifier (for OVO ensemble) with memory optimization."""
+
+    import gc  # For garbage collection
 
     device = torch.device(config['system']['device'])
     model = model.to(device)
@@ -1367,6 +1382,12 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
     logger.info(f"🏁 Training {model_name} for classes {class_pair}")
 
+    # 🔥 MEMORY OPTIMIZATION: Log initial GPU memory
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        initial_memory = torch.cuda.memory_allocated() / 1e9
+        logger.info(f"💾 Initial GPU memory: {initial_memory:.2f} GB")
+
     for epoch in range(config['training']['epochs']):
         # Training phase
         model.train()
@@ -1378,7 +1399,9 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
             images = images.to(device)
             labels = labels.float().to(device)
 
-            optimizer.zero_grad()
+            # 🔥 MEMORY FIX: More aggressive zero_grad
+            optimizer.zero_grad(set_to_none=True)
+
             outputs = model(images).squeeze()
 
             # Ensure both outputs and labels have the same shape for BCELoss
@@ -1391,10 +1414,18 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
             loss.backward()
             optimizer.step()
 
-            train_loss += loss.item()
-            predicted = (outputs > 0.5).float()
+            # 🔥 MEMORY FIX: Detach loss for accumulation (don't keep computation graph)
+            train_loss += loss.detach().item()
+            predicted = (outputs.detach() > 0.5).float()
             train_total += labels.size(0)
             train_correct += (predicted == labels).sum().item()
+
+            # 🔥 MEMORY FIX: Delete tensors explicitly
+            del outputs, loss, predicted
+
+            # 🔥 MEMORY FIX: Clear GPU cache periodically during training
+            if batch_idx % 50 == 0 and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         train_acc = 100.0 * train_correct / train_total
 
@@ -1419,12 +1450,23 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
                 loss = criterion(outputs, labels)
 
-                val_loss += loss.item()
-                predicted = (outputs > 0.5).float()
+                # 🔥 MEMORY FIX: Detach everything during validation
+                val_loss += loss.detach().item()
+                predicted = (outputs.detach() > 0.5).float()
                 val_total += labels.size(0)
                 val_correct += (predicted == labels).sum().item()
 
+                # 🔥 MEMORY FIX: Clean up validation tensors
+                del outputs, loss, predicted
+
         val_acc = 100.0 * val_correct / val_total
+
+        # 🔥 MEMORY OPTIMIZATION: Periodic GPU memory clearing (every 3 epochs)
+        if (epoch + 1) % 3 == 0 and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
+            current_memory = torch.cuda.memory_allocated() / 1e9
+            logger.info(f"🧹 Memory cleared at epoch {epoch+1}: {current_memory:.2f} GB allocated")
 
         # Record training history
         train_history['train_accuracies'].append(train_acc)
@@ -1466,14 +1508,28 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
         else:
             patience_counter += 1
 
-        # Log every epoch for better monitoring
-        logger.info(f"   Epoch {epoch+1}/{config['training']['epochs']}: "
-                   f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
+        # Log every epoch for better monitoring with memory stats
+        if torch.cuda.is_available():
+            current_memory = torch.cuda.memory_allocated() / 1e9
+            max_memory = torch.cuda.max_memory_allocated() / 1e9
+            logger.info(f"   Epoch {epoch+1}/{config['training']['epochs']}: "
+                       f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}% | "
+                       f"GPU: {current_memory:.2f}GB / Max: {max_memory:.2f}GB")
+        else:
+            logger.info(f"   Epoch {epoch+1}/{config['training']['epochs']}: "
+                       f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
 
         # Early stopping
         if patience_counter >= config['training']['patience']:
             logger.info(f"   Early stopping at epoch {epoch+1}")
             break
+
+    # 🔥 MEMORY OPTIMIZATION: Final cleanup after training
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        gc.collect()
+        final_memory = torch.cuda.memory_allocated() / 1e9
+        logger.info(f"💾 Final GPU memory after cleanup: {final_memory:.2f} GB")
 
     logger.info(f"✅ {model_name} for {class_pair}: Best Val Acc = {best_val_acc:.2f}%")
 

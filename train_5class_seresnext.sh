@@ -104,6 +104,7 @@ echo "    ✅ Medical augmentation: Domain-specific transformations"
 echo ""
 
 # Train 5-Class with SEResNext50 (Winner's Model)
+# 🔄 RESUME MODE: Automatically skips already completed binary classifiers
 python3 ensemble_5class_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs_5class_balanced \
@@ -144,6 +145,7 @@ python3 ensemble_5class_trainer.py \
     --max_grad_norm 0.5 \
     --label_smoothing 0.10 \
     --seed 42 \
+    --resume \
     2>&1 | tee ./seresnext_5class_results/training_output.log
 
 echo ""
