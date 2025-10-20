@@ -1577,9 +1577,9 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
         logger.info(f"💾 Initial GPU memory: {initial_memory:.2f} GB")
 
     # 🔥 MIXED PRECISION TRAINING: Use FP16 to reduce memory by 50%
-    from torch.cuda.amp import autocast, GradScaler
+    from torch.amp import autocast, GradScaler
     use_amp = torch.cuda.is_available()
-    scaler = GradScaler() if use_amp else None
+    scaler = GradScaler('cuda') if use_amp else None
     if use_amp:
         logger.info(f"⚡ Mixed precision (FP16) training enabled - 50% memory reduction")
 
@@ -1595,7 +1595,7 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
             labels = labels.float().to(device)
 
             # 🔥 MIXED PRECISION: Forward pass in FP16
-            with autocast(enabled=use_amp):
+            with autocast('cuda', enabled=use_amp):
                 outputs = model(images).squeeze()
 
                 # Ensure both outputs and labels have the same shape for BCELoss
@@ -1659,7 +1659,7 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
                 labels = labels.float().to(device)
 
                 # 🔥 MIXED PRECISION: Validation in FP16 too
-                with autocast(enabled=use_amp):
+                with autocast('cuda', enabled=use_amp):
                     outputs = model(images).squeeze()
 
                     # Ensure both outputs and labels have the same shape for BCELoss
