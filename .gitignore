@@ -37,4 +37,5 @@ densenet_eyepacs_results/*
 wandb/
 v1-model-dr/
 v2-model-dr/
+v2.5-model-dr/
 *_5class_results/

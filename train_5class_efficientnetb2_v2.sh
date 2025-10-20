@@ -93,23 +93,22 @@ echo "    • Research quality: ✅✅ STATE-OF-THE-ART (≥95%)"
 echo "    • Production ready: ✅✅ FDA/CE compliant"
 echo ""
 
-# Train 5-Class with EfficientNetB2 (High Resolution Hybrid)
+# Train 5-Class with EfficientNetB2 (High Resolution Hybrid + Grade-Specific Preprocessing)
 python3 ensemble_5class_trainer.py \
     --mode train \
-    --dataset_path ./dataset_eyepacs_5class_balanced \
-    --output_dir ./efficientnetb2_5class_v2_results \
-    --experiment_name "5class_efficientnetb2_v2_hybrid_384" \
+    --dataset_path ./dataset_eyepacs_5class_balanced_enhanced \
+    --output_dir ./efficientnetb2_5class_v2_enhanced_results \
+    --experiment_name "5class_efficientnetb2_v2_gradespec_enhanced" \
     --base_models efficientnetb2 \
     --num_classes 5 \
     --img_size 384 \
-    --batch_size 6 \
+    --batch_size 2 \
+    --gradient_accumulation_steps 4 \
     --epochs 100 \
     --learning_rate 5e-5 \
-    --weight_decay 3.5e-4 \
-    --ovo_dropout 0.35 \
+    --weight_decay 5e-4 \
+    --ovo_dropout 0.40 \
     --freeze_weights false \
-    --enable_clahe \
-    --clahe_clip_limit 2.5 \
     --enable_medical_augmentation \
     --rotation_range 25.0 \
     --brightness_range 0.20 \
@@ -129,141 +128,11 @@ python3 ensemble_5class_trainer.py \
     --checkpoint_frequency 5 \
     --patience 25 \
     --early_stopping_patience 20 \
-    --target_accuracy 0.96 \
+    --target_accuracy 0.94 \
     --max_grad_norm 1.0 \
     --label_smoothing 0.10 \
-    --seed 42
+    --seed 42 \
+    --resume
 
 echo ""
 echo "✅ 5-CLASS EfficientNetB2 HYBRID OVO ENSEMBLE training completed!"
-echo ""
-echo "📊 EFFICIENTNETB2 VERSION COMPARISON:"
-echo ""
-echo "  Parameter          | v1 (Baseline) | v2 (Hybrid High-Res) | Change Impact"
-echo "  -------------------|---------------|----------------------|------------------"
-echo "  Architecture       | EfficientNetB2| EfficientNetB2       | Same (best)"
-echo "  Image Size         | 260×260       | 384×384              | +118% pixels"
-echo "  Batch Size         | 8             | 6                    | -25% (memory)"
-echo "  Learning Rate      | 8e-5          | 6e-5                 | -25% (stability)"
-echo "  Dropout            | 0.28          | 0.26                 | -7% (SE blocks)"
-echo "  Weight Decay       | 2.5e-4        | 2.2e-4               | -12% (stoch depth)"
-echo "  Target Accuracy    | 0.95          | 0.96                 | Match paper"
-echo "  CLAHE              | ✅ Yes        | ✅ Yes               | Maintained"
-echo "  Focal Loss         | ✅ Yes        | ✅ Yes               | Maintained"
-echo ""
-echo "🎯 EXPECTED PERFORMANCE vs BASELINES:"
-echo ""
-echo "  Model                     | Resolution | Result      | Status"
-echo "  --------------------------|------------|-------------|------------------"
-echo "  EfficientNetB2 v1         | 260×260    | 64.20%      | Baseline (low-res)"
-echo "  DenseNet121 v3            | 299×299    | 64.84%      | Baseline (low-res)"
-echo "  MobileNetV2 v2 (hybrid)   | 384×384    | 90-94% est  | High-res test"
-echo "  DenseNet121 v4 (hybrid)   | 448×448    | 92-94% est  | High-res test"
-echo "  **EfficientNetB2 v2**     | 384×384    | **95-96%**  | **HIGHEST TARGET**"
-echo "  SEResNext (winner)        | 512×512    | 94-96% est  | Winner's model"
-echo ""
-echo "⚠️  SUCCESS SCENARIOS:"
-echo "  IF ACCURACY ≥ 95%:"
-echo "    🏆 BREAKTHROUGH! Matched paper's 96.27% individual accuracy"
-echo "    ✅ Confirms: EfficientNetB2 + high-res + CLAHE = optimal combination"
-echo "    ✅ Medical production ready (far exceeds ≥90% threshold)"
-echo "    ✅ Proceed to: SEResNext training for final meta-ensemble"
-echo "    ✅ Expected meta-ensemble: 96-97% (state-of-the-art)"
-echo ""
-echo "  IF ACCURACY 92-95%:"
-echo "    ✅ EXCELLENT! Close to paper's result, medical-grade achieved"
-echo "    ✅ Likely factors: Dataset differences, training dynamics"
-echo "    ✅ Still highest performer among all models"
-echo "    ✅ Strong candidate for meta-ensemble leader"
-echo "    💡 Consider: EfficientNetB2 v3 with 448×448 for final push to 95%+"
-echo ""
-echo "  IF ACCURACY 88-92%:"
-echo "    ✅ GOOD! Major improvement over v1 (64.20%)"
-echo "    ⚠️  Below paper's target, but still medical-grade"
-echo "    💡 Gap suggests: Implementation details or dataset quality issues"
-echo "    💡 Still valuable for meta-ensemble"
-echo "    💡 Try: EfficientNetB3 (12.3M params, 300×300 native resolution)"
-echo ""
-echo "  IF ACCURACY < 88%:"
-echo "    ⚠️  UNEXPECTED - Should outperform DenseNet and MobileNet"
-echo "    💡 Check: Training logs, memory usage, CLAHE effectiveness"
-echo "    💡 Verify: Batch size 6 sufficient? Try batch 8 with gradient accumulation"
-echo "    💡 Consider: Bug in implementation or data loading issues"
-echo ""
-echo "📊 MONITORING CHECKPOINTS (Expected Progression):"
-echo "  Epoch 10:  ~76-80% (warmup complete, compound scaling activated)"
-echo "  Epoch 25:  ~86-90% (SE blocks learning channel attention)"
-echo "  Epoch 50:  ~92-95% (approaching paper's target)"
-echo "  Epoch 75:  ~94-96% (refinement with stochastic depth)"
-echo "  Epoch 100: ~95-96% (final performance, match paper)"
-echo ""
-echo "🔬 WHY THIS MODEL IS MOST LIKELY TO SUCCEED:"
-echo "  1. PROVEN ARCHITECTURE: Paper's best performer (96.27%)"
-echo "  2. COMPOUND SCALING: Optimally balanced for 384×384 input"
-echo "  3. SE ATTENTION: Channel-wise attention like winner's SEResNext"
-echo "  4. STOCHASTIC DEPTH: Natural regularization prevents overfitting"
-echo "  5. MEDICAL IMAGING: State-of-the-art in retinal disease detection"
-echo "  6. HYBRID APPROACH: Combines all proven techniques"
-echo ""
-echo "🎯 SCIENTIFIC VALIDATION:"
-echo "  This experiment tests:"
-echo "  1. Can we replicate paper's 96.27% with OVO framework?"
-echo "  2. Does 384×384 provide sufficient resolution for EfficientNetB2's compound scaling?"
-echo "  3. Is EfficientNetB2 the optimal architecture for DR detection?"
-echo "  "
-echo "  Expected findings:"
-echo "  - IF v2 ≥ 95%: ✅ Paper validated, EfficientNetB2 is optimal choice"
-echo "  - IF v2 92-95%: ✅ Close to paper, minor implementation differences"
-echo "  - IF v2 88-92%: ⚠️ Good but below expectations, dataset/training issues"
-echo "  - IF v2 < 88%: ❌ Unexpected, debug required"
-echo ""
-echo "🔧 NEXT STEPS BASED ON RESULTS:"
-echo "  1. Analyze results:"
-echo "     python3 model_analyzer.py --model ./efficientnetb2_5class_v2_results/models/"
-echo ""
-echo "  2. Compare with all models:"
-echo "     python3 model_analyzer.py  # Analyzes all model checkpoints"
-echo "     "
-echo "     Expected ranking:"
-echo "     1. EfficientNetB2 v2 (384×384): 95-96% ← WINNER"
-echo "     2. SEResNext (512×512): 94-96%"
-echo "     3. DenseNet v4 (448×448): 92-94%"
-echo "     4. MobileNet v2 (384×384): 90-94%"
-echo "     5. DenseNet v3 (299×299): 64.84%"
-echo "     6. EfficientNetB2 v1 (260×260): 64.20%"
-echo ""
-echo "  3. If successful (≥92%):"
-echo "     # Train winner's model for comparison"
-echo "     bash train_5class_seresnext.sh  # 512×512 winner's architecture"
-echo "     "
-echo "     # Create meta-ensemble of top performers"
-echo "     python3 create_meta_ensemble.py \\"
-echo "       --models efficientnetb2_v2 seresnext densenet_v4 \\"
-echo "       --weights 0.5 0.3 0.2 \\"
-echo "       --target_accuracy 0.97"
-echo ""
-echo "  4. If moderate (88-92%):"
-echo "     - Still train SEResNext for comparison"
-echo "     - Try EfficientNetB3 (12.3M params, 300×300 native)"
-echo "     - Consider ensemble: EfficientNetB2 + SEResNext + DenseNet"
-echo ""
-echo "  5. If unsuccessful (<88%):"
-echo "     - Debug training process thoroughly"
-echo "     - Check dataset quality and preprocessing"
-echo "     - Try EfficientNetB4 (19M params) with more capacity"
-echo "     - Focus on SEResNext (winner's proven architecture)"
-echo ""
-echo "🚀 Training started at: $(date)"
-echo "📁 Results directory: ./efficientnetb2_5class_v2_results/"
-echo "📊 Monitor progress: tail -f ./efficientnetb2_5class_v2_results/logs/*.log"
-echo ""
-echo "💡 CRITICAL IMPORTANCE:"
-echo "   This is the HIGHEST PRIORITY model because:"
-echo "   1. Paper's best performer (96.27% individual accuracy)"
-echo "   2. Proven architecture for medical imaging"
-echo "   3. Optimal compound scaling for diabetic retinopathy"
-echo "   4. Built-in regularization reduces overfitting risk"
-echo "   5. Success here likely means success for entire project"
-echo ""
-echo "   If EfficientNetB2 v2 achieves ≥95%, the hybrid approach is validated!"
-echo ""

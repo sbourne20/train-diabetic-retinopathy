@@ -32,7 +32,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, Subset
 import numpy as np
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, precision_recall_fscore_support, roc_auc_score
 from itertools import combinations
 import cv2
 from tqdm import tqdm
@@ -1726,6 +1726,12 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
             }
             torch.save(checkpoint, model_path)
             logger.info(f"🎯 New best for {model_name}_{class_pair}: {val_acc:.2f}%")
+
+            # 🎯 PERFECT ACCURACY EARLY STOPPING: Stop if 100% validation accuracy achieved
+            if val_acc >= 100.0:
+                logger.info(f"🏆 PERFECT 100% validation accuracy achieved! Stopping training for {model_name}_{class_pair}")
+                logger.info(f"   No need to continue - moving to next binary classifier")
+                break
         else:
             patience_counter += 1
 
@@ -1740,9 +1746,9 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
             logger.info(f"   Epoch {epoch+1}/{config['training']['epochs']}: "
                        f"Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
 
-        # Early stopping
+        # Early stopping (patience-based)
         if patience_counter >= config['training']['patience']:
-            logger.info(f"   Early stopping at epoch {epoch+1}")
+            logger.info(f"⏸️ Early stopping at epoch {epoch+1} (no improvement for {patience_counter} epochs)")
             break
 
     # 🔥 MEMORY OPTIMIZATION: Final cleanup after training
@@ -1967,7 +1973,9 @@ def evaluate_ovo_ensemble(ovo_ensemble, test_loader, config):
 
     all_predictions = []
     all_targets = []
+    all_probabilities = []
     individual_predictions = {model: [] for model in config['model']['base_models']}
+    individual_probabilities = {model: [] for model in config['model']['base_models']}
 
     with torch.no_grad():
         for batch_idx, (images, targets) in enumerate(tqdm(test_loader, desc="Evaluating")):
@@ -1982,17 +1990,75 @@ def evaluate_ovo_ensemble(ovo_ensemble, test_loader, config):
             all_predictions.extend(ensemble_pred.cpu().numpy())
             all_targets.extend(targets.cpu().numpy())
 
-            # Individual model predictions
+            # Store probabilities for AUC calculation (apply softmax to logits)
+            probs = F.softmax(outputs['logits'], dim=1)
+            all_probabilities.extend(probs.cpu().numpy())
+
+            # Individual model predictions and probabilities
             for model_name, model_votes in outputs['individual_predictions'].items():
                 _, individual_pred = torch.max(model_votes, 1)
                 individual_predictions[model_name].extend(individual_pred.cpu().numpy())
 
-    # Calculate metrics
+                # Store individual model probabilities
+                individual_probs = F.softmax(model_votes, dim=1)
+                individual_probabilities[model_name].extend(individual_probs.cpu().numpy())
+
+    # Convert to numpy arrays
+    all_targets = np.array(all_targets)
+    all_predictions = np.array(all_predictions)
+    all_probabilities = np.array(all_probabilities)
+
+    # Calculate ensemble metrics
     ensemble_accuracy = accuracy_score(all_targets, all_predictions)
-    individual_accuracies = {
-        model: accuracy_score(all_targets, preds)
-        for model, preds in individual_predictions.items()
-    }
+
+    # Calculate precision, recall, F1-score for ensemble (weighted average)
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        all_targets, all_predictions, average='weighted', zero_division=0
+    )
+
+    # Calculate per-class metrics for ensemble
+    precision_per_class, recall_per_class, f1_per_class, _ = precision_recall_fscore_support(
+        all_targets, all_predictions, average=None, zero_division=0
+    )
+
+    # Calculate AUC (one-vs-rest for multi-class)
+    try:
+        ensemble_auc = roc_auc_score(all_targets, all_probabilities, multi_class='ovr', average='weighted')
+        ensemble_auc_per_class = roc_auc_score(all_targets, all_probabilities, multi_class='ovr', average=None)
+    except Exception as e:
+        logger.warning(f"⚠️ Could not calculate AUC: {e}")
+        ensemble_auc = 0.0
+        ensemble_auc_per_class = [0.0] * config['data']['num_classes']
+
+    # Calculate individual model metrics
+    individual_accuracies = {}
+    individual_precision = {}
+    individual_recall = {}
+    individual_f1 = {}
+    individual_auc = {}
+
+    for model, preds in individual_predictions.items():
+        preds = np.array(preds)
+        probs = np.array(individual_probabilities[model])
+
+        # Accuracy
+        individual_accuracies[model] = accuracy_score(all_targets, preds)
+
+        # Precision, Recall, F1
+        prec, rec, f1_score, _ = precision_recall_fscore_support(
+            all_targets, preds, average='weighted', zero_division=0
+        )
+        individual_precision[model] = prec
+        individual_recall[model] = rec
+        individual_f1[model] = f1_score
+
+        # AUC
+        try:
+            auc_score = roc_auc_score(all_targets, probs, multi_class='ovr', average='weighted')
+            individual_auc[model] = auc_score
+        except Exception as e:
+            logger.warning(f"⚠️ Could not calculate AUC for {model}: {e}")
+            individual_auc[model] = 0.0
 
     # Medical grade validation
     medical_grade_pass = ensemble_accuracy >= 0.90
@@ -2000,7 +2066,21 @@ def evaluate_ovo_ensemble(ovo_ensemble, test_loader, config):
 
     results = {
         'ensemble_accuracy': ensemble_accuracy,
+        'ensemble_precision': precision,
+        'ensemble_recall': recall,
+        'ensemble_f1': f1,
+        'ensemble_auc': ensemble_auc,
+        'ensemble_metrics_per_class': {
+            'precision': precision_per_class.tolist(),
+            'recall': recall_per_class.tolist(),
+            'f1': f1_per_class.tolist(),
+            'auc': ensemble_auc_per_class if isinstance(ensemble_auc_per_class, list) else ensemble_auc_per_class.tolist()
+        },
         'individual_accuracies': individual_accuracies,
+        'individual_precision': individual_precision,
+        'individual_recall': individual_recall,
+        'individual_f1': individual_f1,
+        'individual_auc': individual_auc,
         'medical_grade_pass': medical_grade_pass,
         'research_target_achieved': research_target_achieved,
         'classification_report': classification_report(all_targets, all_predictions, target_names=[f'Class_{i}' for i in range(config['data']['num_classes'])]),
@@ -2013,8 +2093,32 @@ def evaluate_ovo_ensemble(ovo_ensemble, test_loader, config):
 
     # Prepare JSON-serializable results
     json_results = {
-        'ensemble_accuracy': float(ensemble_accuracy),
-        'individual_accuracies': {k: float(v) for k, v in individual_accuracies.items()},
+        'ensemble_metrics': {
+            'accuracy': float(ensemble_accuracy),
+            'precision': float(precision),
+            'recall': float(recall),
+            'f1_score': float(f1),
+            'auc': float(ensemble_auc)
+        },
+        'ensemble_per_class_metrics': {
+            f'class_{i}': {
+                'precision': float(precision_per_class[i]),
+                'recall': float(recall_per_class[i]),
+                'f1_score': float(f1_per_class[i]),
+                'auc': float(ensemble_auc_per_class[i] if isinstance(ensemble_auc_per_class, (list, np.ndarray)) else 0.0)
+            }
+            for i in range(config['data']['num_classes'])
+        },
+        'individual_model_metrics': {
+            model: {
+                'accuracy': float(individual_accuracies[model]),
+                'precision': float(individual_precision[model]),
+                'recall': float(individual_recall[model]),
+                'f1_score': float(individual_f1[model]),
+                'auc': float(individual_auc[model])
+            }
+            for model in config['model']['base_models']
+        },
         'medical_grade_pass': medical_grade_pass,
         'research_target_achieved': research_target_achieved,
         'confusion_matrix': results['confusion_matrix']
@@ -2024,6 +2128,9 @@ def evaluate_ovo_ensemble(ovo_ensemble, test_loader, config):
         json.dump(json_results, f, indent=2)
 
     logger.info(f"💾 Results saved: {results_path}")
+    logger.info(f"📊 Ensemble Metrics - Acc: {ensemble_accuracy:.4f}, Prec: {precision:.4f}, Rec: {recall:.4f}, F1: {f1:.4f}, AUC: {ensemble_auc:.4f}")
+    for model in config['model']['base_models']:
+        logger.info(f"📊 {model} - Acc: {individual_accuracies[model]:.4f}, Prec: {individual_precision[model]:.4f}, Rec: {individual_recall[model]:.4f}, F1: {individual_f1[model]:.4f}, AUC: {individual_auc[model]:.4f}")
 
     return results
 
