@@ -85,7 +85,7 @@ echo ""
 # Train 5-Class with DenseNet121 (High Resolution Hybrid + Grade-Specific Preprocessing)
 python3 ensemble_5class_trainer.py \
     --mode train \
-    --dataset_path /dataset_eyepacs_5class_balanced_enhanced \
+    --dataset_path ./dataset_eyepacs_5class_balanced_enhanced \
     --output_dir ./densenet_5class_v4_enhanced_results \
     --experiment_name "5class_densenet121_v4_gradespec_enhanced" \
     --base_models densenet121 \
