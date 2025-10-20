@@ -85,13 +85,14 @@ echo ""
 # Train 5-Class with DenseNet121 (High Resolution Hybrid + Grade-Specific Preprocessing)
 python3 ensemble_5class_trainer.py \
     --mode train \
-    --dataset_path ./dataset_eyepacs_5class_balanced_enhanced \
+    --dataset_path /dataset_eyepacs_5class_balanced_enhanced \
     --output_dir ./densenet_5class_v4_enhanced_results \
     --experiment_name "5class_densenet121_v4_gradespec_enhanced" \
     --base_models densenet121 \
     --num_classes 5 \
     --img_size 448 \
-    --batch_size 8 \
+    --batch_size 4 \
+    --gradient_accumulation_steps 2 \
     --epochs 100 \
     --learning_rate 5e-5 \
     --weight_decay 5e-4 \
@@ -119,7 +120,8 @@ python3 ensemble_5class_trainer.py \
     --target_accuracy 0.94 \
     --max_grad_norm 1.0 \
     --label_smoothing 0.10 \
-    --seed 42
+    --seed 42 \
+    --resume
 
 echo ""
 echo "✅ 5-CLASS DenseNet121 HYBRID OVO ENSEMBLE training completed!"

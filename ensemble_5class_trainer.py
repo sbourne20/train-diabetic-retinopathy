@@ -721,6 +721,11 @@ class BinaryClassifier(nn.Module):
             self.backbone = models.densenet121(pretrained=True)
             num_features = self.backbone.classifier.in_features
             self.backbone.classifier = nn.Identity()
+
+            # 🔥 MEMORY OPTIMIZATION: Enable memory-efficient mode for DenseNet
+            # This reduces memory consumption during training
+            self.backbone.features.memory_efficient = True
+            logger.info(f"✅ DenseNet121 with memory-efficient mode enabled (saves GPU memory)")
         elif model_name == 'efficientnetb2':
             self.backbone = models.efficientnet_b2(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
@@ -1185,6 +1190,8 @@ def setup_ovo_experiment(args):
             'epochs': args.epochs,
             'learning_rate': args.learning_rate,
             'weight_decay': args.weight_decay,
+            'gradient_accumulation_steps': args.gradient_accumulation_steps,
+            'max_grad_norm': args.max_grad_norm,
             'patience': args.patience,
             'enable_focal_loss': args.enable_focal_loss,
             'enable_class_weights': args.enable_class_weights,
@@ -1577,9 +1584,6 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
             images = images.to(device)
             labels = labels.float().to(device)
 
-            # 🔥 MEMORY FIX: More aggressive zero_grad
-            optimizer.zero_grad(set_to_none=True)
-
             outputs = model(images).squeeze()
 
             # Ensure both outputs and labels have the same shape for BCELoss
@@ -1589,8 +1593,18 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
                 labels = labels.unsqueeze(0)
 
             loss = criterion(outputs, labels)
+
+            # 🔥 GRADIENT ACCUMULATION: Scale loss and accumulate gradients
+            accumulation_steps = config['training'].get('gradient_accumulation_steps', 1)
+            loss = loss / accumulation_steps
             loss.backward()
-            optimizer.step()
+
+            # Only update weights every N accumulation steps
+            if (batch_idx + 1) % accumulation_steps == 0:
+                # Gradient clipping before optimizer step
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['training']['max_grad_norm'])
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
 
             # 🔥 MEMORY FIX: Detach loss for accumulation (don't keep computation graph)
             train_loss += loss.detach().item()
@@ -1838,6 +1852,24 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
                 'overfitting_ratio': training_result['overfitting_ratio'],
                 'overfitting_status': training_result['overfitting_status']
             }
+
+            # 🔥 CRITICAL MEMORY FIX: Aggressively clean up after each OvO pair
+            # Move trained model to CPU to free GPU memory
+            binary_model.cpu()
+            del binary_model
+
+            # Clear CUDA cache and run garbage collection
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+            import gc
+            gc.collect()
+
+            # Log memory status
+            if torch.cuda.is_available():
+                memory_allocated = torch.cuda.memory_allocated() / 1e9
+                memory_reserved = torch.cuda.memory_reserved() / 1e9
+                logger.info(f"💾 Memory after pair {class_a}-{class_b}: {memory_allocated:.2f}GB allocated, {memory_reserved:.2f}GB reserved")
 
     # Create and save complete OVO ensemble
     logger.info("\n🅾️ Creating complete OVO ensemble")
