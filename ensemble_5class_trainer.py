@@ -822,8 +822,9 @@ class BinaryClassifier(nn.Module):
             nn.ReLU(),
             nn.BatchNorm1d(128),
             nn.Dropout(dropout/2),
-            nn.Linear(128, 1),
-            nn.Sigmoid()
+            nn.Linear(128, 1)
+            # 🔥 REMOVED nn.Sigmoid() - BCEWithLogitsLoss applies it internally
+            # This is required for mixed precision (FP16) training
         )
 
     def forward(self, x):
@@ -1008,10 +1009,11 @@ class OVOEnsemble(nn.Module):
             for classifier_name, classifier in model_classifiers.items():
                 class_a, class_b = map(int, classifier_name.split('_')[1:])
 
-                # Get binary prediction
-                binary_output = classifier(x).squeeze()
-                if binary_output.dim() == 0:
-                    binary_output = binary_output.unsqueeze(0)
+                # Get binary prediction (apply sigmoid since model outputs logits now)
+                binary_logits = classifier(x).squeeze()
+                if binary_logits.dim() == 0:
+                    binary_logits = binary_logits.unsqueeze(0)
+                binary_output = torch.sigmoid(binary_logits)  # Convert logits to probabilities
 
                 # FIXED: Accuracy-based weighting
                 base_accuracy = binary_accuracies.get(model_name, {}).get(classifier_name, 0.8)
@@ -1527,8 +1529,9 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
     device = torch.device(config['system']['device'])
     model = model.to(device)
 
-    # Binary classification loss
-    criterion = nn.BCELoss()
+    # Binary classification loss (with logits for FP16 compatibility)
+    # BCEWithLogitsLoss = BCELoss + Sigmoid (numerically stable for mixed precision)
+    criterion = nn.BCEWithLogitsLoss()
 
     # Different learning rates for backbone vs classifier
     backbone_params = []
@@ -1630,7 +1633,8 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
             # 🔥 MEMORY FIX: Detach loss for accumulation (don't keep computation graph)
             train_loss += loss.detach().item()
-            predicted = (outputs.detach() > 0.5).float()
+            # Apply sigmoid to logits for prediction (model outputs raw logits now)
+            predicted = (torch.sigmoid(outputs.detach()) > 0.5).float()
             train_total += labels.size(0)
             train_correct += (predicted == labels).sum().item()
 
@@ -1668,7 +1672,8 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
                 # 🔥 MEMORY FIX: Detach everything during validation
                 val_loss += loss.detach().item()
-                predicted = (outputs.detach() > 0.5).float()
+                # Apply sigmoid to logits for prediction (model outputs raw logits now)
+                predicted = (torch.sigmoid(outputs.detach()) > 0.5).float()
                 val_total += labels.size(0)
                 val_correct += (predicted == labels).sum().item()
 
