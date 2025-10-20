@@ -82,12 +82,12 @@ echo "    • Average pair accuracy: 93-95% (vs v3: 88.46%)"
 echo "    • Ensemble: 92-94% (vs v3: 64.84%) - TARGET BREAKTHROUGH"
 echo ""
 
-# Train 5-Class with DenseNet121 (High Resolution Hybrid)
+# Train 5-Class with DenseNet121 (High Resolution Hybrid + Grade-Specific Preprocessing)
 python3 ensemble_5class_trainer.py \
     --mode train \
-    --dataset_path ./dataset_eyepacs_5class_balanced \
-    --output_dir ./densenet_5class_v4_results \
-    --experiment_name "5class_densenet121_v4_hybrid_448" \
+    --dataset_path /dataset_eyepacs_5class_balanced_enhanced \
+    --output_dir ./densenet_5class_v4_enhanced_results \
+    --experiment_name "5class_densenet121_v4_gradespec_enhanced" \
     --base_models densenet121 \
     --num_classes 5 \
     --img_size 448 \
@@ -97,8 +97,6 @@ python3 ensemble_5class_trainer.py \
     --weight_decay 5e-4 \
     --ovo_dropout 0.40 \
     --freeze_weights false \
-    --enable_clahe \
-    --clahe_clip_limit 2.5 \
     --enable_medical_augmentation \
     --rotation_range 25.0 \
     --brightness_range 0.20 \

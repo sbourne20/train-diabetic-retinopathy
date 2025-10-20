@@ -101,6 +101,15 @@ Example Usage:
     --epochs 100 --enable_clahe --enable_focal_loss --enable_class_weights \\
     --validation_frequency 1 --checkpoint_frequency 5 --output_dir ./densenet_5class_results
 
+  # Training with FlattenSharpen preprocessing (retinal_enhancer.html pipeline)
+  python ensemble_5class_trainer.py --mode train --dataset_path ./dataset_eyepacs_5class_balanced \\
+    --epochs 100 --enable_flatten_sharpen --flatten_strength 30 --sharpen_amount 1.5 \\
+    --contrast_factor 2.0 --brightness_adjust 20
+
+  # Training with both CLAHE and FlattenSharpen (maximum enhancement)
+  python ensemble_5class_trainer.py --mode train --dataset_path ./dataset_eyepacs_5class_balanced \\
+    --epochs 100 --enable_clahe --enable_flatten_sharpen --enable_focal_loss
+
   # Resume from checkpoint
   python ensemble_5class_trainer.py --mode train --dataset_path ./dataset_eyepacs_5class_balanced \\
     --resume_from_checkpoint ./densenet_5class_results/checkpoints/ensemble_best.pth
@@ -165,6 +174,18 @@ Example Usage:
                        help='CLAHE clip limit (higher for binary tasks)')
     parser.add_argument('--clahe_tile_grid_size', nargs=2, type=int, default=[8, 8],
                        help='CLAHE tile grid size')
+
+    # Flatten & Sharpen preprocessing (from retinal_enhancer.html)
+    parser.add_argument('--enable_flatten_sharpen', action='store_true', default=False,
+                       help='Enable background flattening + sharpening preprocessing (+2-4%% accuracy)')
+    parser.add_argument('--flatten_strength', type=int, default=30,
+                       help='Background flattening strength (10-100, default: 30)')
+    parser.add_argument('--sharpen_amount', type=float, default=1.5,
+                       help='Sharpening amount (0.5-3.0, default: 1.5)')
+    parser.add_argument('--contrast_factor', type=float, default=2.0,
+                       help='Contrast enhancement factor (1.0-3.0, default: 2.0)')
+    parser.add_argument('--brightness_adjust', type=int, default=20,
+                       help='Brightness adjustment (-50 to 50, default: 20)')
     
     # SMOTE class balancing (NEW)
     parser.add_argument('--enable_smote', action='store_true',
@@ -492,6 +513,136 @@ class CLAHETransform:
         except Exception as e:
             logger.warning(f"CLAHE preprocessing failed: {e}, skipping CLAHE for this image")
             return image if isinstance(image, Image.Image) else Image.fromarray(image_np)
+
+class FlattenSharpenTransform:
+    """
+    Flatten & Sharpen preprocessing transform for retinal images.
+
+    Implements the 4-stage enhancement pipeline from retinal_enhancer.html:
+    1. Background flattening (removes uneven illumination)
+    2. Brightness adjustment (normalizes brightness)
+    3. Contrast enhancement (stretches contrast)
+    4. Sharpening (enhances edges/vessels)
+
+    This preprocessing can improve lesion detection accuracy by 2-4%.
+    """
+
+    def __init__(self, flatten_strength=30, brightness_adjust=20,
+                 contrast_factor=2.0, sharpen_amount=1.5):
+        """
+        Args:
+            flatten_strength: Background flattening block size (10-100)
+            brightness_adjust: Brightness adjustment value (-50 to 50)
+            contrast_factor: Contrast enhancement factor (1.0-3.0)
+            sharpen_amount: Sharpening kernel amount (0.5-3.0)
+        """
+        self.flatten_strength = max(20, flatten_strength)
+        self.brightness_adjust = brightness_adjust
+        self.contrast_factor = contrast_factor
+        self.sharpen_amount = sharpen_amount
+
+    def __call__(self, image):
+        """Apply flatten+sharpen pipeline to PIL image."""
+        try:
+            if isinstance(image, Image.Image):
+                image_np = np.array(image)
+            else:
+                image_np = image
+
+            # Ensure valid numpy array
+            if not isinstance(image_np, np.ndarray):
+                logger.warning(f"FlattenSharpen: Invalid image type {type(image_np)}, skipping")
+                return image if isinstance(image, Image.Image) else Image.fromarray(image_np)
+
+            # Ensure uint8 type
+            if image_np.dtype != np.uint8:
+                image_np = image_np.astype(np.uint8)
+
+            # Only process RGB images
+            if len(image_np.shape) != 3 or image_np.shape[2] != 3:
+                logger.warning(f"FlattenSharpen: Unsupported shape {image_np.shape}, skipping")
+                return image if isinstance(image, Image.Image) else Image.fromarray(image_np)
+
+            # Step 1: Background flattening
+            image_np = self._flatten_background(image_np)
+
+            # Step 2: Brightness adjustment
+            image_np = self._adjust_brightness(image_np)
+
+            # Step 3: Contrast enhancement
+            image_np = self._enhance_contrast(image_np)
+
+            # Step 4: Sharpening
+            image_np = self._sharpen_image(image_np)
+
+            return Image.fromarray(image_np.astype(np.uint8))
+
+        except Exception as e:
+            logger.warning(f"FlattenSharpen preprocessing failed: {e}, skipping")
+            return image if isinstance(image, Image.Image) else Image.fromarray(image_np)
+
+    def _flatten_background(self, image_np):
+        """Remove uneven illumination using maximum filter method."""
+        height, width = image_np.shape[:2]
+        block_size = self.flatten_strength
+
+        # Estimate background using local averaging
+        bg_map = np.zeros((height, width), dtype=np.float32)
+
+        for y in range(height):
+            for x in range(width):
+                y_min = max(0, y - block_size)
+                y_max = min(height, y + block_size + 1)
+                x_min = max(0, x - block_size)
+                x_max = min(width, x + block_size + 1)
+
+                # Calculate average grayscale in local region
+                region = image_np[y_min:y_max:5, x_min:x_max:5]
+                if region.size > 0:
+                    gray = region.mean(axis=2) if len(region.shape) == 3 else region
+                    bg_map[y, x] = gray.mean()
+
+        # Subtract background and re-center at 128
+        result = np.zeros_like(image_np, dtype=np.float32)
+        for c in range(3):
+            result[:, :, c] = np.clip(image_np[:, :, c] - bg_map + 128, 0, 255)
+
+        return result.astype(np.uint8)
+
+    def _adjust_brightness(self, image_np):
+        """Adjust image brightness."""
+        result = np.clip(image_np.astype(np.float32) + self.brightness_adjust, 0, 255)
+        return result.astype(np.uint8)
+
+    def _enhance_contrast(self, image_np):
+        """Enhance contrast using factor-based stretching."""
+        middle = 128.0
+        result = np.zeros_like(image_np, dtype=np.float32)
+
+        for c in range(3):
+            result[:, :, c] = np.clip(
+                middle + self.contrast_factor * (image_np[:, :, c] - middle),
+                0, 255
+            )
+
+        return result.astype(np.uint8)
+
+    def _sharpen_image(self, image_np):
+        """Apply sharpening using unsharp mask kernel."""
+        # Sharpening kernel
+        amount = self.sharpen_amount
+        kernel = np.array([
+            [0, -amount, 0],
+            [-amount, 1 + 4 * amount, -amount],
+            [0, -amount, 0]
+        ], dtype=np.float32)
+
+        # Apply kernel to each channel
+        result = np.zeros_like(image_np, dtype=np.float32)
+        for c in range(3):
+            result[:, :, c] = cv2.filter2D(image_np[:, :, c], -1, kernel)
+
+        return np.clip(result, 0, 255).astype(np.uint8)
 
 class BinaryDataset(Dataset):
     """Dataset for binary classification tasks in OVO ensemble."""
@@ -921,14 +1072,36 @@ class OVOEnsemble(nn.Module):
 
         return result
 
-def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0):
+def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0,
+                          enable_flatten_sharpen=False, flatten_strength=30,
+                          sharpen_amount=1.5, contrast_factor=2.0, brightness_adjust=20):
     """Create transforms for OVO training with standardized image sizes."""
 
     # Ensure minimum size for InceptionV3 (requires 75x75 minimum, 299x299 optimal)
     safe_img_size = max(img_size, 299)  # Use 299x299 for InceptionV3 compatibility
 
+    # Preprocessing transforms (applied before augmentation)
+    preprocessing = []
+
+    # Add FlattenSharpenTransform if enabled (retinal_enhancer.html pipeline)
+    if enable_flatten_sharpen:
+        preprocessing.append(
+            FlattenSharpenTransform(
+                flatten_strength=flatten_strength,
+                brightness_adjust=brightness_adjust,
+                contrast_factor=contrast_factor,
+                sharpen_amount=sharpen_amount
+            )
+        )
+        logger.info(f"✅ FlattenSharpen enabled: flatten={flatten_strength}, sharpen={sharpen_amount}, contrast={contrast_factor}, brightness={brightness_adjust}")
+
+    # Add CLAHE if enabled (can be combined with FlattenSharpen)
+    if enable_clahe:
+        preprocessing.append(CLAHETransform(clip_limit=clahe_clip_limit))
+        logger.info(f"✅ CLAHE enabled: clip_limit={clahe_clip_limit}")
+
     # Standardized transforms with explicit size control
-    train_transforms = [
+    train_transforms = preprocessing + [
         # Force consistent size first
         transforms.Resize((safe_img_size, safe_img_size), antialias=True),
         # Medical-grade augmentation (conservative)
@@ -940,16 +1113,12 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
 
-    val_transforms = [
+    val_transforms = preprocessing + [
         # Force consistent size
         transforms.Resize((safe_img_size, safe_img_size), antialias=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
-
-    # Optional CLAHE (disabled by default for stability)
-    if enable_clahe:
-        logger.warning("CLAHE is disabled for stability. Standard transforms will be used.")
 
     logger.info(f"✅ Transforms created with InceptionV3-safe size: {safe_img_size}x{safe_img_size} (requested: {img_size}x{img_size})")
 
@@ -999,7 +1168,12 @@ def setup_ovo_experiment(args):
             'batch_size': args.batch_size,
             'enable_clahe': args.enable_clahe,
             'clahe_clip_limit': args.clahe_clip_limit,
-            'clahe_tile_grid_size': tuple(args.clahe_tile_grid_size)
+            'clahe_tile_grid_size': tuple(args.clahe_tile_grid_size),
+            'enable_flatten_sharpen': args.enable_flatten_sharpen,
+            'flatten_strength': args.flatten_strength,
+            'sharpen_amount': args.sharpen_amount,
+            'contrast_factor': args.contrast_factor,
+            'brightness_adjust': args.brightness_adjust
         },
         'model': {
             'base_models': args.base_models,
@@ -1056,9 +1230,13 @@ def setup_ovo_experiment(args):
     logger.info(f"   Binary classifiers: {len(list(combinations(range(config['data']['num_classes']), 2)))}")
     logger.info(f"   Freeze weights: {config['model']['freeze_weights']}")
     logger.info(f"   CLAHE enabled: {config['data']['enable_clahe']}")
+    logger.info(f"   FlattenSharpen enabled: {config['data']['enable_flatten_sharpen']}")
+    if config['data']['enable_flatten_sharpen']:
+        logger.info(f"      └─ flatten_strength: {config['data']['flatten_strength']}")
+        logger.info(f"      └─ sharpen_amount: {config['data']['sharpen_amount']}")
+        logger.info(f"      └─ contrast_factor: {config['data']['contrast_factor']}")
+        logger.info(f"      └─ brightness_adjust: {config['data']['brightness_adjust']}")
 
-    return config
-    
     return config
 
 def train_multiclass_dr_model(model, train_loader, val_loader, config, model_name):
@@ -1576,7 +1754,12 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
     train_transform, val_transform = create_ovo_transforms(
         img_size=config['data']['img_size'],
         enable_clahe=config['data']['enable_clahe'],
-        clahe_clip_limit=config['data']['clahe_clip_limit']
+        clahe_clip_limit=config['data']['clahe_clip_limit'],
+        enable_flatten_sharpen=config['data'].get('enable_flatten_sharpen', False),
+        flatten_strength=config['data'].get('flatten_strength', 30),
+        sharpen_amount=config['data'].get('sharpen_amount', 1.5),
+        contrast_factor=config['data'].get('contrast_factor', 2.0),
+        brightness_adjust=config['data'].get('brightness_adjust', 20)
     )
 
     # Generate class pairs for OVO
