@@ -90,9 +90,9 @@ python3 ensemble_5class_trainer.py \
     --experiment_name "5class_densenet121_v4_gradespec_enhanced" \
     --base_models densenet121 \
     --num_classes 5 \
-    --img_size 448 \
-    --batch_size 4 \
-    --gradient_accumulation_steps 2 \
+    --img_size 384 \
+    --batch_size 2 \
+    --gradient_accumulation_steps 4 \
     --epochs 100 \
     --learning_rate 5e-5 \
     --weight_decay 5e-4 \
