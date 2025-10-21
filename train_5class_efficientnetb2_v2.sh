@@ -119,7 +119,7 @@ python3 ensemble_5class_trainer.py \
     --class_weight_1 1.0 \
     --class_weight_2 1.0 \
     --class_weight_3 1.0 \
-    --class_weight_4 1.0 \
+    --class_weight_4 1.0 _\
     --focal_loss_alpha 2.5 \
     --focal_loss_gamma 3.0 \
     --scheduler cosine \

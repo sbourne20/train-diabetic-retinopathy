@@ -1134,8 +1134,8 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
         transforms.Compose(val_transforms)
     )
 
-def create_binary_datasets(base_train_dataset, base_val_dataset, class_pairs, train_transform, val_transform):
-    """Create binary datasets for all class pairs."""
+def create_binary_datasets(base_train_dataset, base_val_dataset, base_test_dataset, class_pairs, train_transform, val_transform):
+    """Create binary datasets for all class pairs (train, val, test)."""
 
     binary_datasets = {}
 
@@ -1152,14 +1152,21 @@ def create_binary_datasets(base_train_dataset, base_val_dataset, class_pairs, tr
             base_val_dataset, class_a, class_b, transform=val_transform
         )
 
+        # Create binary test dataset
+        binary_test = BinaryDataset(
+            base_test_dataset, class_a, class_b, transform=val_transform  # Use val_transform (no augmentation)
+        )
+
         binary_datasets[pair_name] = {
             'train': binary_train,
             'val': binary_val,
+            'test': binary_test,
             'train_loader': DataLoader(binary_train, batch_size=64, shuffle=True, num_workers=4, pin_memory=True, drop_last=True, persistent_workers=True),
-            'val_loader': DataLoader(binary_val, batch_size=128, shuffle=False, num_workers=4, pin_memory=True, drop_last=False, persistent_workers=True)
+            'val_loader': DataLoader(binary_val, batch_size=128, shuffle=False, num_workers=4, pin_memory=True, drop_last=False, persistent_workers=True),
+            'test_loader': DataLoader(binary_test, batch_size=128, shuffle=False, num_workers=4, pin_memory=True, drop_last=False, persistent_workers=True)
         }
 
-        logger.info(f"📊 Binary dataset {pair_name}: Train={len(binary_train)}, Val={len(binary_val)}")
+        logger.info(f"📊 Binary dataset {pair_name}: Train={len(binary_train)}, Val={len(binary_val)}, Test={len(binary_test)}")
 
     return binary_datasets
 
@@ -1413,6 +1420,11 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
         val_correct = 0
         val_total = 0
 
+        # 📊 Collect predictions and labels for multiclass metrics
+        all_val_predictions_mc = []
+        all_val_labels_mc = []
+        all_val_probabilities_mc = []
+
         with torch.no_grad():
             for images, labels in val_loader:
                 images = images.to(device)
@@ -1426,7 +1438,41 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
                 val_total += labels.size(0)
                 val_correct += (predicted == labels).sum().item()
 
+                # 📊 Store predictions and labels
+                all_val_predictions_mc.extend(predicted.cpu().numpy())
+                all_val_labels_mc.extend(labels.cpu().numpy())
+                # Get probabilities via softmax
+                probs = F.softmax(outputs, dim=1)
+                all_val_probabilities_mc.extend(probs.cpu().numpy())
+
         val_acc = 100.0 * val_correct / val_total
+
+        # 📊 Calculate multiclass precision, recall, F1-score, and AUC
+        val_precision_mc = 0.0
+        val_recall_mc = 0.0
+        val_f1_mc = 0.0
+        val_auc_mc = 0.0
+
+        try:
+            # Convert to numpy arrays
+            all_val_predictions_mc = np.array(all_val_predictions_mc)
+            all_val_labels_mc = np.array(all_val_labels_mc)
+            all_val_probabilities_mc = np.array(all_val_probabilities_mc)
+
+            # Calculate metrics using sklearn (weighted average for multiclass)
+            val_precision_mc, val_recall_mc, val_f1_mc, _ = precision_recall_fscore_support(
+                all_val_labels_mc, all_val_predictions_mc, average='weighted', zero_division=0
+            )
+
+            # Calculate AUC (one-vs-rest for multiclass)
+            val_auc_mc = roc_auc_score(
+                all_val_labels_mc, all_val_probabilities_mc,
+                multi_class='ovr', average='weighted'
+            )
+
+        except Exception as e:
+            logger.warning(f"⚠️ Could not calculate multiclass validation metrics: {e}")
+            # Keep default values of 0.0
 
         # Record history
         train_history['train_accuracies'].append(train_acc)
@@ -1489,10 +1535,21 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
                 'val_accuracies': [acc/100.0 for acc in train_history['val_accuracies']],
                 'train_accuracies': [acc/100.0 for acc in train_history['train_accuracies']],
                 'train_losses': train_history['train_losses'],
-                'val_losses': train_history['val_losses']
+                'val_losses': train_history['val_losses'],
+                # 📊 Multiclass validation metrics (for model_analyzer.py)
+                'precision': val_precision_mc,
+                'recall': val_recall_mc,
+                'f1_score': val_f1_mc,
+                'auc': val_auc_mc,
+                'val_precision': val_precision_mc,
+                'val_recall': val_recall_mc,
+                'val_f1': val_f1_mc,
+                'val_auc': val_auc_mc
             }
             torch.save(checkpoint, model_path)
-            logger.info(f"🎯 New best {model_name}: {val_acc:.2f}% (Target: {config['system']['target_accuracy']:.1%})")
+            logger.info(f"🎯 New best {model_name}: {val_acc:.2f}% (Target: {config['system']['target_accuracy']:.1%}) | "
+                       f"Precision: {val_precision_mc:.4f}, Recall: {val_recall_mc:.4f}, "
+                       f"F1: {val_f1_mc:.4f}, AUC: {val_auc_mc:.4f}")
 
             # Check if target achieved
             if val_acc/100.0 >= config['system']['target_accuracy']:
@@ -1521,8 +1578,8 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
     logger.info(f"✅ {model_name} training completed: Best Val Acc = {best_val_acc:.2f}%")
     return best_val_acc / 100.0  # Return as fraction
 
-def train_binary_classifier(model, train_loader, val_loader, config, class_pair, model_name):
-    """Train a single binary classifier (for OVO ensemble) with memory optimization."""
+def train_binary_classifier(model, train_loader, val_loader, test_loader, config, class_pair, model_name):
+    """Train a single binary classifier (for OVO ensemble) with memory optimization and test evaluation."""
 
     import gc  # For garbage collection
 
@@ -1653,6 +1710,11 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
         val_correct = 0
         val_total = 0
 
+        # 📊 Collect predictions and labels for precision/recall/F1/AUC calculation
+        all_val_predictions = []
+        all_val_labels = []
+        all_val_probabilities = []
+
         with torch.no_grad():
             for images, labels in val_loader:
                 images = images.to(device)
@@ -1673,14 +1735,44 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
                 # 🔥 MEMORY FIX: Detach everything during validation
                 val_loss += loss.detach().item()
                 # Apply sigmoid to logits for prediction (model outputs raw logits now)
-                predicted = (torch.sigmoid(outputs.detach()) > 0.5).float()
+                probabilities = torch.sigmoid(outputs.detach())
+                predicted = (probabilities > 0.5).float()
                 val_total += labels.size(0)
                 val_correct += (predicted == labels).sum().item()
 
+                # 📊 Store predictions and labels for metrics
+                all_val_predictions.extend(predicted.cpu().numpy())
+                all_val_labels.extend(labels.cpu().numpy())
+                all_val_probabilities.extend(probabilities.cpu().numpy())
+
                 # 🔥 MEMORY FIX: Clean up validation tensors
-                del outputs, loss, predicted
+                del outputs, loss, predicted, probabilities
 
         val_acc = 100.0 * val_correct / val_total
+
+        # 📊 Calculate precision, recall, F1-score, and AUC
+        val_precision = 0.0
+        val_recall = 0.0
+        val_f1 = 0.0
+        val_auc = 0.0
+
+        try:
+            # Convert to numpy arrays
+            all_val_predictions = np.array(all_val_predictions)
+            all_val_labels = np.array(all_val_labels)
+            all_val_probabilities = np.array(all_val_probabilities)
+
+            # Calculate metrics using sklearn
+            val_precision, val_recall, val_f1, _ = precision_recall_fscore_support(
+                all_val_labels, all_val_predictions, average='binary', zero_division=0
+            )
+
+            # Calculate AUC (using probabilities, not predictions)
+            val_auc = roc_auc_score(all_val_labels, all_val_probabilities)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Could not calculate validation metrics: {e}")
+            # Keep default values of 0.0
 
         # 🔥 MEMORY OPTIMIZATION: Periodic GPU memory clearing (every 3 epochs)
         if (epoch + 1) % 3 == 0 and torch.cuda.is_available():
@@ -1722,10 +1814,21 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
                 'val_accuracies': train_history['val_accuracies'],
                 'train_accuracies': train_history['train_accuracies'],
                 'train_losses': train_history['train_losses'],
-                'val_losses': train_history['val_losses']
+                'val_losses': train_history['val_losses'],
+                # 📊 Validation metrics (for model_analyzer.py)
+                'precision': val_precision,
+                'recall': val_recall,
+                'f1_score': val_f1,
+                'auc': val_auc,
+                'val_precision': val_precision,
+                'val_recall': val_recall,
+                'val_f1': val_f1,
+                'val_auc': val_auc
             }
             torch.save(checkpoint, model_path)
-            logger.info(f"🎯 New best for {model_name}_{class_pair}: {val_acc:.2f}%")
+            logger.info(f"🎯 New best for {model_name}_{class_pair}: {val_acc:.2f}% | "
+                       f"Precision: {val_precision:.4f}, Recall: {val_recall:.4f}, "
+                       f"F1: {val_f1:.4f}, AUC: {val_auc:.4f}")
 
             # 🎯 PERFECT ACCURACY EARLY STOPPING: Stop if 100% validation accuracy achieved
             if val_acc >= 100.0:
@@ -1760,6 +1863,79 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
     logger.info(f"✅ {model_name} for {class_pair}: Best Val Acc = {best_val_acc:.2f}%")
 
+    # 📊 EVALUATE ON TEST SET (after training completes)
+    logger.info(f"📊 Evaluating {model_name}_{class_pair} on test set...")
+
+    test_accuracy = 0.0
+    test_precision = 0.0
+    test_recall = 0.0
+    test_f1 = 0.0
+    test_auc = 0.0
+
+    try:
+        # Load best model
+        model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{class_pair[0]}_{class_pair[1]}.pth"
+        if model_path.exists():
+            checkpoint = torch.load(model_path, map_location=device)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            model.eval()
+
+            # Evaluate on test set
+            test_correct = 0
+            test_total = 0
+            all_test_predictions = []
+            all_test_labels = []
+            all_test_probabilities = []
+
+            with torch.no_grad():
+                for images, labels in test_loader:
+                    images = images.to(device)
+                    labels = labels.float().to(device)
+
+                    with autocast('cuda', enabled=use_amp):
+                        outputs = model(images).squeeze()
+
+                        if outputs.dim() == 0:
+                            outputs = outputs.unsqueeze(0)
+                        if labels.dim() == 0:
+                            labels = labels.unsqueeze(0)
+
+                    probabilities = torch.sigmoid(outputs.detach())
+                    predicted = (probabilities > 0.5).float()
+                    test_total += labels.size(0)
+                    test_correct += (predicted == labels).sum().item()
+
+                    all_test_predictions.extend(predicted.cpu().numpy())
+                    all_test_labels.extend(labels.cpu().numpy())
+                    all_test_probabilities.extend(probabilities.cpu().numpy())
+
+            test_accuracy = 100.0 * test_correct / test_total
+
+            # Calculate test metrics
+            all_test_predictions = np.array(all_test_predictions)
+            all_test_labels = np.array(all_test_labels)
+            all_test_probabilities = np.array(all_test_probabilities)
+
+            test_precision, test_recall, test_f1, _ = precision_recall_fscore_support(
+                all_test_labels, all_test_predictions, average='binary', zero_division=0
+            )
+            test_auc = roc_auc_score(all_test_labels, all_test_probabilities)
+
+            logger.info(f"   Test Acc: {test_accuracy:.2f}%, Precision: {test_precision:.4f}, "
+                       f"Recall: {test_recall:.4f}, F1: {test_f1:.4f}, AUC: {test_auc:.4f}")
+
+            # 📊 UPDATE CHECKPOINT with test metrics
+            checkpoint['test_accuracy'] = test_accuracy
+            checkpoint['test_precision'] = test_precision
+            checkpoint['test_recall'] = test_recall
+            checkpoint['test_f1'] = test_f1
+            checkpoint['test_auc'] = test_auc
+            torch.save(checkpoint, model_path)
+            logger.info(f"💾 Updated checkpoint with test metrics: {model_path}")
+
+    except Exception as e:
+        logger.warning(f"⚠️ Could not evaluate on test set: {e}")
+
     # Calculate final overfitting status using last 3 epochs
     final_train_acc = train_history['train_accuracies'][-1] if train_history['train_accuracies'] else 0.0
     final_val_acc = train_history['val_accuracies'][-1] if train_history['val_accuracies'] else 0.0
@@ -1783,11 +1959,16 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
         overfitting_ratio = 1.0
         overfitting_status = "unknown"
 
-    # Return comprehensive results
+    # Return comprehensive results including test metrics
     return {
         'best_val_accuracy': best_val_acc,
         'final_train_accuracy': final_train_acc,
         'final_val_accuracy': final_val_acc,
+        'test_accuracy': test_accuracy,
+        'test_precision': test_precision,
+        'test_recall': test_recall,
+        'test_f1': test_f1,
+        'test_auc': test_auc,
         'overfitting_ratio': overfitting_ratio,
         'overfitting_status': overfitting_status,
         'train_history': train_history
@@ -1823,7 +2004,7 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
 
     # Create binary datasets
     binary_datasets = create_binary_datasets(
-        train_dataset, val_dataset, class_pairs, train_transform, val_transform
+        train_dataset, val_dataset, test_dataset, class_pairs, train_transform, val_transform
     )
 
     # Train all binary classifiers
@@ -1874,6 +2055,7 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
                 model=binary_model,
                 train_loader=binary_datasets[pair_name]['train_loader'],
                 val_loader=binary_datasets[pair_name]['val_loader'],
+                test_loader=binary_datasets[pair_name]['test_loader'],
                 config=config,
                 class_pair=(class_a, class_b),
                 model_name=model_name
@@ -1884,6 +2066,11 @@ def train_ovo_ensemble(config, train_dataset, val_dataset, test_dataset):
                 'best_val_accuracy': training_result['best_val_accuracy'],
                 'final_train_accuracy': training_result['final_train_accuracy'],
                 'final_val_accuracy': training_result['final_val_accuracy'],
+                'test_accuracy': training_result.get('test_accuracy', 0.0),
+                'test_precision': training_result.get('test_precision', 0.0),
+                'test_recall': training_result.get('test_recall', 0.0),
+                'test_f1': training_result.get('test_f1', 0.0),
+                'test_auc': training_result.get('test_auc', 0.0),
                 'overfitting_ratio': training_result['overfitting_ratio'],
                 'overfitting_status': training_result['overfitting_status']
             }

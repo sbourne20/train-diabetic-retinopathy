@@ -47,13 +47,13 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 GRADE_SPECIFIC_PARAMS = {
-    0: {  # No DR - standard baseline enhancement
+    0: {  # No DR - MINIMAL enhancement to preserve natural appearance
         'name': 'No_DR',
-        'flatten_strength': 30,
-        'brightness_adjust': 20,
-        'contrast_factor': 2.0,
-        'sharpen_amount': 1.5,
-        'rationale': 'Standard baseline enhancement to maintain image quality while preserving normal retinal appearance'
+        'flatten_strength': 20,      # REDUCED from 30 - less background removal
+        'brightness_adjust': 10,      # REDUCED from 20 - keep natural brightness
+        'contrast_factor': 1.5,       # REDUCED from 2.0 - subtle contrast
+        'sharpen_amount': 1.0,        # REDUCED from 1.5 - minimal sharpening
+        'rationale': 'MINIMAL enhancement to preserve natural retinal appearance and differentiate from pathological cases'
     },
     1: {  # Mild NPDR - maximize microaneurysm detection
         'name': 'Mild_NPDR',
@@ -63,13 +63,13 @@ GRADE_SPECIFIC_PARAMS = {
         'sharpen_amount': 2.0,
         'rationale': 'High sharpness and contrast to detect tiny microaneurysms (key diagnostic feature)'
     },
-    2: {  # Moderate NPDR - balanced enhancement (same as Grade 0 baseline)
+    2: {  # Moderate NPDR - STRONGER enhancement to highlight pathology
         'name': 'Moderate_NPDR',
-        'flatten_strength': 30,
-        'brightness_adjust': 20,
-        'contrast_factor': 2.0,
-        'sharpen_amount': 1.5,
-        'rationale': 'Balanced enhancement for hemorrhages, exudates, and cotton wool spots'
+        'flatten_strength': 35,       # INCREASED from 30 - better background flattening
+        'brightness_adjust': 22,      # INCREASED from 20 - slightly brighter
+        'contrast_factor': 2.3,       # INCREASED from 2.0 - stronger contrast for lesions
+        'sharpen_amount': 1.8,        # INCREASED from 1.5 - sharper hemorrhages/exudates
+        'rationale': 'STRONGER enhancement to make hemorrhages, exudates, and cotton wool spots stand out from normal retina'
     },
     3: {  # Severe NPDR - vessel clarity for venous beading/IRMA
         'name': 'Severe_NPDR',
