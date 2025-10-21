@@ -1876,9 +1876,20 @@ def train_binary_classifier(model, train_loader, val_loader, test_loader, config
         # Load best model
         model_path = Path(config['system']['output_dir']) / "models" / f"best_{model_name}_{class_pair[0]}_{class_pair[1]}.pth"
         if model_path.exists():
-            checkpoint = torch.load(model_path, map_location=device)
+            checkpoint = torch.load(model_path, map_location=device, weights_only=False)
             model.load_state_dict(checkpoint['model_state_dict'])
             model.eval()
+
+            # 🔥 FIX: Create fresh test_loader without persistent_workers to avoid transform conflicts
+            from torch.utils.data import DataLoader
+            test_dataset = test_loader.dataset
+            fresh_test_loader = DataLoader(
+                test_dataset,
+                batch_size=config['data']['batch_size'],
+                shuffle=False,
+                num_workers=0,  # No workers to avoid transform issues
+                pin_memory=False
+            )
 
             # Evaluate on test set
             test_correct = 0
@@ -1888,7 +1899,7 @@ def train_binary_classifier(model, train_loader, val_loader, test_loader, config
             all_test_probabilities = []
 
             with torch.no_grad():
-                for images, labels in test_loader:
+                for images, labels in fresh_test_loader:
                     images = images.to(device)
                     labels = labels.float().to(device)
 
