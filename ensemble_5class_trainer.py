@@ -1084,8 +1084,8 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
                           sharpen_amount=1.5, contrast_factor=2.0, brightness_adjust=20):
     """Create transforms for OVO training with standardized image sizes."""
 
-    # Ensure minimum size for InceptionV3 (requires 75x75 minimum, 299x299 optimal)
-    safe_img_size = max(img_size, 299)  # Use 299x299 for InceptionV3 compatibility
+    # Use the requested image size directly (model-specific optimization)
+    safe_img_size = img_size
 
     # Preprocessing transforms (applied before augmentation)
     preprocessing = []
@@ -1127,7 +1127,7 @@ def create_ovo_transforms(img_size=224, enable_clahe=False, clahe_clip_limit=3.0
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]
 
-    logger.info(f"✅ Transforms created with InceptionV3-safe size: {safe_img_size}x{safe_img_size} (requested: {img_size}x{img_size})")
+    logger.info(f"✅ Transforms created with model-specific size: {safe_img_size}x{safe_img_size}")
 
     return (
         transforms.Compose(train_transforms),
