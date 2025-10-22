@@ -84,6 +84,9 @@ def load_checkpoint_accuracies(results_dir):
                             break
 
                     if val_acc is not None:
+                        # Convert to fraction if stored as percentage (>1.0)
+                        if val_acc > 1.0:
+                            val_acc = val_acc / 100.0
                         val_accuracies[pair_key] = val_acc
         except Exception as e:
             print(f"   ⚠️ Could not load {filename}: {e}")

@@ -96,9 +96,9 @@ echo ""
 # Train 5-Class with EfficientNetB2 (High Resolution Hybrid + Grade-Specific Preprocessing)
 python3 ensemble_5class_trainer.py \
     --mode train \
-    --dataset_path ./dataset_eyepacs_5class_balanced_enhanced \
-    --output_dir ./efficientnetb2_5class_v2_enhanced_results \
-    --experiment_name "5class_efficientnetb2_v2_gradespec_enhanced" \
+    --dataset_path ./dataset_eyepacs \
+    --output_dir ./efficientnetb2_5class_v2_results \
+    --experiment_name "5class_efficientnetb2_v2" \
     --base_models efficientnetb2 \
     --num_classes 5 \
     --img_size 384 \
@@ -119,7 +119,7 @@ python3 ensemble_5class_trainer.py \
     --class_weight_1 1.0 \
     --class_weight_2 1.0 \
     --class_weight_3 1.0 \
-    --class_weight_4 1.0 _\
+    --class_weight_4 1.0 \
     --focal_loss_alpha 2.5 \
     --focal_loss_gamma 3.0 \
     --scheduler cosine \
