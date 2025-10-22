@@ -96,7 +96,7 @@ echo ""
 # Train 5-Class with EfficientNetB2 (High Resolution Hybrid + Grade-Specific Preprocessing)
 python3 ensemble_5class_trainer.py \
     --mode train \
-    --dataset_path ./dataset_eyepacs \
+    --dataset_path ./dataset_eyepacs_5class_balanced_enhanced_v2  \
     --output_dir ./efficientnetb2_5class_v2_results \
     --experiment_name "5class_efficientnetb2_v2" \
     --base_models efficientnetb2 \
