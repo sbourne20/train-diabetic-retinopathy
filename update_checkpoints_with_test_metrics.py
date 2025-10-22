@@ -24,8 +24,10 @@ from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 from torchvision import models
+from torchvision.models import DenseNet121_Weights
 from torchvision.datasets import ImageFolder
 import torchvision.transforms as transforms
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,7 +42,7 @@ class BinaryClassifier(nn.Module):
 
         # Load pretrained backbone
         if backbone_name == 'densenet121':
-            self.backbone = models.densenet121(pretrained=True)
+            self.backbone = models.densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1)
             num_features = self.backbone.classifier.in_features
             self.backbone.classifier = nn.Identity()
         else:
@@ -139,7 +141,7 @@ def evaluate_checkpoint_on_test(checkpoint_path, test_loader, device):
         all_test_probabilities = []
 
         with torch.no_grad():
-            for images, labels in test_loader:
+            for images, labels in tqdm(test_loader, desc="  Evaluating", leave=False):
                 images = images.to(device)
                 labels = labels.float().to(device)
 
@@ -237,7 +239,9 @@ def main():
 
     # Process each checkpoint
     updated_count = 0
-    for checkpoint_path in sorted(checkpoint_files):
+    checkpoint_files_sorted = sorted(checkpoint_files)
+
+    for checkpoint_idx, checkpoint_path in enumerate(tqdm(checkpoint_files_sorted, desc="Testing models", position=0)):
         # Extract class pair from filename
         filename = checkpoint_path.stem  # e.g., "best_densenet121_0_1"
         parts = filename.split('_')
@@ -258,7 +262,7 @@ def main():
             pin_memory=False
         )
 
-        logger.info(f"\n📊 Processing pair ({class_a}, {class_b}): {len(binary_test)} test samples")
+        print(f"\n[{checkpoint_idx+1}/{len(checkpoint_files_sorted)}] Processing pair ({class_a}, {class_b}): {len(binary_test)} test samples")
 
         # Evaluate and update
         result = evaluate_checkpoint_on_test(checkpoint_path, test_loader, device)
