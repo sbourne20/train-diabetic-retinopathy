@@ -124,11 +124,8 @@ python3 ensemble_local_trainer.py \
     --contrast_range 0.15 \
     --enable_focal_loss \
     --enable_class_weights \
-    --class_weight_0 1.0 \
-    --class_weight_1 1.0 \
-    --class_weight_2 1.0 \
-    --class_weight_3 1.0 \
-    --class_weight_4 1.0 \
+    --class_weight_severe 30.0 \
+    --class_weight_pdr 35.0 \
     --focal_loss_alpha 2.5 \
     --focal_loss_gamma 3.5 \
     --scheduler cosine \
