@@ -102,34 +102,34 @@ echo "  - Speed: ~2x slower than batch=4 but guaranteed to fit"
 echo "  - Training time: ~8-10 hours (slower but stable)"
 echo ""
 
-# Train 5-Class with MedSigLIP-448 (Medical Vision-Language Model)
-# Using ensemble_local_trainer.py (proven to work with batch_size 8 on V100 16GB)
-python3 ensemble_local_trainer.py \
+# Train 5-Class with MedSigLIP-448 OVO Binary Classifiers (Medical Vision-Language Model)
+# Using ensemble_5class_trainer.py (OVO binary mode - compatible with DenseNet/EfficientNetB2)
+python3 ensemble_5class_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs_5class_balanced_enhanced_v2 \
     --output_dir ./medsiglip_5class_v1_results \
-    --experiment_name "5class_medsiglip448_v1_medical_vl" \
+    --experiment_name "5class_medsiglip448_v1_ovo" \
     --base_models medsiglip_448 \
     --num_classes 5 \
     --img_size 448 \
     --batch_size 8 \
     --epochs 100 \
-    --learning_rate 3e-4 \
-    --weight_decay 5e-5 \
-    --ovo_dropout 0.3 \
+    --learning_rate 3e-5 \
+    --weight_decay 1e-4 \
+    --ovo_dropout 0.25 \
     --freeze_weights false \
-    --enable_medical_augmentation \
-    --rotation_range 20.0 \
-    --brightness_range 0.15 \
-    --contrast_range 0.15 \
+    --enable_clahe \
     --enable_focal_loss \
     --enable_class_weights \
-    --class_weight_severe 30.0 \
-    --class_weight_pdr 35.0 \
-    --focal_loss_alpha 2.5 \
-    --focal_loss_gamma 3.5 \
+    --class_weight_0 1.0 \
+    --class_weight_1 1.0 \
+    --class_weight_2 1.0 \
+    --class_weight_3 1.0 \
+    --class_weight_4 1.0 \
+    --focal_loss_alpha 2.0 \
+    --focal_loss_gamma 2.5 \
     --scheduler cosine \
-    --warmup_epochs 10 \
+    --warmup_epochs 15 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 30 \
@@ -137,8 +137,7 @@ python3 ensemble_local_trainer.py \
     --target_accuracy 0.95 \
     --max_grad_norm 1.0 \
     --label_smoothing 0.08 \
-    --seed 42 \
-    --resume
+    --seed 42
 
 echo ""
 echo "✅ 5-CLASS MedSigLIP-448 MEDICAL VISION-LANGUAGE OVO ENSEMBLE training completed!"
