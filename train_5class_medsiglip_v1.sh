@@ -111,8 +111,8 @@ python3 ensemble_5class_trainer.py \
     --base_models medsiglip_448 \
     --num_classes 5 \
     --img_size 448 \
-    --batch_size 2 \
-    --gradient_accumulation_steps 4 \
+    --batch_size 1 \
+    --gradient_accumulation_steps 8 \
     --epochs 100 \
     --learning_rate 3e-5 \
     --weight_decay 1e-4 \
