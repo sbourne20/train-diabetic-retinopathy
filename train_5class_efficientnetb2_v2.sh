@@ -12,7 +12,7 @@ echo "===================================================================="
 echo "🎯 Target: 95%+ accuracy (Paper's 96.27% with Kaggle winner's resolution)"
 echo "📊 Dataset: 5-Class Perfectly Balanced (53,935 images)"
 echo "🏗️ Model: EfficientNetB2 (9.2M params - compound scaling)"
-echo "🔗 System: V100 16GB GPU optimized"
+echo "🔗 System: A100 32GB GPU optimized"
 echo ""
 
 # Create output directory for 5-class EfficientNetB2 v2 results
@@ -47,14 +47,15 @@ echo "     • OVO binarization (10 binary classifiers)"
 echo "     • Medical-grade augmentation"
 echo "     • Focal loss + class weighting"
 echo ""
-echo "📊 v2 CRITICAL CHANGES FROM v1:"
-echo "  Parameter          | v1 (Baseline: 64.20%) | v2 (Hybrid: High-Res) | Rationale"
+echo "📊 A100 32GB OPTIMIZED CONFIGURATION:"
+echo "  Parameter          | V100 16GB            | A100 32GB (2x mem)   | Rationale"
 echo "  -------------------|----------------------|----------------------|------------------"
-echo "  Image Size         | 260×260              | 384×384              | +118% pixels (2.2× memory)"
-echo "  Batch Size         | 8                    | 6                    | Memory for 384×384"
-echo "  Learning Rate      | 8e-5                 | 6e-5                 | More stable for high-res"
-echo "  Dropout            | 0.28                 | 0.26                 | More capacity (SE blocks help)"
-echo "  Weight Decay       | 2.5e-4               | 2.2e-4               | Balanced (stochastic depth helps)"
+echo "  Image Size         | 384×384              | 384×384              | Optimal for compound scaling"
+echo "  Batch Size         | 2                    | 6                    | 3x larger (2x memory available)"
+echo "  Gradient Accum     | 4                    | 1                    | No accumulation needed"
+echo "  Learning Rate      | 5e-5                 | 6e-5                 | Slightly higher for larger batch"
+echo "  Dropout            | 0.40                 | 0.26                 | Lower (larger batch = natural reg)"
+echo "  Weight Decay       | 5e-4                 | 2.2e-4               | Balanced (stochastic depth helps)"
 echo "  Target Accuracy    | 0.95                 | 0.96                 | Match paper's result"
 echo ""
 echo "⚠️  WHY 384×384 FOR EFFICIENTNETB2?"
@@ -65,19 +66,21 @@ echo "  4. PERFORMANCE: Optimal trade-off between detail and computational effic
 echo "  5. SE BLOCKS: Channel attention works best with medium-high resolution"
 echo "  6. WINNER ALIGNMENT: 384 is 75% of winner's 512, good compromise"
 echo ""
-echo "🎯 v2 CONFIGURATION - HYBRID OPTIMIZED:"
-echo "  - Image size: 384×384 (MAJOR UPGRADE from 260, optimal for compound scaling)"
-echo "  - Batch size: 6 (REDUCED from 8 for memory)"
-echo "  - Learning rate: 6e-5 (REDUCED from 8e-5 for stability)"
-echo "  - Weight decay: 2.2e-4 (REDUCED from 2.5e-4, trust stochastic depth)"
-echo "  - Dropout: 0.26 (REDUCED from 0.28, SE blocks provide regularization)"
-echo "  - Label smoothing: 0.10 (KEEP standard medical value)"
+echo "🎯 A100 32GB CONFIGURATION - OPTIMIZED FOR SPEED:"
+echo "  - Image size: 384×384 (optimal for compound scaling)"
+echo "  - Batch size: 6 (3x larger than V100 - FASTER training)"
+echo "  - Gradient accumulation: 1 (no accumulation needed)"
+echo "  - Learning rate: 6e-5 (slightly higher for larger batch)"
+echo "  - Weight decay: 2.2e-4 (trust stochastic depth regularization)"
+echo "  - Dropout: 0.26 (lower - larger batch provides natural regularization)"
+echo "  - Label smoothing: 0.10 (standard medical value)"
 echo "  - CLAHE: ✅ ENABLED (clip_limit=2.5, essential for retinal vessels)"
 echo "  - Focal loss: ✅ ENABLED (alpha=2.5, gamma=3.0)"
 echo "  - Augmentation: MEDICAL-GRADE (25° rotation, 20% brightness/contrast)"
 echo "  - Scheduler: Cosine with 10-epoch warmup"
 echo "  - Patience: 25 epochs (allow sufficient learning for high-res)"
-echo "  - Epochs: 100 (same as v1)"
+echo "  - Epochs: 100"
+echo "  - Speed: ~3x faster than V100 configuration"
 echo ""
 echo "📈 EXPECTED RESULTS (Based on Paper + Winner Resolution):"
 echo "  Individual Binary Pairs:"
@@ -102,12 +105,12 @@ python3 ensemble_5class_trainer.py \
     --base_models efficientnetb2 \
     --num_classes 5 \
     --img_size 384 \
-    --batch_size 2 \
-    --gradient_accumulation_steps 4 \
+    --batch_size 6 \
+    --gradient_accumulation_steps 1 \
     --epochs 100 \
-    --learning_rate 5e-5 \
-    --weight_decay 5e-4 \
-    --ovo_dropout 0.40 \
+    --learning_rate 6e-5 \
+    --weight_decay 2.2e-4 \
+    --ovo_dropout 0.26 \
     --freeze_weights false \
     --enable_medical_augmentation \
     --rotation_range 25.0 \

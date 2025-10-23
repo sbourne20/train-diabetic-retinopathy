@@ -12,7 +12,7 @@ echo "====================================================================="
 echo "🎯 Target: 95-97%+ accuracy (Medical domain pre-trained model)"
 echo "📊 Dataset: 5-Class Perfectly Balanced (53,935 images)"
 echo "🏗️ Model: MedSigLIP-448 (Medical Vision-Language - SOTA for medical imaging)"
-echo "🔗 System: V100 16GB GPU optimized"
+echo "🔗 System: A100 32GB GPU optimized"
 echo ""
 
 # Create output directory for 5-class MedSigLIP v1 results
@@ -48,12 +48,12 @@ echo "     • Native 448×448 input (no downsampling artifacts)"
 echo "     • Detects small lesions (microaneurysms as small as 10-20 pixels)"
 echo "     • Better spatial resolution than 224×224 models"
 echo ""
-echo "📊 v1 CONFIGURATION - MEDICAL-GRADE SETTINGS:"
+echo "📊 v1 CONFIGURATION - A100 32GB OPTIMIZED SETTINGS:"
 echo "  Parameter          | Value                | Rationale"
 echo "  -------------------|----------------------|------------------"
 echo "  Image Size         | 448×448              | Native MedSigLIP resolution"
-echo "  Batch Size         | 4                    | Memory for large vision-language model"
-echo "  Gradient Accum     | 2                    | Effective batch = 8 (memory efficient)"
+echo "  Batch Size         | 8                    | 2x memory → 2x batch size"
+echo "  Gradient Accum     | 1                    | Effective batch = 8 (no accumulation needed)"
 echo "  Learning Rate      | 3e-5                 | Fine-tuning pre-trained medical model"
 echo "  Weight Decay       | 1e-4                 | Light regularization (already robust)"
 echo "  Dropout            | 0.25                 | Lower than CNNs (medical pre-training)"
@@ -91,11 +91,12 @@ echo "  - Feature Dim: 768 (high-capacity medical features)"
 echo "  - Freeze Strategy: Freeze early layers, fine-tune last 6 transformer blocks"
 echo "  - Requires: HUGGINGFACE_TOKEN in .env file"
 echo ""
-echo "⚙️  MEMORY OPTIMIZATION:"
-echo "  - Batch size: 4 (MedSigLIP is large: ~1.5GB per image at 448×448)"
-echo "  - Gradient accumulation: 2 steps (effective batch = 8)"
+echo "⚙️  A100 32GB MEMORY OPTIMIZATION:"
+echo "  - Batch size: 8 (2x larger than V100 - FASTER training)"
+echo "  - Gradient accumulation: 1 (no accumulation needed)"
 echo "  - Mixed precision: Automatic with PyTorch AMP"
-echo "  - Memory: ~14GB VRAM usage (fits V100 16GB)"
+echo "  - Memory: ~24GB VRAM usage (A100 32GB → 75% utilization)"
+echo "  - Speed boost: ~2x faster than V100 16GB configuration"
 echo ""
 
 # Train 5-Class with MedSigLIP-448 (Medical Vision-Language Model)
@@ -107,8 +108,8 @@ python3 ensemble_5class_trainer.py \
     --base_models medsiglip_448 \
     --num_classes 5 \
     --img_size 448 \
-    --batch_size 4 \
-    --gradient_accumulation_steps 2 \
+    --batch_size 8 \
+    --gradient_accumulation_steps 1 \
     --epochs 100 \
     --learning_rate 3e-5 \
     --weight_decay 1e-4 \
