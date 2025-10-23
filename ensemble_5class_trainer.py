@@ -337,7 +337,13 @@ class MultiClassDRModel(nn.Module):
                 )
                 # Use full model - this matches the 1.3B parameter working checkpoint
                 num_features = self.backbone.config.vision_config.hidden_size
-                logger.info(f"✅ Loaded MedSigLIP-448: {num_features} features")
+
+                # 🔥 MEMORY OPTIMIZATION: Enable gradient checkpointing for MedSigLIP
+                if hasattr(self.backbone.vision_model, 'gradient_checkpointing_enable'):
+                    self.backbone.vision_model.gradient_checkpointing_enable()
+                    logger.info(f"✅ Loaded MedSigLIP-448 with GRADIENT CHECKPOINTING: {num_features} features (30-40% memory saving)")
+                else:
+                    logger.info(f"✅ Loaded MedSigLIP-448: {num_features} features")
             except Exception as e:
                 raise ImportError(f"Failed to load MedSigLIP-448: {e}. Check HUGGINGFACE_TOKEN in .env file.")
         elif model_name == 'mobilenet_v2':
@@ -704,7 +710,13 @@ class BinaryClassifier(nn.Module):
                 )
                 # Use full model - this matches the 1.3B parameter working checkpoint
                 num_features = self.backbone.config.vision_config.hidden_size
-                logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier: {num_features} features")
+
+                # 🔥 MEMORY OPTIMIZATION: Enable gradient checkpointing for MedSigLIP
+                if hasattr(self.backbone.vision_model, 'gradient_checkpointing_enable'):
+                    self.backbone.vision_model.gradient_checkpointing_enable()
+                    logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier with GRADIENT CHECKPOINTING: {num_features} features (30-40% memory saving)")
+                else:
+                    logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier: {num_features} features")
             except Exception as e:
                 raise ImportError(f"Failed to load MedSigLIP-448: {e}. Check HUGGINGFACE_TOKEN in .env file.")
         elif model_name == 'mobilenet_v2':

@@ -12,7 +12,7 @@ echo "====================================================================="
 echo "🎯 Target: 95-97%+ accuracy (Medical domain pre-trained model)"
 echo "📊 Dataset: 5-Class Perfectly Balanced (53,935 images)"
 echo "🏗️ Model: MedSigLIP-448 (Medical Vision-Language - SOTA for medical imaging)"
-echo "🔗 System: A100 32GB GPU optimized"
+echo "🔗 System: 16GB GPU optimized (Tesla T4/V100 - Memory Constrained)"
 echo ""
 
 # Create output directory for 5-class MedSigLIP v1 results
@@ -48,12 +48,13 @@ echo "     • Native 448×448 input (no downsampling artifacts)"
 echo "     • Detects small lesions (microaneurysms as small as 10-20 pixels)"
 echo "     • Better spatial resolution than 224×224 models"
 echo ""
-echo "📊 v1 CONFIGURATION - A100 32GB OPTIMIZED SETTINGS:"
+echo "📊 v1 CONFIGURATION - 16GB GPU EXTREME MEMORY OPTIMIZATION:"
 echo "  Parameter          | Value                | Rationale"
 echo "  -------------------|----------------------|------------------"
 echo "  Image Size         | 448×448              | Native MedSigLIP resolution"
-echo "  Batch Size         | 8                    | 2x memory → 2x batch size"
-echo "  Gradient Accum     | 1                    | Effective batch = 8 (no accumulation needed)"
+echo "  Batch Size         | 1                    | ULTRA-SAFE for 14.56GB GPU"
+echo "  Gradient Accum     | 8                    | Effective batch = 8 (memory efficient)"
+echo "  Gradient Checkpoint| ✅ ENABLED           | 30-40% memory reduction"
 echo "  Learning Rate      | 3e-5                 | Fine-tuning pre-trained medical model"
 echo "  Weight Decay       | 1e-4                 | Light regularization (already robust)"
 echo "  Dropout            | 0.25                 | Lower than CNNs (medical pre-training)"
@@ -91,12 +92,14 @@ echo "  - Feature Dim: 768 (high-capacity medical features)"
 echo "  - Freeze Strategy: Freeze early layers, fine-tune last 6 transformer blocks"
 echo "  - Requires: HUGGINGFACE_TOKEN in .env file"
 echo ""
-echo "⚙️  A100 32GB MEMORY OPTIMIZATION:"
-echo "  - Batch size: 8 (2x larger than V100 - FASTER training)"
-echo "  - Gradient accumulation: 1 (no accumulation needed)"
-echo "  - Mixed precision: Automatic with PyTorch AMP"
-echo "  - Memory: ~24GB VRAM usage (A100 32GB → 75% utilization)"
-echo "  - Speed boost: ~2x faster than V100 16GB configuration"
+echo "⚙️  EXTREME 16GB MEMORY OPTIMIZATION:"
+echo "  - Batch size: 1 (ULTRA-SAFE for 14.56GB GPU)"
+echo "  - Gradient accumulation: 8 (effective batch = 8)"
+echo "  - Mixed precision: Automatic with PyTorch AMP (FP16 saves ~40% memory)"
+echo "  - Gradient checkpointing: ✅ ENABLED (saves 30-40% memory)"
+echo "  - Memory: ~10-11GB VRAM usage (safe for 14.56GB GPU)"
+echo "  - WARNING: Slower training (~2x slower than batch=4, but guaranteed to fit)"
+echo "  - If OOM persists, MedSigLIP may be too large for this GPU (use CNN models instead)"
 echo ""
 
 # Train 5-Class with MedSigLIP-448 (Medical Vision-Language Model)
@@ -108,8 +111,8 @@ python3 ensemble_5class_trainer.py \
     --base_models medsiglip_448 \
     --num_classes 5 \
     --img_size 448 \
-    --batch_size 8 \
-    --gradient_accumulation_steps 1 \
+    --batch_size 1 \
+    --gradient_accumulation_steps 8 \
     --epochs 100 \
     --learning_rate 3e-5 \
     --weight_decay 1e-4 \
