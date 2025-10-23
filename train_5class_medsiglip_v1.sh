@@ -103,20 +103,20 @@ echo "  - Training time: ~8-10 hours (slower but stable)"
 echo ""
 
 # Train 5-Class with MedSigLIP-448 (Medical Vision-Language Model)
-python3 ensemble_5class_trainer.py \
+# Using ensemble_local_trainer.py (proven to work with batch_size 8 on V100 16GB)
+python3 ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs_5class_balanced_enhanced_v2 \
     --output_dir ./medsiglip_5class_v1_results \
     --experiment_name "5class_medsiglip448_v1_medical_vl" \
     --base_models medsiglip_448 \
     --num_classes 5 \
-    --img_size 320 \
-    --batch_size 2 \
-    --gradient_accumulation_steps 8 \
+    --img_size 448 \
+    --batch_size 8 \
     --epochs 100 \
-    --learning_rate 3e-5 \
-    --weight_decay 1e-4 \
-    --ovo_dropout 0.25 \
+    --learning_rate 3e-4 \
+    --weight_decay 5e-5 \
+    --ovo_dropout 0.3 \
     --freeze_weights false \
     --enable_medical_augmentation \
     --rotation_range 20.0 \
@@ -129,10 +129,10 @@ python3 ensemble_5class_trainer.py \
     --class_weight_2 1.0 \
     --class_weight_3 1.0 \
     --class_weight_4 1.0 \
-    --focal_loss_alpha 2.0 \
-    --focal_loss_gamma 2.5 \
+    --focal_loss_alpha 2.5 \
+    --focal_loss_gamma 3.5 \
     --scheduler cosine \
-    --warmup_epochs 15 \
+    --warmup_epochs 10 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 30 \
