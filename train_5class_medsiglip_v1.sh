@@ -110,8 +110,8 @@ python3 ensemble_5class_trainer.py \
     --experiment_name "5class_medsiglip448_v1_medical_vl" \
     --base_models medsiglip_448 \
     --num_classes 5 \
-    --img_size 448 \
-    --batch_size 1 \
+    --img_size 320 \
+    --batch_size 2 \
     --gradient_accumulation_steps 8 \
     --epochs 100 \
     --learning_rate 3e-5 \
