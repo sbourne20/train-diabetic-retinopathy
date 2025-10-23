@@ -1279,7 +1279,15 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
     """Train multi-class DR model for APTOS dataset."""
 
     device = torch.device(config['system']['device'])
-    model = model.to(device)
+
+    # 🔥 CRITICAL FIX: Preserve FP16 dtype when moving to device (MedSigLIP memory fix)
+    # DO NOT use .to(device) alone as it converts FP16→FP32 (doubles memory!)
+    if model_name == 'medsiglip_448':
+        # Move to device while preserving FP16 dtype
+        model = model.to(device=device, dtype=torch.float16)
+        logger.info(f"✅ Moved MedSigLIP model to {device} in FP16 (memory-efficient)")
+    else:
+        model = model.to(device)
 
     # EXTREME loss configuration for severe class imbalance
     # Get label smoothing parameter
@@ -1604,7 +1612,15 @@ def train_binary_classifier(model, train_loader, val_loader, test_loader, config
     import gc  # For garbage collection
 
     device = torch.device(config['system']['device'])
-    model = model.to(device)
+
+    # 🔥 CRITICAL FIX: Preserve FP16 dtype when moving to device (MedSigLIP memory fix)
+    # DO NOT use .to(device) alone as it converts FP16→FP32 (doubles memory!)
+    if model_name == 'medsiglip_448':
+        # Move to device while preserving FP16 dtype
+        model = model.to(device=device, dtype=torch.float16)
+        logger.info(f"✅ Moved MedSigLIP model to {device} in FP16 (memory-efficient)")
+    else:
+        model = model.to(device)
 
     # Binary classification loss (with logits for FP16 compatibility)
     # BCEWithLogitsLoss = BCELoss + Sigmoid (numerically stable for mixed precision)
