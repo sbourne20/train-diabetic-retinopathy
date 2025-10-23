@@ -48,13 +48,13 @@ echo "     • Native 448×448 input (no downsampling artifacts)"
 echo "     • Detects small lesions (microaneurysms as small as 10-20 pixels)"
 echo "     • Better spatial resolution than 224×224 models"
 echo ""
-echo "📊 v1 CONFIGURATION - A10 40GB OPTIMIZED (HIGH PERFORMANCE):"
+echo "📊 v1 CONFIGURATION - A10 40GB MEMORY-OPTIMIZED:"
 echo "  Parameter          | Value                | Rationale"
 echo "  -------------------|----------------------|------------------"
 echo "  Image Size         | 448×448              | Native MedSigLIP resolution"
-echo "  Batch Size         | 4                    | Optimal for A10 40GB (balanced)"
-echo "  Gradient Accum     | 2                    | Effective batch = 8 (memory efficient)"
-echo "  Gradient Checkpoint| ✅ DISABLED          | Enough memory without checkpointing"
+echo "  Batch Size         | 2                    | Conservative for 40GB (MedSigLIP is large)"
+echo "  Gradient Accum     | 4                    | Effective batch = 8 (memory efficient)"
+echo "  Gradient Checkpoint| ✅ ENABLED           | Saves 30-40% memory (required)"
 echo "  Learning Rate      | 3e-5                 | Fine-tuning pre-trained medical model"
 echo "  Weight Decay       | 1e-4                 | Light regularization (already robust)"
 echo "  Dropout            | 0.25                 | Lower than CNNs (medical pre-training)"
@@ -92,14 +92,14 @@ echo "  - Feature Dim: 768 (high-capacity medical features)"
 echo "  - Freeze Strategy: Freeze early layers, fine-tune last 6 transformer blocks"
 echo "  - Requires: HUGGINGFACE_TOKEN in .env file"
 echo ""
-echo "⚙️  A10 40GB MEMORY OPTIMIZATION:"
-echo "  - Batch size: 4 (optimal for A10 - balanced speed/memory)"
-echo "  - Gradient accumulation: 2 (effective batch = 8)"
+echo "⚙️  A10 40GB MEMORY OPTIMIZATION (CONSERVATIVE):"
+echo "  - Batch size: 2 (conservative - MedSigLIP uses 43GB+ at batch=4)"
+echo "  - Gradient accumulation: 4 (effective batch = 8)"
 echo "  - Mixed precision: Automatic with PyTorch AMP (FP16 saves ~40% memory)"
-echo "  - Gradient checkpointing: ❌ DISABLED (not needed with 40GB)"
-echo "  - Memory: ~32-35GB VRAM usage (fits A10 40GB comfortably)"
-echo "  - Speed: ~4x faster than batch=1 configuration"
-echo "  - Training time: ~5-7 hours (balanced performance)"
+echo "  - Gradient checkpointing: ✅ ENABLED (saves 30-40% memory, required!)"
+echo "  - Memory: ~28-32GB VRAM usage (safe for 40GB GPU)"
+echo "  - Speed: ~2x slower than batch=4 but guaranteed to fit"
+echo "  - Training time: ~8-10 hours (slower but stable)"
 echo ""
 
 # Train 5-Class with MedSigLIP-448 (Medical Vision-Language Model)
@@ -111,8 +111,8 @@ python3 ensemble_5class_trainer.py \
     --base_models medsiglip_448 \
     --num_classes 5 \
     --img_size 448 \
-    --batch_size 4 \
-    --gradient_accumulation_steps 2 \
+    --batch_size 2 \
+    --gradient_accumulation_steps 4 \
     --epochs 100 \
     --learning_rate 3e-5 \
     --weight_decay 1e-4 \
