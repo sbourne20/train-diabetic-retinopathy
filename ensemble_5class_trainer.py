@@ -338,12 +338,15 @@ class MultiClassDRModel(nn.Module):
                 # Use full model - this matches the 1.3B parameter working checkpoint
                 num_features = self.backbone.config.vision_config.hidden_size
 
-                # 🔥 MEMORY OPTIMIZATION: Enable gradient checkpointing for MedSigLIP
-                if hasattr(self.backbone.vision_model, 'gradient_checkpointing_enable'):
-                    self.backbone.vision_model.gradient_checkpointing_enable()
-                    logger.info(f"✅ Loaded MedSigLIP-448 with GRADIENT CHECKPOINTING: {num_features} features (30-40% memory saving)")
-                else:
-                    logger.info(f"✅ Loaded MedSigLIP-448: {num_features} features")
+                # 🔥 MEMORY OPTIMIZATION: Gradient checkpointing (optional for >40GB GPUs)
+                # Disabled by default for A10/A100 40GB+ (faster training without checkpointing)
+                # Enable for <24GB GPUs by uncommenting the lines below:
+                # if hasattr(self.backbone.vision_model, 'gradient_checkpointing_enable'):
+                #     self.backbone.vision_model.gradient_checkpointing_enable()
+                #     logger.info(f"✅ Loaded MedSigLIP-448 with GRADIENT CHECKPOINTING: {num_features} features (30-40% memory saving)")
+                # else:
+                #     logger.info(f"✅ Loaded MedSigLIP-448: {num_features} features")
+                logger.info(f"✅ Loaded MedSigLIP-448: {num_features} features (Gradient checkpointing: DISABLED for speed)")
             except Exception as e:
                 raise ImportError(f"Failed to load MedSigLIP-448: {e}. Check HUGGINGFACE_TOKEN in .env file.")
         elif model_name == 'mobilenet_v2':
@@ -711,12 +714,15 @@ class BinaryClassifier(nn.Module):
                 # Use full model - this matches the 1.3B parameter working checkpoint
                 num_features = self.backbone.config.vision_config.hidden_size
 
-                # 🔥 MEMORY OPTIMIZATION: Enable gradient checkpointing for MedSigLIP
-                if hasattr(self.backbone.vision_model, 'gradient_checkpointing_enable'):
-                    self.backbone.vision_model.gradient_checkpointing_enable()
-                    logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier with GRADIENT CHECKPOINTING: {num_features} features (30-40% memory saving)")
-                else:
-                    logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier: {num_features} features")
+                # 🔥 MEMORY OPTIMIZATION: Gradient checkpointing (optional for >40GB GPUs)
+                # Disabled by default for A10/A100 40GB+ (faster training without checkpointing)
+                # Enable for <24GB GPUs by uncommenting the lines below:
+                # if hasattr(self.backbone.vision_model, 'gradient_checkpointing_enable'):
+                #     self.backbone.vision_model.gradient_checkpointing_enable()
+                #     logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier with GRADIENT CHECKPOINTING: {num_features} features (30-40% memory saving)")
+                # else:
+                #     logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier: {num_features} features")
+                logger.info(f"✅ Loaded MedSigLIP-448 Binary Classifier: {num_features} features (Gradient checkpointing: DISABLED for speed)")
             except Exception as e:
                 raise ImportError(f"Failed to load MedSigLIP-448: {e}. Check HUGGINGFACE_TOKEN in .env file.")
         elif model_name == 'mobilenet_v2':
@@ -1214,6 +1220,8 @@ def setup_ovo_experiment(args):
             'gradient_accumulation_steps': args.gradient_accumulation_steps,
             'max_grad_norm': args.max_grad_norm,
             'patience': args.patience,
+            'checkpoint_frequency': args.checkpoint_frequency,
+            'validation_frequency': args.validation_frequency,
             'enable_focal_loss': args.enable_focal_loss,
             'enable_class_weights': args.enable_class_weights,
             'focal_loss_alpha': args.focal_loss_alpha,
