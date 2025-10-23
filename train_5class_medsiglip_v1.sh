@@ -48,13 +48,14 @@ echo "     • Native 448×448 input (no downsampling artifacts)"
 echo "     • Detects small lesions (microaneurysms as small as 10-20 pixels)"
 echo "     • Better spatial resolution than 224×224 models"
 echo ""
-echo "📊 v1 CONFIGURATION - A10 40GB MEMORY-OPTIMIZED:"
+echo "📊 v1 CONFIGURATION - A10 47GB MEMORY-OPTIMIZED (OVO BINARY):"
 echo "  Parameter          | Value                | Rationale"
 echo "  -------------------|----------------------|------------------"
 echo "  Image Size         | 448×448              | Native MedSigLIP resolution"
-echo "  Batch Size         | 2                    | Conservative for 40GB (MedSigLIP is large)"
+echo "  Batch Size         | 2                    | OVO binary mode (each classifier loads full model)"
 echo "  Gradient Accum     | 4                    | Effective batch = 8 (memory efficient)"
 echo "  Gradient Checkpoint| ✅ ENABLED           | Saves 30-40% memory (required)"
+echo "  Mixed Precision    | ✅ FP16 AUTO         | Automatic mixed precision (saves 40%)"
 echo "  Learning Rate      | 3e-5                 | Fine-tuning pre-trained medical model"
 echo "  Weight Decay       | 1e-4                 | Light regularization (already robust)"
 echo "  Dropout            | 0.25                 | Lower than CNNs (medical pre-training)"
@@ -92,14 +93,14 @@ echo "  - Feature Dim: 768 (high-capacity medical features)"
 echo "  - Freeze Strategy: Freeze early layers, fine-tune last 6 transformer blocks"
 echo "  - Requires: HUGGINGFACE_TOKEN in .env file"
 echo ""
-echo "⚙️  A10 40GB MEMORY OPTIMIZATION (CONSERVATIVE):"
-echo "  - Batch size: 2 (conservative - MedSigLIP uses 43GB+ at batch=4)"
+echo "⚙️  A10 47GB MEMORY OPTIMIZATION (OVO BINARY MODE):"
+echo "  - Batch size: 2 (OVO trains 10 separate binary classifiers sequentially)"
 echo "  - Gradient accumulation: 4 (effective batch = 8)"
-echo "  - Mixed precision: Automatic with PyTorch AMP (FP16 saves ~40% memory)"
+echo "  - Mixed precision: ✅ FP16 auto (PyTorch AMP saves ~40% memory)"
 echo "  - Gradient checkpointing: ✅ ENABLED (saves 30-40% memory, required!)"
-echo "  - Memory: ~28-32GB VRAM usage (safe for 40GB GPU)"
-echo "  - Speed: ~2x slower than batch=4 but guaranteed to fit"
-echo "  - Training time: ~8-10 hours (slower but stable)"
+echo "  - Model loading: FP16 backbone (torch_dtype=float16, saves 50%)"
+echo "  - Memory per binary classifier: ~38-42GB VRAM (safe for 47GB GPU)"
+echo "  - Training time: ~15-20 hours (10 binary classifiers × 1.5-2 hours each)"
 echo ""
 
 # Train 5-Class with MedSigLIP-448 OVO Binary Classifiers (Medical Vision-Language Model)
@@ -112,7 +113,8 @@ python3 ensemble_5class_trainer.py \
     --base_models medsiglip_448 \
     --num_classes 5 \
     --img_size 448 \
-    --batch_size 8 \
+    --batch_size 2 \
+    --gradient_accumulation_steps 4 \
     --epochs 100 \
     --learning_rate 3e-5 \
     --weight_decay 1e-4 \
