@@ -135,7 +135,6 @@ python3 ensemble_5class_trainer.py \
     --max_grad_norm 1.0 \
     --label_smoothing 0.10 \
     --seed 42 \
-    --num_workers 2 \
     --resume
 
 echo ""
