@@ -361,6 +361,10 @@ class MultiClassDRModel(nn.Module):
             self.backbone = models.densenet121(pretrained=True)
             num_features = self.backbone.classifier.in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'resnet50':
+            self.backbone = models.resnet50(pretrained=True)
+            num_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
         elif model_name == 'efficientnetb2':
             self.backbone = models.efficientnet_b2(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
@@ -405,6 +409,11 @@ class MultiClassDRModel(nn.Module):
             elif model_name == 'densenet121':
                 for name, param in self.backbone.named_parameters():
                     if 'denseblock1' in name or 'denseblock2' in name:
+                        param.requires_grad = False
+            elif model_name == 'resnet50':
+                # Freeze first 2 layers (layer1, layer2), fine-tune layer3, layer4
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['layer1', 'layer2']):
                         param.requires_grad = False
             elif model_name == 'inception_v3':
                 for name, param in self.backbone.named_parameters():
@@ -744,6 +753,11 @@ class BinaryClassifier(nn.Module):
             # This reduces memory consumption during training
             self.backbone.features.memory_efficient = True
             logger.info(f"✅ DenseNet121 with memory-efficient mode enabled (saves GPU memory)")
+        elif model_name == 'resnet50':
+            self.backbone = models.resnet50(pretrained=True)
+            num_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
+            logger.info(f"✅ ResNet50 Binary Classifier: {num_features} features")
         elif model_name == 'efficientnetb2':
             self.backbone = models.efficientnet_b2(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
@@ -786,6 +800,13 @@ class BinaryClassifier(nn.Module):
                 # Freeze first 2 dense blocks, fine-tune last 2
                 for name, param in self.backbone.named_parameters():
                     if 'denseblock1' in name or 'denseblock2' in name:
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'resnet50':
+                # Freeze first 2 layers, fine-tune layer3, layer4
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['layer1', 'layer2']):
                         param.requires_grad = False
                     else:
                         param.requires_grad = True
