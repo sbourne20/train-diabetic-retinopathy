@@ -104,35 +104,35 @@ echo "  - Memory per binary classifier: ~24-28GB VRAM (now actually uses FP16!)"
 echo "  - Training time: ~15-20 hours (10 binary classifiers × 1.5-2 hours each)"
 echo ""
 
-# Train 5-Class with MedSigLIP-448 OVO Binary Classifiers (Medical Vision-Language Model)
-# Using ensemble_5class_trainer.py (OVO binary mode - compatible with DenseNet/EfficientNetB2)
-python3 ensemble_5class_trainer.py \
+# Train 5-Class with MedSigLIP-448 MULTI-CLASS (Memory Efficient for 47GB GPU)
+# Using ensemble_local_trainer.py (multi-class mode - fits in memory, works with backup config)
+# Output will be converted to OVO-compatible format for ensemble with DenseNet/EfficientNetB2
+python3 ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs_5class_balanced_enhanced_v2 \
     --output_dir ./medsiglip_5class_v1_results \
-    --experiment_name "5class_medsiglip448_v1_ovo" \
+    --experiment_name "5class_medsiglip448_v1_multiclass" \
     --base_models medsiglip_448 \
     --num_classes 5 \
     --img_size 448 \
-    --batch_size 2 \
-    --gradient_accumulation_steps 4 \
+    --batch_size 8 \
     --epochs 100 \
-    --learning_rate 3e-5 \
-    --weight_decay 1e-4 \
-    --ovo_dropout 0.25 \
+    --learning_rate 3e-4 \
+    --weight_decay 5e-5 \
+    --ovo_dropout 0.3 \
     --freeze_weights false \
-    --enable_clahe \
+    --enable_medical_augmentation \
+    --rotation_range 20.0 \
+    --brightness_range 0.15 \
+    --contrast_range 0.15 \
     --enable_focal_loss \
     --enable_class_weights \
-    --class_weight_0 1.0 \
-    --class_weight_1 1.0 \
-    --class_weight_2 1.0 \
-    --class_weight_3 1.0 \
-    --class_weight_4 1.0 \
-    --focal_loss_alpha 2.0 \
-    --focal_loss_gamma 2.5 \
+    --class_weight_severe 30.0 \
+    --class_weight_pdr 35.0 \
+    --focal_loss_alpha 2.5 \
+    --focal_loss_gamma 3.5 \
     --scheduler cosine \
-    --warmup_epochs 15 \
+    --warmup_epochs 10 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 30 \
@@ -140,13 +140,26 @@ python3 ensemble_5class_trainer.py \
     --target_accuracy 0.95 \
     --max_grad_norm 1.0 \
     --label_smoothing 0.08 \
-    --seed 42
+    --seed 42 \
+    --resume
 
 echo ""
-echo "✅ 5-CLASS MedSigLIP-448 MEDICAL VISION-LANGUAGE OVO ENSEMBLE training completed!"
+echo "✅ 5-CLASS MedSigLIP-448 MULTI-CLASS training completed!"
+echo ""
+echo "🔄 Converting multi-class model to OVO-compatible format for ensemble..."
+echo ""
+
+# Convert multi-class MedSigLIP to OVO-compatible format
+python3 convert_multiclass_to_ovo.py \
+    --multiclass_model ./medsiglip_5class_v1_results/models/best_medsiglip_448_multiclass.pth \
+    --output_dir ./medsiglip_5class_v1_results/models \
+    --num_classes 5
+
+echo ""
+echo "✅ Conversion complete! MedSigLIP now has OVO-compatible metadata"
 echo ""
 echo "📊 NEXT STEPS:"
-echo "  1. Analyze results: python model_analyzer.py --model ./medsiglip_5class_v1_results/models/*.pth"
-echo "  2. Compare with EfficientNetB2/ResNet50/DenseNet121 performance"
-echo "  3. Ensemble MedSigLIP + CNN models for maximum accuracy"
-echo "  4. Expected: MedSigLIP 95-97%+ individual → 97%+ multi-architecture ensemble"
+echo "  1. Analyze results: python model_analyzer.py --model ./medsiglip_5class_v1_results/models/best_medsiglip_448_multiclass.pth"
+echo "  2. Verify OVO compatibility: ls ./medsiglip_5class_v1_results/models/best_medsiglip_448_*_*.pth"
+echo "  3. Ensemble MedSigLIP + DenseNet + EfficientNetB2 for maximum accuracy"
+echo "  4. Expected: MedSigLIP 95-97%+ → Combined ensemble 96-98%+"

@@ -105,8 +105,8 @@ python3 ensemble_5class_trainer.py \
     --base_models efficientnetb2 \
     --num_classes 5 \
     --img_size 384 \
-    --batch_size 6 \
-    --gradient_accumulation_steps 1 \
+    --batch_size 4 \
+    --gradient_accumulation_steps 2 \
     --epochs 100 \
     --learning_rate 6e-5 \
     --weight_decay 2.2e-4 \
@@ -135,6 +135,7 @@ python3 ensemble_5class_trainer.py \
     --max_grad_norm 1.0 \
     --label_smoothing 0.10 \
     --seed 42 \
+    --num_workers 2 \
     --resume
 
 echo ""
