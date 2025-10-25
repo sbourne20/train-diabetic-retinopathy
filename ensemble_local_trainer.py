@@ -997,7 +997,7 @@ def train_multiclass_dr_model(model, train_loader, val_loader, config, model_nam
     else:
         # More patient plateau scheduler for imbalanced data
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='max', factor=0.7, patience=8, verbose=True
+            optimizer, mode='max', factor=0.7, patience=8
         )
         logger.info("✅ Using patient ReduceLROnPlateau for imbalanced data")
 
@@ -1223,7 +1223,7 @@ def train_binary_classifier(model, train_loader, val_loader, config, class_pair,
 
     # Learning rate scheduler for better convergence
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=3, verbose=True
+        optimizer, mode='max', factor=0.5, patience=3
     )
 
     # Training parameters
