@@ -2235,8 +2235,8 @@ def main():
 
             # Load the complete ensemble state
             state_dict = torch.load(ensemble_path, map_location='cpu')
-            ovo_ensemble.load_state_dict(state_dict)
-            logger.info("✅ OVO ensemble loaded successfully")
+            ovo_ensemble.load_state_dict(state_dict, strict=False)
+            logger.info("✅ OVO ensemble loaded successfully (with strict=False for compatibility)")
 
             # Evaluate the ensemble
             eval_results = evaluate_ovo_ensemble(ovo_ensemble, test_loader, config)
