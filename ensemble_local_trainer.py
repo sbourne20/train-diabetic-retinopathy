@@ -327,6 +327,14 @@ class MultiClassDRModel(nn.Module):
             self.backbone = models.efficientnet_b5(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'resnet50':
+            self.backbone = models.resnet50(pretrained=True)
+            num_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
+        elif model_name == 'seresnext50_32x4d':
+            self.backbone = models.resnext50_32x4d(pretrained=True)
+            num_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -362,6 +370,11 @@ class MultiClassDRModel(nn.Module):
                 # Freeze early blocks, fine-tune later blocks for EfficientNet-B5
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['features.0', 'features.1', 'features.2', 'features.3']):
+                        param.requires_grad = False
+            elif model_name in ['resnet50', 'seresnext50_32x4d']:
+                # Freeze early layers, fine-tune layer3 and layer4
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['layer1', 'layer2', 'conv1', 'bn1']):
                         param.requires_grad = False
 
         # EXTREME classifier head for severe class imbalance
@@ -546,6 +559,14 @@ class BinaryClassifier(nn.Module):
             self.backbone = models.efficientnet_b5(pretrained=True)
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
+        elif model_name == 'resnet50':
+            self.backbone = models.resnet50(pretrained=True)
+            num_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
+        elif model_name == 'seresnext50_32x4d':
+            self.backbone = models.resnext50_32x4d(pretrained=True)
+            num_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -592,6 +613,13 @@ class BinaryClassifier(nn.Module):
                 # Freeze early blocks, fine-tune later blocks for EfficientNet-B5
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['features.0', 'features.1', 'features.2', 'features.3']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name in ['resnet50', 'seresnext50_32x4d']:
+                # Freeze early layers, fine-tune layer3 and layer4
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['layer1', 'layer2', 'conv1', 'bn1']):
                         param.requires_grad = False
                     else:
                         param.requires_grad = True
