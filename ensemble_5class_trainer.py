@@ -782,6 +782,48 @@ class BinaryClassifier(nn.Module):
                 logger.info(f"✅ Loaded SEResNext50_32x4d with GRADIENT CHECKPOINTING: {num_features} features (40% memory saving)")
             else:
                 logger.info(f"✅ Loaded SEResNext50_32x4d Binary Classifier: {num_features} features (Winner's architecture)")
+        elif model_name == 'coatnet_0_rw_224':
+            # CoAtNet-0: Hybrid CNN + Transformer architecture (SOTA medical imaging)
+            if not TIMM_AVAILABLE:
+                raise ImportError("CoAtNet requires timm library. Install with: pip install timm")
+            self.backbone = timm.create_model('coatnet_0_rw_224', pretrained=True)
+            num_features = self.backbone.num_features
+            self.backbone.head = nn.Identity()
+
+            # Enable gradient checkpointing for memory efficiency
+            if hasattr(self.backbone, 'set_grad_checkpointing'):
+                self.backbone.set_grad_checkpointing(enable=True)
+                logger.info(f"✅ Loaded CoAtNet-0 with GRADIENT CHECKPOINTING: {num_features} features (Hybrid CNN+Transformer)")
+            else:
+                logger.info(f"✅ Loaded CoAtNet-0: {num_features} features (Hybrid CNN+Transformer architecture)")
+        elif model_name == 'convnext_tiny':
+            # ConvNeXt-Tiny: Modern CNN with Transformer-like design (SOTA CNN)
+            if not TIMM_AVAILABLE:
+                raise ImportError("ConvNeXt requires timm library. Install with: pip install timm")
+            self.backbone = timm.create_model('convnext_tiny', pretrained=True)
+            num_features = self.backbone.num_features
+            self.backbone.head = nn.Identity()
+
+            # Enable gradient checkpointing
+            if hasattr(self.backbone, 'set_grad_checkpointing'):
+                self.backbone.set_grad_checkpointing(enable=True)
+                logger.info(f"✅ Loaded ConvNeXt-Tiny with GRADIENT CHECKPOINTING: {num_features} features (Modern CNN)")
+            else:
+                logger.info(f"✅ Loaded ConvNeXt-Tiny: {num_features} features (Modern CNN with Transformer design)")
+        elif model_name == 'swinv2_tiny_window8_256':
+            # Swin Transformer V2-Tiny: Hierarchical vision transformer (multi-scale)
+            if not TIMM_AVAILABLE:
+                raise ImportError("Swin Transformer requires timm library. Install with: pip install timm")
+            self.backbone = timm.create_model('swinv2_tiny_window8_256', pretrained=True)
+            num_features = self.backbone.num_features
+            self.backbone.head = nn.Identity()
+
+            # Enable gradient checkpointing
+            if hasattr(self.backbone, 'set_grad_checkpointing'):
+                self.backbone.set_grad_checkpointing(enable=True)
+                logger.info(f"✅ Loaded SwinV2-Tiny with GRADIENT CHECKPOINTING: {num_features} features (Transformer)")
+            else:
+                logger.info(f"✅ Loaded SwinV2-Tiny: {num_features} features (Hierarchical Vision Transformer)")
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -842,6 +884,27 @@ class BinaryClassifier(nn.Module):
                 # Freeze first 2 layers, fine-tune later layers for SEResNext
                 for name, param in self.backbone.named_parameters():
                     if any(x in name for x in ['layer1', 'layer2']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'coatnet_0_rw_224':
+                # CoAtNet: Freeze early stages, fine-tune later (hybrid architecture)
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['stages.0', 'stages.1']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True  # Fine-tune later stages (transformer blocks)
+            elif model_name == 'convnext_tiny':
+                # ConvNeXt: Freeze first 2 stages, fine-tune later stages
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['stages.0', 'stages.1']):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+            elif model_name == 'swinv2_tiny_window8_256':
+                # Swin Transformer: Freeze first 2 layers, fine-tune later layers
+                for name, param in self.backbone.named_parameters():
+                    if any(x in name for x in ['layers.0', 'layers.1']):
                         param.requires_grad = False
                     else:
                         param.requires_grad = True
