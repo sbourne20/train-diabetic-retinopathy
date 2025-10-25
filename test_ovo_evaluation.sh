@@ -1,14 +1,16 @@
 #!/bin/bash
 
-# Test OVO Ensemble Evaluation with Fixed Checkpoint Loading
-echo "🧪 Testing OVO Ensemble Evaluation Fix"
-echo "======================================"
+# Evaluate SEResNeXt50 OVO Ensemble on Test Set
+echo "🧪 Evaluating SEResNeXt50 OVO Ensemble on Test Set"
+echo "===================================================="
 
-python ensemble_local_trainer.py \
+python3 ensemble_local_trainer.py \
     --mode evaluate \
-    --dataset_path ./dataset6 \
-    --output_dir ./ovo_ensemble_results \
-    --img_size 299 \
-    --base_models mobilenet_v2 inception_v3 densenet121 \
-    --experiment_name ovo_evaluation_test \
+    --dataset_path ./dataset_eyepacs_5class_balanced_enhanced_v2 \
+    --output_dir ./v2.5-model-dr/seresnext50_5class_results \
+    --img_size 224 \
+    --batch_size 2 \
+    --base_models seresnext50_32x4d \
+    --num_classes 5 \
+    --experiment_name 5class_seresnext50_32x4d_evaluation \
     --seed 42
