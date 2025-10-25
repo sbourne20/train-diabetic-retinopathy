@@ -6,7 +6,7 @@ echo "==========================================================================
 
 python3 test_binary_classifiers.py \
     --models_dir ./seresnext50_5class_results/models \
-    --dataset_path ./dataset3_augmented_resized \
+    --dataset_path ./dataset_eyepacs_5class_balanced_enhanced_v2 \
     --img_size 224 \
     --output ./seresnext50_5class_results/binary_test_results.json 2>&1 | tee binary_classifier_test_log.txt
 
