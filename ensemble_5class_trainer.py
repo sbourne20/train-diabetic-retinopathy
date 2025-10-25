@@ -1101,12 +1101,11 @@ class OVOEnsemble(nn.Module):
                     individual_predictions[model_name][:, class_a] += prob_class_a
                     individual_predictions[model_name][:, class_b] += prob_class_b
 
-        # FIXED: Proper normalization and softmax
+        # FIXED: Proper normalization (return as logits, not softmax)
         normalized_scores = class_scores / (total_weights + 1e-8)
-        final_predictions = F.softmax(normalized_scores, dim=1)
 
         result = {
-            'logits': final_predictions,
+            'logits': normalized_scores,  # Return raw scores as logits
             'votes': class_scores
         }
 
