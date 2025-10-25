@@ -110,9 +110,9 @@ python3 ensemble_5class_trainer.py \
     --experiment_name "5class_seresnext50_32x4d" \
     --base_models seresnext50_32x4d \
     --num_classes 5 \
-    --img_size 384 \
-    --batch_size 3 \
-    --gradient_accumulation_steps 3 \
+    --img_size 224 \
+    --batch_size 2 \
+    --gradient_accumulation_steps 4 \
     --epochs 100 \
     --learning_rate 5e-5 \
     --weight_decay 2.5e-4 \
