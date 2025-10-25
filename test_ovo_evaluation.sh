@@ -14,4 +14,4 @@ python3 ensemble_local_trainer.py \
     --num_classes 5 \
     --experiment_name 5class_seresnext50_32x4d_evaluation \
     --seed 42 \
-    --unfreeze_backbone 2>&1 | tee evaluation_log.txt
+    --freeze_weights false 2>&1 | tee evaluation_log.txt
