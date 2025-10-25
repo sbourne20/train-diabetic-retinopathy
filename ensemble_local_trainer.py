@@ -2143,49 +2143,27 @@ def main():
     # Execute based on mode
     try:
         if args.mode == 'train':
-            # Determine training type based on configuration
-            is_single_model = len(config['model']['base_models']) == 1
-            dataset_name = Path(config['data']['dataset_path']).name.lower()
+            # FORCE OVO TRAINING FOR ALL 5-CLASS DATASETS
+            # This ensures compatibility with existing trained models (EfficientNetB2, ResNet50, DenseNet121, SEResNeXt50)
+            logger.info("🔢 Using OVO ensemble training for 5-class DR classification")
+            final_results = run_ovo_pipeline(config)
 
-            if is_single_model:
-                # APTOS multi-class training (research-validated 92% approach)
-                logger.info("🔬 Detected single model dataset - using multi-class training")
-                final_results = train_aptos_multiclass(config)
+            logger.info("✅ OVO ensemble training and evaluation completed successfully!")
 
-                logger.info("✅ APTOS multi-class training completed!")
+            # Display final summary
+            logger.info("\n" + "=" * 60)
+            logger.info("🏆 OVO ENSEMBLE RESULTS SUMMARY")
+            logger.info("=" * 60)
 
-                # Display final summary
-                logger.info("\n" + "=" * 60)
-                logger.info("🏆 APTOS 2019 RESULTS SUMMARY")
-                logger.info("=" * 60)
+            eval_results = final_results['evaluation_results']
+            logger.info(f"🎯 Ensemble Accuracy: {eval_results['ensemble_accuracy']:.4f} ({eval_results['ensemble_accuracy']*100:.2f}%)")
+            logger.info(f"🏥 Medical Grade: {'✅ PASS' if eval_results['medical_grade_pass'] else '❌ FAIL'} (≥90% required)")
+            logger.info(f"📊 Research Target: {'✅ ACHIEVED' if eval_results['research_target_achieved'] else '❌ NOT ACHIEVED'} ({config['system']['target_accuracy']:.2%} target)")
 
-                logger.info(f"🎯 Best Val Accuracy: {final_results['best_val_accuracy']:.4f} ({final_results['best_val_accuracy']*100:.2f}%)")
-                logger.info(f"🎯 Test Accuracy: {final_results['test_accuracy']:.4f} ({final_results['test_accuracy']*100:.2f}%)")
-                logger.info(f"🏥 Medical Grade: {'✅ PASS' if final_results['medical_grade_pass'] else '❌ FAIL'} (≥90% required)")
-                logger.info(f"📊 Research Target: {'✅ ACHIEVED' if final_results['target_achieved'] else '❌ NOT ACHIEVED'} ({config['system']['target_accuracy']:.1%} target)")
-                logger.info(f"🏗️ Model: {final_results['model_name']}")
-
-            else:
-                # OVO ensemble training for multiple models
-                logger.info("🔢 Detected multi-model configuration - using OVO ensemble training")
-                final_results = run_ovo_pipeline(config)
-
-                logger.info("✅ OVO ensemble training and evaluation completed successfully!")
-
-                # Display final summary
-                logger.info("\n" + "=" * 60)
-                logger.info("🏆 OVO ENSEMBLE RESULTS SUMMARY")
-                logger.info("=" * 60)
-
-                eval_results = final_results['evaluation_results']
-                logger.info(f"🎯 Ensemble Accuracy: {eval_results['ensemble_accuracy']:.4f} ({eval_results['ensemble_accuracy']*100:.2f}%)")
-                logger.info(f"🏥 Medical Grade: {'✅ PASS' if eval_results['medical_grade_pass'] else '❌ FAIL'} (≥90% required)")
-                logger.info(f"📊 Research Target: {'✅ ACHIEVED' if eval_results['research_target_achieved'] else '❌ NOT ACHIEVED'} ({config['system']['target_accuracy']:.2%} target)")
-
-                # Show individual model performance
-                logger.info("\n📊 Individual Model Performance:")
-                for model_name, accuracy in eval_results['individual_accuracies'].items():
-                    logger.info(f"   {model_name.capitalize()}: {accuracy:.4f} ({accuracy*100:.2f}%)")
+            # Show individual model performance
+            logger.info("\n📊 Individual Model Performance:")
+            for model_name, accuracy in eval_results['individual_accuracies'].items():
+                logger.info(f"   {model_name.capitalize()}: {accuracy:.4f} ({accuracy*100:.2f}%)")
 
         elif args.mode == 'evaluate':
             # Load and evaluate existing OVO ensemble

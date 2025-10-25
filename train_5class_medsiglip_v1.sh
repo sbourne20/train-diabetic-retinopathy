@@ -104,14 +104,14 @@ echo "  - Memory per binary classifier: ~24-28GB VRAM (now actually uses FP16!)"
 echo "  - Training time: ~15-20 hours (10 binary classifiers × 1.5-2 hours each)"
 echo ""
 
-# Train 5-Class with MedSigLIP-448 MULTI-CLASS (Memory Efficient for 47GB GPU)
-# Using ensemble_local_trainer.py (multi-class mode - fits in memory, works with backup config)
-# Output will be converted to OVO-compatible format for ensemble with DenseNet/EfficientNetB2
+# Train 5-Class with MedSigLIP-448 OVO ENSEMBLE (10 Binary Classifiers)
+# Using ensemble_local_trainer.py (OVO mode - same as EfficientNetB2/ResNet50/DenseNet121)
+# Output will be fully compatible with existing OVO models for meta-ensemble
 python3 ensemble_local_trainer.py \
     --mode train \
     --dataset_path ./dataset_eyepacs_5class_balanced_enhanced_v2 \
     --output_dir ./medsiglip_5class_v1_results \
-    --experiment_name "5class_medsiglip448_v1_multiclass" \
+    --experiment_name "5class_medsiglip448_v1_ovo" \
     --base_models medsiglip_448 \
     --num_classes 5 \
     --img_size 448 \
@@ -144,22 +144,10 @@ python3 ensemble_local_trainer.py \
     --resume
 
 echo ""
-echo "✅ 5-CLASS MedSigLIP-448 MULTI-CLASS training completed!"
-echo ""
-echo "🔄 Converting multi-class model to OVO-compatible format for ensemble..."
-echo ""
-
-# Convert multi-class MedSigLIP to OVO-compatible format
-python3 convert_multiclass_to_ovo.py \
-    --multiclass_model ./medsiglip_5class_v1_results/models/best_medsiglip_448_multiclass.pth \
-    --output_dir ./medsiglip_5class_v1_results/models \
-    --num_classes 5
-
-echo ""
-echo "✅ Conversion complete! MedSigLIP now has OVO-compatible metadata"
+echo "✅ 5-CLASS MedSigLIP-448 OVO ENSEMBLE training completed!"
 echo ""
 echo "📊 NEXT STEPS:"
-echo "  1. Analyze results: python model_analyzer.py --model ./medsiglip_5class_v1_results/models/best_medsiglip_448_multiclass.pth"
-echo "  2. Verify OVO compatibility: ls ./medsiglip_5class_v1_results/models/best_medsiglip_448_*_*.pth"
-echo "  3. Ensemble MedSigLIP + DenseNet + EfficientNetB2 for maximum accuracy"
+echo "  1. Analyze results: python analyze_ovo_with_metrics.py"
+echo "  2. Verify OVO models: ls ./medsiglip_5class_v1_results/models/best_medsiglip_448_*_*.pth"
+echo "  3. Meta-ensemble: Combine MedSigLIP + DenseNet + EfficientNetB2 + ResNet50"
 echo "  4. Expected: MedSigLIP 95-97%+ → Combined ensemble 96-98%+"
