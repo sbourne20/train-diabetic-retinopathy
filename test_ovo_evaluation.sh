@@ -7,7 +7,7 @@ echo "===================================================="
 python3 ensemble_local_trainer.py \
     --mode evaluate \
     --dataset_path ./dataset_eyepacs_5class_balanced_enhanced_v2 \
-    --output_dir ./v2.5-model-dr/seresnext50_5class_results \
+    --output_dir ./seresnext50_5class_results \
     --img_size 224 \
     --batch_size 2 \
     --base_models seresnext50_32x4d \
