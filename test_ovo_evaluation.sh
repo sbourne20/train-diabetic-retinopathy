@@ -13,4 +13,4 @@ python3 ensemble_local_trainer.py \
     --base_models seresnext50_32x4d \
     --num_classes 5 \
     --experiment_name 5class_seresnext50_32x4d_evaluation \
-    --seed 42
+    --seed 42 2>&1 | tee evaluation_log.txt
