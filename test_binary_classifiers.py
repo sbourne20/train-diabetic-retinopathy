@@ -217,6 +217,9 @@ def test_all_binary_classifiers(models_dir, dataset_path, enable_clahe=False, im
                 epoch = checkpoint.get('epoch', 'unknown')
                 logger.info(f"  Checkpoint epoch: {epoch}")
                 if val_accuracy is not None:
+                    # Convert from percentage to decimal if needed (checkpoint stores as percentage)
+                    if val_accuracy > 1.0:
+                        val_accuracy = val_accuracy / 100.0
                     logger.info(f"  Val Accuracy: {val_accuracy*100:.2f}%")
 
             # Create binary dataset (only class_0 and class_1)
