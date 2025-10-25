@@ -114,25 +114,25 @@ python3 ensemble_local_trainer.py \
     --experiment_name "5class_medsiglip448_v1_ovo" \
     --base_models medsiglip_448 \
     --num_classes 5 \
-    --img_size 448 \
-    --batch_size 8 \
+    --img_size 384 \
+    --batch_size 1 \
+    --gradient_accumulation_steps 8 \
     --epochs 100 \
-    --learning_rate 3e-4 \
-    --weight_decay 5e-5 \
-    --ovo_dropout 0.3 \
-    --freeze_weights false \
+    --learning_rate 3e-5 \
+    --weight_decay 1e-4 \
+    --ovo_dropout 0.25 \
+    --freeze_weights true \
+    --enable_gradient_checkpointing \
     --enable_medical_augmentation \
     --rotation_range 20.0 \
     --brightness_range 0.15 \
     --contrast_range 0.15 \
     --enable_focal_loss \
     --enable_class_weights \
-    --class_weight_severe 30.0 \
-    --class_weight_pdr 35.0 \
-    --focal_loss_alpha 2.5 \
-    --focal_loss_gamma 3.5 \
+    --focal_loss_alpha 2.0 \
+    --focal_loss_gamma 2.5 \
     --scheduler cosine \
-    --warmup_epochs 10 \
+    --warmup_epochs 15 \
     --validation_frequency 1 \
     --checkpoint_frequency 5 \
     --patience 30 \
