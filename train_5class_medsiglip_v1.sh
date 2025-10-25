@@ -122,7 +122,6 @@ python3 ensemble_local_trainer.py \
     --weight_decay 1e-4 \
     --ovo_dropout 0.25 \
     --freeze_weights true \
-    --enable_gradient_checkpointing \
     --enable_medical_augmentation \
     --rotation_range 20.0 \
     --brightness_range 0.15 \
