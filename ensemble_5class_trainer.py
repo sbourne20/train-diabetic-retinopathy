@@ -1115,21 +1115,21 @@ class OVOEnsemble(nn.Module):
                 binary_logits = classifier(x).squeeze()
                 if binary_logits.dim() == 0:
                     binary_logits = binary_logits.unsqueeze(0)
-                binary_output = torch.sigmoid(binary_logits)  # Convert logits to probabilities
 
-                # FIXED: Simplified accuracy-based weighting (avoid over-multiplication)
-                # Use accuracy directly as weight, no exponential scaling
-                base_accuracy = binary_accuracies.get(model_name, {}).get(classifier_name, 0.8)
-                accuracy_weight = base_accuracy if base_accuracy > 0.5 else 0.5
+                # CRITICAL FIX: Apply temperature scaling to combat overfitting
+                # Temperature=2.0 smooths over-confident predictions
+                temperature = 2.0
+                calibrated_logits = binary_logits / temperature
+                binary_output = torch.sigmoid(calibrated_logits)
 
-                # FIXED: Simple confidence calculation
-                confidence = torch.abs(binary_output - 0.5) * 2  # 0 to 1 scale
+                # Clip extreme probabilities to prevent voting collapse
+                binary_output = torch.clamp(binary_output, 0.05, 0.95)
 
-                # FIXED: Combined weight (just multiply once)
-                final_weight = accuracy_weight * (0.5 + 0.5 * confidence)  # Weight between accuracy*0.5 and accuracy*1.0
+                # CRITICAL: Use equal weighting for all pairs
+                # All binary classifiers have >98% accuracy, so don't over-weight high accuracy
+                final_weight = torch.ones_like(binary_output)
 
                 # FIXED: Simple voting - binary_output > 0.5 means class_b wins
-                # Vote strength proportional to confidence and accuracy
                 vote_strength_a = (1.0 - binary_output) * final_weight
                 vote_strength_b = binary_output * final_weight
 
