@@ -2297,6 +2297,15 @@ def evaluate_ovo_ensemble(ovo_ensemble, test_loader, config):
     # Calculate ensemble metrics
     ensemble_accuracy = accuracy_score(all_targets, all_predictions)
 
+    # DEBUG: Print actual accuracy calculation
+    import sys
+    print(f"\n🔍 DEBUG ENSEMBLE ACCURACY:", file=sys.stderr)
+    print(f"   Total samples: {len(all_targets)}", file=sys.stderr)
+    print(f"   Correct predictions: {(all_targets == all_predictions).sum()}", file=sys.stderr)
+    print(f"   Calculated accuracy: {ensemble_accuracy:.4f} ({ensemble_accuracy*100:.2f}%)", file=sys.stderr)
+    print(f"   First 10 predictions: {all_predictions[:10]}", file=sys.stderr)
+    print(f"   First 10 targets: {all_targets[:10]}\n", file=sys.stderr)
+
     # Calculate precision, recall, F1-score for ensemble (weighted average)
     precision, recall, f1, _ = precision_recall_fscore_support(
         all_targets, all_predictions, average='weighted', zero_division=0
