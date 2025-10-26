@@ -1128,41 +1128,32 @@ class OVOEnsemble(nn.Module):
                 if base_accuracy > 0.95:
                     accuracy_weight *= 1.5  # Boost excellent classifiers
 
-                # FIXED: Confidence-based weighting
-                confidence = torch.abs(binary_output - 0.5) * 2
-                weighted_confidence = confidence * accuracy_weight
+                # FIXED: Simplified accuracy-based weighting (avoid over-multiplication)
+                # Use accuracy directly as weight, no exponential scaling
+                accuracy_weight = base_accuracy if base_accuracy > 0.5 else 0.5
 
-                # FIXED: Medical-grade class weighting for 5-class
-                class_a_weight = class_weights[class_a]
-                class_b_weight = class_weights[class_b]
+                # FIXED: Simple confidence calculation
+                confidence = torch.abs(binary_output - 0.5) * 2  # 0 to 1 scale
 
-                # PDR (class 4) critical class boost for medical safety
-                if classifier_name in pdr_pairs:
-                    if class_a == 4:
-                        class_a_weight *= 1.5  # Boost PDR detection
-                    if class_b == 4:
-                        class_b_weight *= 1.5  # Boost PDR detection
+                # FIXED: Combined weight (just multiply once)
+                final_weight = accuracy_weight * (0.5 + 0.5 * confidence)  # Weight between accuracy*0.5 and accuracy*1.0
 
-                # Severe NPDR (class 3) boost for medical safety
-                if classifier_name in severe_npdr_pairs:
-                    if class_a == 3:
-                        class_a_weight *= 1.2  # Boost Severe NPDR detection
-                    if class_b == 3:
-                        class_b_weight *= 1.2  # Boost Severe NPDR detection
+                # FIXED: Simple voting - binary_output > 0.5 means class_b wins
+                # Vote strength proportional to confidence and accuracy
+                vote_strength_a = (1.0 - binary_output) * final_weight
+                vote_strength_b = binary_output * final_weight
 
-                # FIXED: Probability-based voting
-                prob_class_a = (1.0 - binary_output) * class_a_weight * weighted_confidence
-                prob_class_b = binary_output * class_b_weight * weighted_confidence
+                # Accumulate votes
+                class_scores[:, class_a] += vote_strength_a
+                class_scores[:, class_b] += vote_strength_b
 
-                class_scores[:, class_a] += prob_class_a
-                class_scores[:, class_b] += prob_class_b
-
-                total_weights[:, class_a] += class_a_weight * weighted_confidence
-                total_weights[:, class_b] += class_b_weight * weighted_confidence
+                # Track total weights for normalization
+                total_weights[:, class_a] += final_weight
+                total_weights[:, class_b] += final_weight
 
                 if return_individual:
-                    individual_predictions[model_name][:, class_a] += prob_class_a
-                    individual_predictions[model_name][:, class_b] += prob_class_b
+                    individual_predictions[model_name][:, class_a] += vote_strength_a
+                    individual_predictions[model_name][:, class_b] += vote_strength_b
 
         # FIXED: Proper normalization (return as logits, not softmax)
         normalized_scores = class_scores / (total_weights + 1e-8)
