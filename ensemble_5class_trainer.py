@@ -1117,19 +1117,9 @@ class OVOEnsemble(nn.Module):
                     binary_logits = binary_logits.unsqueeze(0)
                 binary_output = torch.sigmoid(binary_logits)  # Convert logits to probabilities
 
-                # FIXED: Accuracy-based weighting
-                base_accuracy = binary_accuracies.get(model_name, {}).get(classifier_name, 0.8)
-
-                if (model_name, classifier_name) in weak_classifiers:
-                    accuracy_weight = (base_accuracy ** 4) * 0.5  # Penalty
-                else:
-                    accuracy_weight = base_accuracy ** 2
-
-                if base_accuracy > 0.95:
-                    accuracy_weight *= 1.5  # Boost excellent classifiers
-
                 # FIXED: Simplified accuracy-based weighting (avoid over-multiplication)
                 # Use accuracy directly as weight, no exponential scaling
+                base_accuracy = binary_accuracies.get(model_name, {}).get(classifier_name, 0.8)
                 accuracy_weight = base_accuracy if base_accuracy > 0.5 else 0.5
 
                 # FIXED: Simple confidence calculation
