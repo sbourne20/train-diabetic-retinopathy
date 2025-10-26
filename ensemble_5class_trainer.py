@@ -1116,47 +1116,35 @@ class OVOEnsemble(nn.Module):
                 if binary_logits.dim() == 0:
                     binary_logits = binary_logits.unsqueeze(0)
 
-                # CRITICAL FIX: Apply temperature scaling to combat overfitting
-                # Temperature=2.0 smooths over-confident predictions
-                temperature = 2.0
-                calibrated_logits = binary_logits / temperature
-                binary_output = torch.sigmoid(calibrated_logits)
+                # Get binary prediction - NO temperature scaling, use raw probabilities
+                binary_output = torch.sigmoid(binary_logits)
 
-                # Clip extreme probabilities to prevent voting collapse
-                binary_output = torch.clamp(binary_output, 0.05, 0.95)
+                # CRITICAL FIX: Simple majority voting
+                # If binary_output > 0.5, class_b gets 1 vote, otherwise class_a gets 1 vote
+                # This is the standard OVO voting - each pair contributes exactly 1 vote
 
-                # CRITICAL: Use equal weighting for all pairs
-                # All binary classifiers have >98% accuracy, so don't over-weight high accuracy
-                final_weight = torch.ones_like(binary_output)
+                # Vote allocation: winner takes 1.0, loser gets 0.0
+                vote_for_a = (binary_output <= 0.5).float()
+                vote_for_b = (binary_output > 0.5).float()
 
-                # FIXED: Simple voting - binary_output > 0.5 means class_b wins
-                vote_strength_a = (1.0 - binary_output) * final_weight
-                vote_strength_b = binary_output * final_weight
-
-                # Accumulate votes
-                class_scores[:, class_a] += vote_strength_a
-                class_scores[:, class_b] += vote_strength_b
-
-                # Track total weights for normalization
-                total_weights[:, class_a] += final_weight
-                total_weights[:, class_b] += final_weight
+                # Accumulate votes (simple counting)
+                class_scores[:, class_a] += vote_for_a
+                class_scores[:, class_b] += vote_for_b
 
                 if return_individual:
-                    individual_predictions[model_name][:, class_a] += vote_strength_a
-                    individual_predictions[model_name][:, class_b] += vote_strength_b
+                    individual_predictions[model_name][:, class_a] += vote_for_a
+                    individual_predictions[model_name][:, class_b] += vote_for_b
 
-        # FIXED: Proper normalization (return as logits, not softmax)
-        normalized_scores = class_scores / (total_weights + 1e-8)
+        # CRITICAL FIX: Use raw vote counts as logits (NO normalization needed)
+        # With 5 classes, each class appears in exactly 4 pairs, so max votes = 4
+        # The class with most votes wins (argmax)
 
         result = {
-            'logits': normalized_scores,  # Return raw scores as logits
+            'logits': class_scores,  # Raw vote counts
             'votes': class_scores
         }
 
         if return_individual:
-            for model_name in individual_predictions:
-                model_weights = total_weights / len(self.base_models)
-                individual_predictions[model_name] = individual_predictions[model_name] / (model_weights + 1e-8)
             result['individual_predictions'] = individual_predictions
 
         return result
